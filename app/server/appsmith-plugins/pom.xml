@@ -17,7 +17,7 @@
         <module>postgresPlugin</module>
         <module>restApiPlugin</module>
         <module>mongoPlugin</module>
-        <module>rapidApiPlugin</module>
+<!--        <module>rapidApiPlugin</module>-->
         <module>mysqlPlugin</module>
         <module>elasticSearchPlugin</module>
         <module>dynamoPlugin</module>
@@ -27,5 +27,6 @@
         <module>redshiftPlugin</module>
         <module>amazons3Plugin</module>
         <module>googleSheetsPlugin</module>
+        <module>sshPlugin</module>
     </modules>
 </project>
