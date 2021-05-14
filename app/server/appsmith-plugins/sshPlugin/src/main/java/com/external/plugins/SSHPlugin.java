@@ -22,6 +22,9 @@ import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
 
 import java.io.IOException;
+import java.security.KeyPair;
+import java.security.PrivateKey;
+import java.security.PublicKey;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
@@ -76,6 +79,10 @@ public class SSHPlugin extends BasePlugin {
                 Session session = null;
                 DBAuth auth = (DBAuth) datasourceConfiguration.getAuthentication();
                 ssh.authPassword(auth.getUsername(), auth.getPassword());
+                PublicKey publicKey;
+                PrivateKey privateKey;
+//                KeyPair keyPair = new KeyPair(publicKey, privateKey);
+//                ssh.authPublickey();
                 session = ssh.startSession();
                 System.out.println("Started session");
 
