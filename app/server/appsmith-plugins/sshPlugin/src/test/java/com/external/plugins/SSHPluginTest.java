@@ -5,7 +5,10 @@ import com.appsmith.external.models.ActionExecutionResult;
 import com.appsmith.external.models.DBAuth;
 import com.appsmith.external.models.DatasourceConfiguration;
 import com.appsmith.external.models.Endpoint;
-import net.schmizz.sshj.connection.channel.direct.Session;
+import com.appsmith.external.models.SSHConnection;
+import com.appsmith.external.models.SSHPrivateKey;
+import com.appsmith.external.models.UploadedFile;
+import com.jcraft.jsch.Session;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -17,7 +20,6 @@ import reactor.test.StepVerifier;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 public class SSHPluginTest {
@@ -25,6 +27,8 @@ public class SSHPluginTest {
     private static Integer port;
     private static final String USERNAME = "root";
     private static final String PASSWORD = "root";
+//    private static final String USERNAME = "arpit";
+//    private static final String PASSWORD = "root";
 
         @ClassRule
     // Working!
@@ -84,7 +88,7 @@ public class SSHPluginTest {
         sshServer.stop();
     }
 
-    private DatasourceConfiguration createDatasourceConfiguration() {
+    private DatasourceConfiguration createDSConfigurationForPasswordLogin() {
         Endpoint endpoint = new Endpoint();
         endpoint.setHost(host);
         endpoint.setPort(Long.valueOf(port));
@@ -98,15 +102,34 @@ public class SSHPluginTest {
         return datasourceConfiguration;
     }
 
+    private DatasourceConfiguration createDSConfigurationForKeyLogin() {
+        Endpoint endpoint = new Endpoint();
+        endpoint.setHost(host);
+        endpoint.setPort(Long.valueOf(port));
+        SSHConnection sshConnection = new SSHConnection();
+        sshConnection.setUsername(USERNAME);
+        sshConnection.setAuthType(SSHConnection.AuthType.IDENTITY_FILE);
+        String privateKey = "user's private key here";
+        sshConnection.setPrivateKey(new SSHPrivateKey(new UploadedFile("privateKey", privateKey), null));
+        DBAuth dbAuth = new DBAuth();
+        dbAuth.setUsername(USERNAME);
+        dbAuth.setPassword(PASSWORD);
+        DatasourceConfiguration datasourceConfiguration = new DatasourceConfiguration();
+        datasourceConfiguration.setEndpoints(Collections.singletonList(endpoint));
+        datasourceConfiguration.setAuthentication(dbAuth);
+
+        return datasourceConfiguration;
+    }
+
     @Test
     public void itShouldCreateDatasource() {
-        DatasourceConfiguration datasourceConfiguration = createDatasourceConfiguration();
+        DatasourceConfiguration datasourceConfiguration = createDSConfigurationForPasswordLogin();
         Mono<Session> dsMono = pluginExecutor.datasourceCreate(datasourceConfiguration).cache();
 
         StepVerifier.create(dsMono)
                 .assertNext(session -> {
                     Assert.assertNotNull(session);
-                    Assert.assertTrue(session.isOpen());
+                    Assert.assertTrue(session.isConnected());
                 })
                 .verifyComplete();
 
@@ -115,7 +138,7 @@ public class SSHPluginTest {
 
     @Test
     public void executeTest() {
-        DatasourceConfiguration datasourceConfiguration = createDatasourceConfiguration();
+        DatasourceConfiguration datasourceConfiguration = createDSConfigurationForPasswordLogin();
         ActionConfiguration actionConfiguration = new ActionConfiguration();
         actionConfiguration.setTimeoutInMillisecond("50000");
         actionConfiguration.setBody("echo 'hello world'");

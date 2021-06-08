@@ -46,18 +46,28 @@
         </dependency>
 
 
+<!--        <dependency>-->
+<!--            <groupId>com.jcraft</groupId>-->
+<!--            <artifactId>jsch</artifactId>-->
+<!--            <version>0.1.55</version>-->
+<!--        </dependency>-->
         <dependency>
-            <groupId>com.hierynomus</groupId>
-            <artifactId>sshj</artifactId>
-            <version>0.31.0</version>
-            <exclusions>
-                <exclusion>
-                    <groupId>org.slf4j</groupId>
-                    <artifactId>slf4j-api</artifactId>
-                </exclusion>
-            </exclusions>
-
+            <groupId>com.github.mwiede</groupId>
+            <artifactId>jsch</artifactId>
+            <version>0.1.61</version>
         </dependency>
+<!--        <dependency>-->
+<!--            <groupId>com.hierynomus</groupId>-->
+<!--            <artifactId>sshj</artifactId>-->
+<!--            <version>0.31.0</version>-->
+<!--            <exclusions>-->
+<!--                <exclusion>-->
+<!--                    <groupId>org.slf4j</groupId>-->
+<!--                    <artifactId>slf4j-api</artifactId>-->
+<!--                </exclusion>-->
+<!--            </exclusions>-->
+
+<!--        </dependency>-->
         <!-- Test Dependencies -->
 <!--        <dependency>-->
 <!--            <groupId>org.apache.sshd</groupId>-->
