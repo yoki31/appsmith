@@ -8,6 +8,7 @@ const STORAGE_KEYS: { [id: string]: string } = {
   COPIED_WIDGET: "CopiedWidget",
   DELETED_WIDGET_PREFIX: "DeletedWidget-",
   ONBOARDING_STATE: "OnboardingState",
+  SG_ONBOARDING_STATE: "SGOnboardingState",
   ONBOARDING_WELCOME_STATE: "OnboardingWelcomeState",
   RECENT_ENTITIES: "RecentEntities",
   COMMENTS_INTRO_SEEN: "CommentsIntroSeen",
@@ -227,5 +228,26 @@ export const getOnboardingFormInProgress = async () => {
   } catch (error) {
     log.error("An error occurred while fetching ONBOARDING_FORM_IN_PROGRESS");
     log.error(error);
+  }
+};
+
+export const setSGOnboardingState = async (onboardingState: boolean) => {
+  try {
+    await store.setItem(STORAGE_KEYS.SG_ONBOARDING_STATE, onboardingState);
+    return true;
+  } catch (error) {
+    log.error("An error occurred when setting sg-onboarding state: ", error);
+    return false;
+  }
+};
+
+export const getSGOnboardingState = async () => {
+  try {
+    const onboardingState = await store.getItem(
+      STORAGE_KEYS.SG_ONBOARDING_STATE,
+    );
+    return onboardingState;
+  } catch (error) {
+    log.error("An error occurred when getting sg-onboarding state: ", error);
   }
 };

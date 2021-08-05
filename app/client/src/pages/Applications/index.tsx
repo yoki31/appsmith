@@ -34,7 +34,6 @@ import ApplicationCard from "./ApplicationCard";
 import OrgInviteUsersForm from "pages/organization/OrgInviteUsersForm";
 import { isPermitted, PERMISSION_TYPE } from "./permissionHelpers";
 import FormDialogComponent from "components/editorComponents/form/FormDialogComponent";
-// import OnboardingHelper from "components/editorComponents/Onboarding/Helper";
 import { User } from "constants/userConstants";
 import { getCurrentUser } from "selectors/usersSelectors";
 import { CREATE_ORGANIZATION_FORM_NAME } from "constants/forms";
@@ -50,6 +49,7 @@ import {
   duplicateApplication,
   updateApplication,
 } from "actions/applicationActions";
+import { createApplication } from "actions/sgOnboardingActions";
 import { Classes } from "components/ads/common";
 import Menu from "components/ads/Menu";
 import { Position } from "@blueprintjs/core/lib/esm/common/position";
@@ -86,6 +86,8 @@ import { SIGNUP_SUCCESS_URL } from "constants/routes";
 import {
   setOnboardingFormInProgress,
   getOnboardingFormInProgress,
+  getSGOnboardingState,
+  setSGOnboardingState,
 } from "utils/storage";
 
 import { getIsSafeRedirectURL } from "utils/helpers";
@@ -552,6 +554,19 @@ function ApplicationsSection(props: any) {
     selectedOrgIdForImportApplication,
     setSelectedOrgIdForImportApplication,
   ] = useState<string | undefined>();
+
+  // Creates an application automatically if the user has landed here from the signup form
+  useEffect(() => {
+    async function checkOnboardingState() {
+      const onboardingState = await getSGOnboardingState();
+      if (onboardingState) {
+        dispatch(createApplication());
+      }
+    }
+
+    checkOnboardingState();
+  }, []);
+
   const Form: any = OrgInviteUsersForm;
 
   const leaveOrg = (orgId: string) => {
@@ -947,6 +962,7 @@ class Applications extends Component<
       try {
         if (getIsSafeRedirectURL(redirectUrl)) {
           window.location.replace(redirectUrl);
+          setSGOnboardingState(true);
         }
       } catch (e) {
         console.error("Error handling the redirect url");

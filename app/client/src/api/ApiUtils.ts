@@ -63,7 +63,6 @@ export const apiFailureResponseInterceptor = (error: any) => {
       message: createMessage(ERROR_0),
     });
   }
-
   // Return if the call was cancelled via cancel token
   if (axios.isCancel(error)) {
     return;
