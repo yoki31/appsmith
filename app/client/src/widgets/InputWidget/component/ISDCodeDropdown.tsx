@@ -36,8 +36,8 @@ const getISDCodeOptions = (): Array<DropdownOption> => {
       leftElement: countryToFlag(item.code),
       searchText: item.name,
       label: `${item.name} (${item.dial_code})`,
-      value: item.code,
-      id: item.dial_code,
+      value: item.dial_code,
+      id: item.code,
     };
   });
 };
@@ -47,7 +47,7 @@ export const ISDCodeDropdownOptions = getISDCodeOptions();
 export const getSelectedISDCode = (code?: string): DropdownOption => {
   let selectedCountry: ISDCodeProps | undefined = code
     ? ISDCodeOptions.find((item: ISDCodeProps) => {
-        return item.code === code;
+        return item.dial_code === code;
       })
     : undefined;
   if (!selectedCountry) {
@@ -60,8 +60,8 @@ export const getSelectedISDCode = (code?: string): DropdownOption => {
   return {
     label: `${selectedCountry.name} (${selectedCountry.dial_code})`,
     searchText: selectedCountry.name,
-    value: selectedCountry.code,
-    id: selectedCountry.dial_code,
+    value: selectedCountry.dial_code,
+    id: selectedCountry.code,
   };
 };
 
@@ -81,10 +81,12 @@ export default function ISDCodeDropdown(props: ISDCodeDropdownProps) {
       disabled={props.disabled}
     >
       <div className="icon-dropdown">
-        {selectedCountry.value && countryToFlag(selectedCountry.value)}
+        {selectedCountry.id && countryToFlag(selectedCountry.id)}
         <Icon name="downArrow" size={IconSize.XXS} />
       </div>
-      <div className="code">{selectedCountry.id && selectedCountry.id}</div>
+      <div className="code">
+        {selectedCountry.value && selectedCountry.value}
+      </div>
     </DropdownTriggerIconWrapper>
   );
   if (props.disabled) {
