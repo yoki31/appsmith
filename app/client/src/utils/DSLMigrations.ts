@@ -39,6 +39,7 @@ import { ButtonStyleTypes, ButtonVariantTypes } from "../components/constants";
 import { Colors } from "../constants/Colors";
 import { migrateResizableModalWidgetProperties } from "./migrations/ModalWidget";
 import { migrateMapWidgetIsClickedMarkerCentered } from "./migrations/MapWidget";
+import { migrateInputWidgetDefaultSelectedPhoneNumberCode } from "./migrations/InputWidget";
 import { DSLWidget } from "widgets/constants";
 
 /**
@@ -973,6 +974,11 @@ export const transformDSL = (
 
   if (currentDSL.version === 43) {
     currentDSL = mapAllowHorizontalScrollMigration(currentDSL);
+    currentDSL.version = 44;
+  }
+
+  if (currentDSL.version === 44) {
+    currentDSL = migrateInputWidgetDefaultSelectedPhoneNumberCode(currentDSL);
     currentDSL.version = LATEST_PAGE_VERSION;
   }
 
