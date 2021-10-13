@@ -3,17 +3,18 @@ import { Link, useLocation } from "react-router-dom";
 import { Helmet } from "react-helmet";
 import styled, { ThemeProvider } from "styled-components";
 import StyledHeader from "components/designSystems/appsmith/StyledHeader";
-import AppsmithLogo from "assets/images/appsmith_logo.png";
+// import AppsmithLogo from "assets/images/appsmith_logo.png";
+import { ReactComponent as AppsmithLogo } from "assets/svg/appsmith_logo_primary.svg";
 import {
   isPermitted,
   PERMISSION_TYPE,
 } from "pages/Applications/permissionHelpers";
 import {
-  ApplicationPayload,
+  CurrentApplicationData,
   PageListPayload,
 } from "constants/ReduxActionConstants";
 import { APPLICATIONS_URL, AUTH_LOGIN_URL } from "constants/routes";
-import { connect } from "react-redux";
+import { connect, useSelector } from "react-redux";
 import { AppState } from "reducers";
 import { getEditorURL } from "selectors/appViewSelectors";
 import { getViewModePageList } from "selectors/editorSelectors";
@@ -27,13 +28,14 @@ import Text, { TextType } from "components/ads/Text";
 import { Classes } from "components/ads/common";
 import { getTypographyByKey, Theme } from "constants/DefaultTheme";
 import { IconWrapper } from "components/ads/Icon";
-import Button, { Size } from "components/ads/Button";
 import ProfileDropdown from "pages/common/ProfileDropdown";
 import { Profile } from "pages/common/ProfileImage";
 import PageTabsContainer from "./PageTabsContainer";
 import { getThemeDetails, ThemeMode } from "selectors/themeSelectors";
+import ToggleCommentModeButton from "pages/Editor/ToggleModeButton";
 import GetAppViewerHeaderCTA from "./GetAppViewerHeaderCTA";
-import ToggleCommentModeButton from "comments/ToggleCommentModeButton";
+import { showAppInviteUsersDialogSelector } from "selectors/applicationSelectors";
+import { ShareButtonComponent } from "../../Editor/EditorHeader";
 
 const HeaderWrapper = styled(StyledHeader)<{ hasPages: boolean }>`
   box-shadow: unset;
@@ -77,6 +79,10 @@ const HeaderWrapper = styled(StyledHeader)<{ hasPages: boolean }>`
   & ${Profile} {
     width: 24px;
     height: 24px;
+
+    span {
+      font-size: 12px;
+    }
   }
 
   & .current-app-name {
@@ -102,9 +108,11 @@ const HeaderSection = styled.div<{ justify: string }>`
   justify-content: ${(props) => props.justify};
 `;
 
-const AppsmithLogoImg = styled.img`
-  padding-left: ${(props) => props.theme.spaces[7]}px;
+const AppsmithLogoImg = styled(AppsmithLogo)`
   max-width: 110px;
+  width: 110px;
+  margin-right: 40px;
+  margin-left: 16px;
 `;
 
 const HeaderRightItemContainer = styled.div`
@@ -121,7 +129,7 @@ const PrimaryLogoLink = styled(Link)`
 
 type AppViewerHeaderProps = {
   url?: string;
-  currentApplicationDetails?: ApplicationPayload;
+  currentApplicationDetails?: CurrentApplicationData;
   pages: PageListPayload;
   currentOrgId: string;
   currentUser?: User;
@@ -137,6 +145,10 @@ export function AppViewerHeader(props: AppViewerHeaderProps) {
   const queryParams = new URLSearchParams(search);
   const isEmbed = queryParams.get("embed");
   const hideHeader = !!isEmbed;
+
+  const showAppInviteUsersDialog = useSelector(
+    showAppInviteUsersDialogSelector,
+  );
 
   function HtmlTitle() {
     if (!currentApplicationDetails?.name) return null;
@@ -166,9 +178,14 @@ export function AppViewerHeader(props: AppViewerHeaderProps) {
         <HtmlTitle />
         <HeaderRow justify={"space-between"}>
           <HeaderSection justify={"flex-start"}>
-            <PrimaryLogoLink to={APPLICATIONS_URL}>
-              <AppsmithLogoImg alt="Appsmith logo" src={AppsmithLogo} />
-            </PrimaryLogoLink>
+            <div>
+              <PrimaryLogoLink to={APPLICATIONS_URL}>
+                <AppsmithLogoImg />
+              </PrimaryLogoLink>
+            </div>
+            <div>
+              <ToggleCommentModeButton />
+            </div>
           </HeaderSection>
           <HeaderSection className="current-app-name" justify={"center"}>
             {currentApplicationDetails && (
@@ -176,23 +193,16 @@ export function AppViewerHeader(props: AppViewerHeaderProps) {
             )}
           </HeaderSection>
           <HeaderSection justify={"flex-end"}>
-            <ToggleCommentModeButton />
             {currentApplicationDetails && (
               <>
                 <FormDialogComponent
                   Form={AppInviteUsersForm}
                   applicationId={currentApplicationDetails.id}
                   canOutsideClickClose
+                  isOpen={showAppInviteUsersDialog}
                   orgId={currentOrgId}
                   title={currentApplicationDetails.name}
-                  trigger={
-                    <Button
-                      className="t--application-share-btn header__application-share-btn"
-                      icon={"share"}
-                      size={Size.small}
-                      text={"Share"}
-                    />
-                  }
+                  trigger={<ShareButtonComponent />}
                 />
                 {CTA && (
                   <HeaderRightItemContainer>{CTA}</HeaderRightItemContainer>
@@ -202,11 +212,10 @@ export function AppViewerHeader(props: AppViewerHeaderProps) {
             {currentUser && currentUser.username !== ANONYMOUS_USERNAME && (
               <HeaderRightItemContainer>
                 <ProfileDropdown
-                  hideThemeSwitch
                   modifiers={{
                     offset: {
                       enabled: true,
-                      offset: `0, ${pages.length > 1 ? 35 : 0}`,
+                      offset: `0, 0`,
                     },
                   }}
                   name={currentUser.name}

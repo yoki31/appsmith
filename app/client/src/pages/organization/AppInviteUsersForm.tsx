@@ -65,7 +65,7 @@ function AppInviteUsersForm(props: any) {
   };
 
   useEffect(() => {
-    if (currentUser?.name !== ANONYMOUS_USERNAME) {
+    if (currentUser?.name !== ANONYMOUS_USERNAME && canInviteToOrg) {
       fetchCurrentOrg(props.orgId);
     }
   }, [props.orgId, fetchCurrentOrg, currentUser?.name]);
@@ -75,7 +75,7 @@ function AppInviteUsersForm(props: any) {
       {canShareWithPublic && (
         <ShareWithPublicOption>
           <Text type={TextType.H5}>Make the application public</Text>
-          <ShareToggle>
+          <ShareToggle className="t--share-public-toggle">
             {currentApplicationDetails && (
               <Toggle
                 disabled={isChangingViewAccess || isFetchingApplication}
@@ -93,9 +93,7 @@ function AppInviteUsersForm(props: any) {
         </ShareWithPublicOption>
       )}
       <Title>
-        <Text type={TextType.H5}>
-          Get Shareable link for this for this application
-        </Text>
+        <Text type={TextType.H5}>Get shareable link for this application</Text>
       </Title>
       <CopyToClipBoard copyText={getViewApplicationURL()} />
 

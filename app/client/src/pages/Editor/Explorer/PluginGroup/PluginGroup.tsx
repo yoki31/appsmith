@@ -12,6 +12,8 @@ import ExplorerDatasourceEntity from "../Datasources/DatasourceEntity";
 import Entity from "../Entity";
 import EntityPlaceholder from "../Entity/Placeholder";
 import { ExplorerURLParams } from "../helpers";
+import { INTEGRATION_TABS, INTEGRATION_EDITOR_MODES } from "constants/routes";
+import { ADD_DATASOURCE_TOOLTIP, createMessage } from "constants/messages";
 
 type ExplorerPluginGroupProps = {
   step: number;
@@ -28,7 +30,8 @@ const ExplorerPluginGroup = memo((props: ExplorerPluginGroupProps) => {
     const path = props.actionConfig?.generateCreatePageURL(
       params?.applicationId,
       props.page.pageId,
-      props.page.pageId,
+      INTEGRATION_TABS.NEW,
+      INTEGRATION_EDITOR_MODES.AUTO,
     );
     history.push(path);
   }, [props.actionConfig, props.page.pageId, params]);
@@ -45,16 +48,15 @@ const ExplorerPluginGroup = memo((props: ExplorerPluginGroupProps) => {
 
   const emptyNode = (
     <EntityPlaceholder step={props.step + 1}>
-      No {props.actionConfig?.groupName || "Plugin Groups"} yet. Please click
-      the <strong>+</strong> icon on
-      <strong> {props.actionConfig?.groupName || "Plugin Groups"}</strong>{" "}
-      above, to create.
+      Please click the <strong>+</strong> icon above, to create new{" "}
+      {props.actionConfig?.groupName || "Plugin Groups"}
     </EntityPlaceholder>
   );
 
   return (
     <Entity
       active={props.actionConfig?.isGroupActive(params, props.page.pageId)}
+      addButtonHelptext={createMessage(ADD_DATASOURCE_TOOLTIP)}
       className={`group ${props.actionConfig?.groupName
         .toLowerCase()
         .replace(/ /g, "")}`}

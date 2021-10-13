@@ -12,27 +12,14 @@ import { Variant } from "components/ads/common";
 import { FORGOT_PASSWORD_SUCCESS_TEXT } from "constants/messages";
 import { logoutUser, updateUserDetails } from "actions/userActions";
 import { AppState } from "reducers";
-
-const Wrapper = styled.div`
-  & > div {
-    margin-top: 27px;
-  }
-`;
-const FieldWrapper = styled.div`
-  width: 520px;
-  display: flex;
-`;
-
-const InputWrapper = styled.div`
-  width: 520px;
-  display: flex;
-  align-items: center;
-`;
-
-const LabelWrapper = styled.div`
-  width: 200px;
-  display: flex;
-`;
+import UserProfileImagePicker from "components/ads/UserProfileImagePicker";
+import {
+  Wrapper,
+  FieldWrapper,
+  LabelWrapper,
+  Loader,
+  TextLoader,
+} from "./StyledComponents";
 
 const ForgotPassword = styled.a`
   margin-top: 12px;
@@ -42,18 +29,6 @@ const ForgotPassword = styled.a`
     text-decoration: none;
   }
   display: inline-block;
-`;
-
-const Loader = styled.div`
-  height: 38px;
-  width: 320px;
-  border-radius: 0;
-`;
-
-const TextLoader = styled.div`
-  height: 15px;
-  width: 320px;
-  border-radius: 0;
 `;
 
 function General() {
@@ -90,21 +65,30 @@ function General() {
 
   return (
     <Wrapper>
-      <InputWrapper>
+      <FieldWrapper>
+        <LabelWrapper>
+          <Text type={TextType.H4}>Display Picture</Text>
+        </LabelWrapper>
+        <UserProfileImagePicker />
+      </FieldWrapper>
+      <FieldWrapper>
         <LabelWrapper>
           <Text type={TextType.H4}>Display name</Text>
         </LabelWrapper>
         {isFetchingUser && <Loader className={Classes.SKELETON} />}
         {!isFetchingUser && (
-          <TextInput
-            cypressSelector="t--display-name"
-            defaultValue={user?.name}
-            onChange={onNameChange}
-            placeholder="Display name"
-            validator={notEmptyValidator}
-          />
+          <div style={{ flex: 1 }}>
+            <TextInput
+              cypressSelector="t--display-name"
+              defaultValue={user?.name}
+              fill={false}
+              onChange={onNameChange}
+              placeholder="Display name"
+              validator={notEmptyValidator}
+            />
+          </div>
         )}
-      </InputWrapper>
+      </FieldWrapper>
       <FieldWrapper>
         <LabelWrapper>
           <Text type={TextType.H4}>Email</Text>
@@ -118,18 +102,7 @@ function General() {
           </ForgotPassword>
         </div>
       </FieldWrapper>
-      {/* Commenting for now until the image related apis are ready */}
-      {/* <FieldWrapper>
-        <LabelWrapper>
-          <Text type={TextType.H4}>Display Picture</Text>
-        </LabelWrapper>
-        <FilePicker
-          url={""}
-          onFileRemoved={DeleteLogo}
-          logoUploadError={logoUploadError.message}
-        />
-      </FieldWrapper>
-      <InputWrapper>
+      {/* <InputWrapper>
         <LabelWrapper>
           <Text type={TextType.H4}>Website</Text>
         </LabelWrapper>

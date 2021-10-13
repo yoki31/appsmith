@@ -1,11 +1,13 @@
 package com.appsmith.server.solutions;
 
+import com.appsmith.external.helpers.AppsmithEventContext;
+import com.appsmith.external.helpers.AppsmithEventContextType;
 import com.appsmith.external.models.AuthenticationDTO;
 import com.appsmith.external.models.BaseDomain;
 import com.appsmith.server.constants.FieldName;
 import com.appsmith.server.domains.Application;
 import com.appsmith.server.domains.ApplicationPage;
-import com.appsmith.server.domains.Datasource;
+import com.appsmith.external.models.Datasource;
 import com.appsmith.server.domains.Layout;
 import com.appsmith.server.domains.NewPage;
 import com.appsmith.server.domains.Organization;
@@ -21,7 +23,6 @@ import com.appsmith.server.repositories.OrganizationRepository;
 import com.appsmith.server.services.ApplicationPageService;
 import com.appsmith.server.services.ApplicationService;
 import com.appsmith.server.services.ConfigService;
-import com.appsmith.server.services.DatasourceContextService;
 import com.appsmith.server.services.DatasourceService;
 import com.appsmith.server.services.LayoutActionService;
 import com.appsmith.server.services.NewActionService;
@@ -60,7 +61,6 @@ public class ExamplesOrganizationCloner {
     private final UserService userService;
     private final ApplicationService applicationService;
     private final ApplicationPageService applicationPageService;
-    private final DatasourceContextService datasourceContextService;
     private final NewPageRepository newPageRepository;
     private final NewActionService newActionService;
     private final LayoutActionService layoutActionService;
@@ -261,7 +261,9 @@ public class ExamplesOrganizationCloner {
                         }
                     }
                     return actionMono
-                            .flatMap(layoutActionService::createAction)
+                            .flatMap(actionDTO -> layoutActionService.createAction(
+                                    actionDTO, new AppsmithEventContext(AppsmithEventContextType.CLONE_PAGE))
+                            )
                             .map(ActionDTO::getId)
                             .zipWith(Mono.justOrEmpty(originalActionId));
                 })
@@ -273,7 +275,7 @@ public class ExamplesOrganizationCloner {
                 // view mode for the newly created user.
                 .then(Mono.just(newApplicationIds))
                 .flatMapMany(Flux::fromIterable)
-                .flatMap(appId -> applicationPageService.publish(appId).thenReturn(appId))
+                .flatMap(appId -> applicationPageService.publish(appId, false).thenReturn(appId))
                 .collectList();
     }
 
@@ -372,7 +374,7 @@ public class ExamplesOrganizationCloner {
                 );
     }
 
-    private Mono<Datasource> cloneDatasource(String datasourceId, String toOrganizationId) {
+    public Mono<Datasource> cloneDatasource(String datasourceId, String toOrganizationId) {
         final Mono<List<Datasource>> existingDatasourcesMono = datasourceRepository.findAllByOrganizationId(toOrganizationId)
                 .collectList();
 
@@ -403,9 +405,7 @@ public class ExamplesOrganizationCloner {
                             .switchIfEmpty(Mono.defer(() -> {
                                 // No matching existing datasource found, so create a new one.
                                 makePristine(templateDatasource);
-
                                 templateDatasource.setOrganizationId(toOrganizationId);
-
                                 return createSuffixedDatasource(templateDatasource);
                             }));
                 });
@@ -451,15 +451,16 @@ public class ExamplesOrganizationCloner {
         return applicationService.createDefault(application)
                 .onErrorResume(DuplicateKeyException.class, error -> {
                     if (error.getMessage() != null
-                            && error.getMessage().contains("organization_application_deleted_compound_index")) {
+                            // organization_application_deleted_gitRepo_gitBranch_compound_index
+                            && error.getMessage().contains("organization_application_deleted_gitRepo_gitBranch_compound_index")) {
                         // The duplicate key error is because of the `name` field.
                         return createSuffixedApplication(application, name, 1 + suffix);
                     }
                     throw error;
                 });
     }
-
-    private void makePristine(BaseDomain domain) {
+    
+    public void makePristine(BaseDomain domain) {
         // Set the ID to null for this domain object so that it is saved a new document in the database (as opposed to
         // updating an existing document). If it contains any policies, they are also reset.
         domain.setId(null);

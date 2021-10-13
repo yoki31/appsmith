@@ -3,8 +3,10 @@ import DatasourcesApi from "api/DatasourcesApi";
 import { Datasource } from "entities/Datasource";
 import { Plugin } from "api/PluginApi";
 import {
+  ReduxAction,
   ReduxActionErrorTypes,
   ReduxActionTypes,
+  WidgetReduxActionTypes,
 } from "constants/ReduxActionConstants";
 import { AppState } from "reducers";
 import {
@@ -27,11 +29,14 @@ import { getDataTree } from "selectors/dataTreeSelectors";
 import { getCurrentOrgId } from "selectors/organizationSelectors";
 import {
   getOnboardingState,
+  setEnableFirstTimeUserOnboarding as storeEnableFirstTimeUserOnboarding,
+  setFirstTimeUserOnboardingApplicationId as storeFirstTimeUserOnboardingApplicationId,
+  setFirstTimeUserOnboardingIntroModalVisibility as storeFirstTimeUserOnboardingIntroModalVisibility,
   setOnboardingState,
   setOnboardingWelcomeState,
 } from "utils/storage";
 import { validateResponse } from "./ErrorSagas";
-import { getSelectedWidget, getWidgets } from "./selectors";
+import { getSelectedWidget, getWidgetByName, getWidgets } from "./selectors";
 import {
   endOnboarding,
   setCurrentStep,
@@ -57,7 +62,6 @@ import {
 import AnalyticsUtil from "../utils/AnalyticsUtil";
 import { get } from "lodash";
 import { AppIconCollection } from "components/ads/AppIcon";
-import { getUserApplicationsOrgs } from "selectors/applicationSelectors";
 import { getAppCardColorPalette } from "selectors/themeSelectors";
 import {
   getRandomPaletteColor,
@@ -70,27 +74,44 @@ import {
   getCurrentPageId,
   getIsEditorInitialized,
 } from "selectors/editorSelectors";
-import { createActionRequest, runActionInit } from "actions/actionActions";
+import { createActionRequest, runAction } from "actions/pluginActionActions";
 import {
   APPLICATIONS_URL,
   BUILDER_PAGE_URL,
-  QUERY_EDITOR_URL_WITH_SELECTED_PAGE_ID,
+  INTEGRATION_EDITOR_URL,
+  INTEGRATION_TABS,
 } from "constants/routes";
 import { QueryAction } from "entities/Action";
 import history from "utils/history";
 import { getQueryIdFromURL } from "pages/Editor/Explorer/helpers";
 // import { calculateNewWidgetPosition } from "./WidgetOperationSagas";
-import { RenderModes, WidgetTypes } from "constants/WidgetConstants";
+import { RenderModes } from "constants/WidgetConstants";
 import { generateReactKey } from "utils/generators";
 import { forceOpenPropertyPane } from "actions/widgetActions";
-import { navigateToCanvas } from "pages/Editor/Explorer/Widgets/WidgetEntity";
+import { navigateToCanvas } from "pages/Editor/Explorer/Widgets/utils";
 import {
   batchUpdateWidgetProperty,
   updateWidgetPropertyRequest,
-} from "../actions/controlActions";
+} from "actions/controlActions";
 import OnSubmitGif from "assets/gifs/onsubmit.gif";
 import { checkAndGetPluginFormConfigsSaga } from "sagas/PluginSagas";
-import { GRID_DENSITY_MIGRATION_V1 } from "mockResponses/WidgetConfigResponse";
+import WidgetFactory from "utils/WidgetFactory";
+const WidgetTypes = WidgetFactory.widgetTypes;
+
+import {
+  EVAL_ERROR_PATH,
+  EvaluationError,
+  PropertyEvaluationErrorType,
+} from "utils/DynamicBindingUtils";
+import { GRID_DENSITY_MIGRATION_V1 } from "widgets/constants";
+import {
+  getFirstTimeUserOnboardingApplicationId,
+  getIsFirstTimeUserOnboardingEnabled,
+  getOnboardingOrganisations,
+} from "selectors/onboardingSelectors";
+import { Toaster } from "components/ads/Toast";
+import { Variant } from "components/ads/common";
+import { Organization } from "constants/orgConstants";
 
 export const getCurrentStep = (state: AppState) =>
   state.ui.onBoarding.currentStep;
@@ -154,8 +175,14 @@ function* listenForWidgetAdditions() {
               widgetName: "Standup_Table",
               tableData: [],
               columnSizeMap: {
-                avatar: 20,
-                name: 30,
+                avatar: 80,
+                name: 120,
+              },
+              columnTypeMap: {
+                avatar: {
+                  type: "image",
+                  format: "",
+                },
               },
               migrated: false,
               ...getStandupTableDimensions(),
@@ -211,7 +238,6 @@ function* listenForAddInputWidget() {
             inputWidget.widgetId,
             "widgetName",
             "Standup_Input",
-            RenderModes.CANVAS,
           ),
         );
         yield put(
@@ -264,7 +290,6 @@ function* listenForAddInputWidget() {
               inputWidget.widgetId,
               "onSubmit",
               "{{add_standup_updates.run(() => fetch_standup_updates.run(), () => {})}}",
-              RenderModes.CANVAS,
             ),
           );
           AnalyticsUtil.logEvent("ONBOARDING_ONSUBMIT_SUCCESS");
@@ -289,7 +314,6 @@ function* listenForSuccessfulBinding() {
       const dataTree = yield select(getDataTree);
 
       if (dataTree[selectedWidget.widgetName]) {
-        const widgetProperties = dataTree[selectedWidget.widgetName];
         const dynamicBindingPathList =
           dataTree[selectedWidget.widgetName].dynamicBindingPathList;
         const tableHasData = dataTree[selectedWidget.widgetName].tableData;
@@ -299,32 +323,23 @@ function* listenForSuccessfulBinding() {
           dynamicBindingPathList.some(
             (item: { key: string }) => item.key === "tableData",
           );
+        const errors = get(
+          selectedWidget,
+          `${EVAL_ERROR_PATH}.tableData`,
+          [],
+        ).filter(
+          (error: EvaluationError) =>
+            error.errorType !== PropertyEvaluationErrorType.LINT,
+        );
 
         bindSuccessful =
-          bindSuccessful && hasBinding && tableHasData && tableHasData.length;
-
-        if (widgetProperties.invalidProps) {
-          bindSuccessful =
-            bindSuccessful &&
-            !(
-              "tableData" in widgetProperties.invalidProps &&
-              widgetProperties.invalidProps.tableData
-            );
-        }
+          bindSuccessful &&
+          hasBinding &&
+          Array.isArray(tableHasData) &&
+          tableHasData.length &&
+          errors.length === 0;
 
         if (bindSuccessful) {
-          yield put(
-            batchUpdateWidgetProperty(selectedWidget.widgetId, {
-              modify: {
-                columnTypeMap: {
-                  avatar: {
-                    type: "image",
-                    format: "",
-                  },
-                },
-              },
-            }),
-          );
           AnalyticsUtil.logEvent("ONBOARDING_SUCCESSFUL_BINDING");
           yield put(setCurrentStep(OnboardingStep.ADD_INPUT_WIDGET));
 
@@ -430,8 +445,7 @@ function* listenForCreateAction() {
     setHelperConfig({
       ...helperConfig,
       image: {
-        src:
-          "https://res.cloudinary.com/drako999/image/upload/v1611839705/Appsmith/Onboarding/run.gif",
+        src: "https://assets.appsmith.com/Run.gif",
       },
     }),
   );
@@ -440,7 +454,7 @@ function* listenForCreateAction() {
   yield take([
     ReduxActionTypes.UPDATE_ACTION_INIT,
     ReduxActionTypes.QUERY_PANE_CHANGE,
-    ReduxActionTypes.RUN_ACTION_INIT,
+    ReduxActionTypes.RUN_ACTION_REQUEST,
   ]);
 
   yield take([ReduxActionTypes.RUN_ACTION_SUCCESS]);
@@ -547,10 +561,23 @@ function* createApplication() {
     AppIconCollection[Math.floor(Math.random() * AppIconCollection.length)];
 
   const currentUser = yield select(getCurrentUser);
-  const userOrgs = yield select(getUserApplicationsOrgs);
+  const userOrgs: Organization[] = yield select(getOnboardingOrganisations);
+
   const currentOrganizationId = currentUser.currentOrganizationId;
   let organization;
-
+  const isFirstTimeUserOnboardingdEnabled = yield select(
+    getIsFirstTimeUserOnboardingEnabled,
+  );
+  if (isFirstTimeUserOnboardingdEnabled) {
+    yield put({
+      type: ReduxActionTypes.SET_ENABLE_FIRST_TIME_USER_ONBOARDING,
+      payload: false,
+    });
+    yield put({
+      type: ReduxActionTypes.SET_FIRST_TIME_USER_ONBOARDING_APPLICATION_ID,
+      payload: "",
+    });
+  }
   if (!currentOrganizationId) {
     organization = userOrgs[0];
   } else {
@@ -588,12 +615,27 @@ function* createApplication() {
 function* createQuery() {
   const currentPageId = yield select(getCurrentPageId);
   const applicationId = yield select(getCurrentApplicationId);
+  const currentSubstep = yield select(getCurrentSubStep);
   const datasources: Datasource[] = yield select(getDatasources);
   const onboardingDatasource = datasources.find((datasource) => {
     const name = get(datasource, "name");
 
     return name === "Super Updates DB";
   });
+
+  // If the user is on substep 2 of the CREATE_QUERY step
+  // just run the query.
+  if (currentSubstep == 2) {
+    yield put({
+      type: "ONBOARDING_RUN_QUERY",
+    });
+
+    AnalyticsUtil.logEvent("ONBOARDING_CHEAT", {
+      step: 1,
+    });
+
+    return;
+  }
 
   if (onboardingDatasource) {
     const payload = {
@@ -612,10 +654,10 @@ function* createQuery() {
 
     yield put(createActionRequest(payload));
     history.push(
-      QUERY_EDITOR_URL_WITH_SELECTED_PAGE_ID(
+      INTEGRATION_EDITOR_URL(
         applicationId,
         currentPageId,
-        currentPageId,
+        INTEGRATION_TABS.ACTIVE,
       ),
     );
 
@@ -634,12 +676,16 @@ function* executeQuery() {
   const queryId = getQueryIdFromURL();
 
   if (queryId) {
-    yield put(runActionInit(queryId));
+    yield put(runAction(queryId));
   }
 }
 
 function* addWidget(widgetConfig: any) {
   try {
+    const widget = yield select(getWidgetByName, widgetConfig.widgetName ?? "");
+    // If widget already exists return
+    if (widget) return;
+
     const newWidget = {
       newWidgetId: generateReactKey(),
       widgetId: "0",
@@ -650,7 +696,7 @@ function* addWidget(widgetConfig: any) {
     };
 
     yield put({
-      type: ReduxActionTypes.WIDGET_ADD_CHILD,
+      type: WidgetReduxActionTypes.WIDGET_ADD_CHILD,
       payload: newWidget,
     });
 
@@ -667,7 +713,7 @@ function* addWidget(widgetConfig: any) {
       newWidget.newWidgetId,
     );
     yield put({
-      type: ReduxActionTypes.SELECT_WIDGET,
+      type: ReduxActionTypes.SELECT_WIDGET_INIT,
       payload: { widgetId: newWidget.newWidgetId },
     });
     yield put(forceOpenPropertyPane(newWidget.newWidgetId));
@@ -785,7 +831,7 @@ function* addOnSubmitHandler() {
         inputWidget.widgetId,
       );
       yield put({
-        type: ReduxActionTypes.SELECT_WIDGET,
+        type: ReduxActionTypes.SELECT_WIDGET_INIT,
         payload: { widgetId: inputWidget.widgetId },
       });
       yield put(forceOpenPropertyPane(inputWidget.widgetId));
@@ -795,7 +841,6 @@ function* addOnSubmitHandler() {
           inputWidget.widgetId,
           "onSubmit",
           "{{add_standup_updates.run(() => fetch_standup_updates.run(), () => {})}}",
-          RenderModes.CANVAS,
         ),
       );
       AnalyticsUtil.logEvent("ONBOARDING_ONSUBMIT_SUCCESS");
@@ -829,7 +874,6 @@ function* addBinding() {
         standupTable.widgetId,
         "tableData",
         "{{fetch_standup_updates.data}}",
-        RenderModes.CANVAS,
       ),
     );
 
@@ -861,6 +905,54 @@ export default function* onboardingSagas() {
     yield cancel(task);
     yield call(skipOnboardingSaga);
   }
+}
+
+function* setEnableFirstTimeUserOnboarding(action: ReduxAction<boolean>) {
+  yield storeEnableFirstTimeUserOnboarding(action.payload);
+}
+
+function* setFirstTimeUserOnboardingApplicationId(action: ReduxAction<string>) {
+  yield storeFirstTimeUserOnboardingApplicationId(action.payload);
+}
+
+function* setFirstTimeUserOnboardingIntroModalVisibility(
+  action: ReduxAction<boolean>,
+) {
+  yield storeFirstTimeUserOnboardingIntroModalVisibility(action.payload);
+}
+
+function* endFirstTimeUserOnboardingSaga() {
+  const firstTimeUserExperienceAppId = yield select(
+    getFirstTimeUserOnboardingApplicationId,
+  );
+  yield put({
+    type: ReduxActionTypes.SET_ENABLE_FIRST_TIME_USER_ONBOARDING,
+    payload: false,
+  });
+  yield put({
+    type: ReduxActionTypes.SET_FIRST_TIME_USER_ONBOARDING_APPLICATION_ID,
+    payload: "",
+  });
+  Toaster.show({
+    text: "Skipped First time user experience",
+    hideProgressBar: false,
+    variant: Variant.success,
+    dispatchableAction: {
+      type: ReduxActionTypes.UNDO_END_FIRST_TIME_USER_ONBOARDING,
+      payload: firstTimeUserExperienceAppId,
+    },
+  });
+}
+
+function* undoEndFirstTimeUserOnboardingSaga(action: ReduxAction<string>) {
+  yield put({
+    type: ReduxActionTypes.SET_ENABLE_FIRST_TIME_USER_ONBOARDING,
+    payload: true,
+  });
+  yield put({
+    type: ReduxActionTypes.SET_FIRST_TIME_USER_ONBOARDING_APPLICATION_ID,
+    payload: action.payload,
+  });
 }
 
 function* onboardingActionSagas() {
@@ -907,6 +999,26 @@ function* onboardingActionSagas() {
     takeLatest(
       ReduxActionTypes.ONBOARDING_CREATE_APPLICATION,
       createApplication,
+    ),
+    takeLatest(
+      ReduxActionTypes.SET_ENABLE_FIRST_TIME_USER_ONBOARDING,
+      setEnableFirstTimeUserOnboarding,
+    ),
+    takeLatest(
+      ReduxActionTypes.SET_FIRST_TIME_USER_ONBOARDING_APPLICATION_ID,
+      setFirstTimeUserOnboardingApplicationId,
+    ),
+    takeLatest(
+      ReduxActionTypes.SET_SHOW_FIRST_TIME_USER_ONBOARDING_MODAL,
+      setFirstTimeUserOnboardingIntroModalVisibility,
+    ),
+    takeLatest(
+      ReduxActionTypes.END_FIRST_TIME_USER_ONBOARDING,
+      endFirstTimeUserOnboardingSaga,
+    ),
+    takeLatest(
+      ReduxActionTypes.UNDO_END_FIRST_TIME_USER_ONBOARDING,
+      undoEndFirstTimeUserOnboardingSaga,
     ),
   ]);
 }

@@ -9,15 +9,12 @@ import {
   getCurrentPageName,
 } from "selectors/editorSelectors";
 import Centered from "components/designSystems/appsmith/CenteredWrapper";
-import EditorContextProvider from "components/editorComponents/EditorContextProvider";
 import { Spinner } from "@blueprintjs/core";
-import { useWidgetSelection } from "utils/hooks/dragResizeHooks";
 import AnalyticsUtil from "utils/AnalyticsUtil";
 import * as log from "loglevel";
 import { getCanvasClassName } from "utils/generators";
-import { flashElementById } from "utils/helpers";
+import { flashElementsById } from "utils/helpers";
 import { useParams } from "react-router";
-import { fetchPage } from "actions/pageActions";
 import PerformanceTracker, {
   PerformanceTransactionName,
 } from "utils/PerformanceTracker";
@@ -25,15 +22,27 @@ import { getCurrentApplication } from "selectors/applicationSelectors";
 import { MainContainerLayoutControl } from "./MainContainerLayoutControl";
 import { useDynamicAppLayout } from "utils/hooks/useDynamicAppLayout";
 import Debugger from "components/editorComponents/Debugger";
-import { closePropertyPane } from "actions/widgetActions";
+import { closePropertyPane, closeTableFilterPane } from "actions/widgetActions";
+import { useWidgetSelection } from "utils/hooks/useWidgetSelection";
+import { setCanvasSelectionFromEditor } from "actions/canvasSelectionActions";
+import CrudInfoModal from "./GeneratePage/components/CrudInfoModal";
+import EditorContextProvider from "components/editorComponents/EditorContextProvider";
+import { useAllowEditorDragToSelect } from "utils/hooks/useAllowEditorDragToSelect";
+import OnboardingTasks from "./FirstTimeUserOnboarding/Tasks";
+import {
+  getIsOnboardingTasksView,
+  getIsOnboardingWidgetSelection,
+} from "selectors/entitiesSelector";
+import { getIsFirstTimeUserOnboardingEnabled } from "selectors/onboardingSelectors";
 
 const EditorWrapper = styled.div`
   display: flex;
+  flex: 1;
   flex-direction: column;
   align-items: stretch;
   justify-content: flex-start;
   overflow: hidden;
-  height: calc(100vh - ${(props) => props.theme.smallHeaderHeight});
+  position: relative;
 `;
 
 const CanvasContainer = styled.section`
@@ -42,6 +51,7 @@ const CanvasContainer = styled.section`
   position: relative;
   overflow-x: auto;
   overflow-y: auto;
+  padding-top: 1px;
   &:before {
     position: absolute;
     top: 0;
@@ -57,23 +67,23 @@ function WidgetsEditor() {
   const { deselectAll, focusWidget, selectWidget } = useWidgetSelection();
   const params = useParams<{ applicationId: string; pageId: string }>();
   const dispatch = useDispatch();
-
   const widgets = useSelector(getCanvasWidgetDsl);
   const isFetchingPage = useSelector(getIsFetchingPage);
   const currentPageId = useSelector(getCurrentPageId);
   const currentPageName = useSelector(getCurrentPageName);
   const currentApp = useSelector(getCurrentApplication);
+
+  const showOnboardingTasks = useSelector(getIsOnboardingTasksView);
+  const enableFirstTimeUserOnboarding = useSelector(
+    getIsFirstTimeUserOnboardingEnabled,
+  );
+  const isOnboardingWidgetSelection = useSelector(
+    getIsOnboardingWidgetSelection,
+  );
   useDynamicAppLayout();
   useEffect(() => {
     PerformanceTracker.stopTracking(PerformanceTransactionName.CLOSE_SIDE_PANE);
   });
-
-  // Switch page
-  useEffect(() => {
-    if (currentPageId !== params.pageId && !!params.pageId) {
-      dispatch(fetchPage(params.pageId));
-    }
-  }, [currentPageId, params.pageId, dispatch]);
 
   // log page load
   useEffect(() => {
@@ -91,7 +101,7 @@ function WidgetsEditor() {
   useEffect(() => {
     if (!isFetchingPage && window.location.hash.length > 0) {
       const widgetIdFromURLHash = window.location.hash.substr(1);
-      flashElementById(widgetIdFromURLHash);
+      flashElementsById(widgetIdFromURLHash);
       if (document.getElementById(widgetIdFromURLHash))
         selectWidget(widgetIdFromURLHash);
     }
@@ -101,6 +111,8 @@ function WidgetsEditor() {
     focusWidget && focusWidget();
     deselectAll && deselectAll();
     dispatch(closePropertyPane());
+    dispatch(closeTableFilterPane());
+    dispatch(setCanvasSelectionFromEditor(false));
   }, [focusWidget, deselectAll]);
 
   const pageLoading = (
@@ -114,20 +126,49 @@ function WidgetsEditor() {
   }
 
   if (!isFetchingPage && widgets) {
-    node = <Canvas dsl={widgets} />;
+    node = <Canvas dsl={widgets} pageId={params.pageId} />;
   }
+  const allowDragToSelect = useAllowEditorDragToSelect();
+
+  const onDragStart = useCallback(
+    (e: any) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (allowDragToSelect) {
+        const startPoints = {
+          x: e.clientX,
+          y: e.clientY,
+        };
+        dispatch(setCanvasSelectionFromEditor(true, startPoints));
+      }
+    },
+    [allowDragToSelect],
+  );
 
   log.debug("Canvas rendered");
+
   PerformanceTracker.stopTracking();
   return (
     <EditorContextProvider>
-      <EditorWrapper onClick={handleWrapperClick}>
-        <MainContainerLayoutControl />
-        <CanvasContainer className={getCanvasClassName()} key={currentPageId}>
-          {node}
-        </CanvasContainer>
-        <Debugger />
-      </EditorWrapper>
+      {enableFirstTimeUserOnboarding &&
+      showOnboardingTasks &&
+      !isOnboardingWidgetSelection ? (
+        <OnboardingTasks />
+      ) : (
+        <EditorWrapper
+          data-testid="widgets-editor"
+          draggable
+          onClick={handleWrapperClick}
+          onDragStart={onDragStart}
+        >
+          <MainContainerLayoutControl />
+          <CanvasContainer className={getCanvasClassName()} key={currentPageId}>
+            {node}
+          </CanvasContainer>
+          <Debugger />
+          <CrudInfoModal />
+        </EditorWrapper>
+      )}
     </EditorContextProvider>
   );
 }

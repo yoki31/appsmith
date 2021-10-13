@@ -23,12 +23,14 @@ import { ControlIcons } from "icons/ControlIcons";
 import { AnyStyledComponent } from "styled-components";
 import { Classes as BlueprintClasses } from "@blueprintjs/core";
 import TooltipComponent from "components/ads/Tooltip";
+import { isEqual } from "lodash";
+import { Colors } from "constants/Colors";
 
 const FixedTitle = styled.div`
   position: fixed;
   z-index: 3;
-  width: ${(props) =>
-    props.theme.propertyPane.width - 2 * props.theme.spaces[5]}px;
+  width: ${(props) => props.theme.propertyPane.width}px;
+  padding: 0px ${(props) => props.theme.spaces[5]}px;
 `;
 
 const Wrapper = styled.div<{ iconCount: number }>`
@@ -37,7 +39,7 @@ const Wrapper = styled.div<{ iconCount: number }>`
   justify-items: center;
   align-items: center;
   height: ${(props) => props.theme.propertyPane.titleHeight}px;
-  background-color: ${(props) => props.theme.colors.propertyPane.bg};
+  background-color: ${Colors.GREY_1};
   & span.${BlueprintClasses.POPOVER_TARGET} {
     cursor: pointer;
     display: flex;
@@ -101,13 +103,18 @@ type PropertyPaneTitleProps = {
 };
 
 /* eslint-disable react/display-name */
-const PropertyPaneTitle = memo((props: PropertyPaneTitleProps) => {
+const PropertyPaneTitle = memo(function PropertyPaneTitle(
+  props: PropertyPaneTitleProps,
+) {
   const dispatch = useDispatch();
-  const { updating } = useSelector((state: AppState) => ({
-    updating: state.ui.editor.loadingStates.updatingWidgetName,
-  }));
+  const updating = useSelector(
+    (state: AppState) => state.ui.editor.loadingStates.updatingWidgetName,
+  );
   const isNew = useSelector((state: AppState) => state.ui.propertyPane.isNew);
-  const widgets = useSelector(getExistingWidgetNames);
+
+  // Pass custom equality check function. Shouldn't be expensive than the render
+  // as it is just a small array #perf
+  const widgets = useSelector(getExistingWidgetNames, isEqual);
   const toggleEditWidgetName = useToggleEditWidgetName();
   const [name, setName] = useState(props.title);
   const valueRef = useRef("");
@@ -198,5 +205,4 @@ const PropertyPaneTitle = memo((props: PropertyPaneTitleProps) => {
     </FixedTitle>
   ) : null;
 });
-
 export default PropertyPaneTitle;

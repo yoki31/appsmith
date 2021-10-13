@@ -1,6 +1,5 @@
 import { Datasource } from "entities/Datasource";
 import { isStoredDatasource } from "entities/Action";
-import { BaseButton } from "components/designSystems/blueprint/ButtonComponent";
 import React from "react";
 import { isNil } from "lodash";
 import { useSelector } from "react-redux";
@@ -17,6 +16,7 @@ import history from "utils/history";
 
 import { renderDatasourceSection } from "pages/Editor/DataSourceEditor/DatasourceSection";
 import { SAAS_EDITOR_DATASOURCE_ID_URL } from "./constants";
+import { BaseButton } from "components/designSystems/appsmith/BaseButton";
 
 const Wrapper = styled.div`
   border: 2px solid #d6d6d6;
@@ -29,6 +29,10 @@ const ActionButton = styled(BaseButton)`
     height: 36px;
     max-width: 120px;
     width: auto;
+  }
+
+  span > svg > path {
+    stroke: white;
   }
 `;
 
@@ -141,9 +145,8 @@ function DatasourceCard(props: DatasourceCardProps) {
             text="Edit Datasource"
           />
           <ActionButton
-            accent="primary"
+            buttonStyle="PRIMARY"
             className="t--create-api"
-            filled
             icon={"plus"}
             onClick={() => props.onCreate(datasource)}
             text="New API"

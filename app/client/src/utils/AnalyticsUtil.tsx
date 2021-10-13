@@ -1,6 +1,5 @@
 // Events
 import * as log from "loglevel";
-import FeatureFlag from "./featureFlags";
 import smartlookClient from "smartlook-client";
 import { getAppsmithConfigs } from "configs";
 import * as Sentry from "@sentry/react";
@@ -11,7 +10,8 @@ export type EventLocation =
   | "LIGHTNING_MENU"
   | "API_PANE"
   | "QUERY_PANE"
-  | "QUERY_TEMPLATE";
+  | "QUERY_TEMPLATE"
+  | "QUICK_COMMANDS";
 
 export type EventName =
   | "LOGIN_CLICK"
@@ -45,6 +45,7 @@ export type EventName =
   | "SAVE_API_CLICK"
   | "RUN_API"
   | "RUN_API_CLICK"
+  | "RUN_API_SHORTCUT"
   | "DELETE_API"
   | "DELETE_API_CLICK"
   | "IMPORT_API"
@@ -56,13 +57,14 @@ export type EventName =
   | "DUPLICATE_API_CLICK"
   | "RUN_QUERY"
   | "RUN_QUERY_CLICK"
+  | "RUN_QUERY_SHORTCUT"
   | "DELETE_QUERY"
   | "SAVE_QUERY"
   | "MOVE_API"
   | "3P_PROVIDER_CLICK"
   | "API_SELECT"
   | "CREATE_API_CLICK"
-  | "AUTO_COMPELTE_SHOW"
+  | "AUTO_COMPLETE_SHOW"
   | "AUTO_COMPLETE_SELECT"
   | "CREATE_APP_CLICK"
   | "CREATE_APP"
@@ -120,7 +122,65 @@ export type EventName =
   | "DEBUGGER_ENTITY_NAVIGATION"
   | "GSHEET_AUTH_INIT"
   | "GSHEET_AUTH_COMPLETE"
-  | "CYCLICAL_DEPENDENCY_ERROR";
+  | "CYCLICAL_DEPENDENCY_ERROR"
+  | "DISCORD_LINK_CLICK"
+  | "BINDING_SUCCESS"
+  | "APP_MENU_OPTION_CLICK"
+  | "SLASH_COMMAND"
+  | "DEBUGGER_NEW_ERROR"
+  | "DEBUGGER_RESOLVED_ERROR"
+  | "DEBUGGER_NEW_ERROR_MESSAGE"
+  | "DEBUGGER_RESOLVED_ERROR_MESSAGE"
+  | "ADD_MOCK_DATASOURCE_CLICK"
+  | "CREATE_DATA_SOURCE_AUTH_API_CLICK"
+  | "GEN_CRUD_PAGE_CREATE_NEW_DATASOURCE"
+  | "GEN_CRUD_PAGE_FORM_SUBMIT"
+  | "GEN_CRUD_PAGE_EDIT_DATASOURCE_CONFIG"
+  | "GEN_CRUD_PAGE_SELECT_DATASOURCE"
+  | "GEN_CRUD_PAGE_SELECT_TABLE"
+  | "GEN_CRUD_PAGE_SELECT_SEARCH_COLUMN"
+  | "GEN_CRUD_PAGE_SELECT_SEARCH_COLUMN"
+  | "BUILD_FROM_SCRATCH_ACTION_CARD_CLICK"
+  | "GEN_CRUD_PAGE_ACTION_CARD_CLICK"
+  | "GEN_CRUD_PAGE_DATA_SOURCE_CLICK"
+  | "DATASOURCE_CARD_GEN_CRUD_PAGE_ACTION"
+  | "DATASOURCE_CARD_DELETE_ACTION"
+  | "DATASOURCE_CARD_EDIT_ACTION"
+  | "UNSUPPORTED_PLUGIN_DIALOG_BACK_ACTION"
+  | "UNSUPPORTED_PLUGIN_DIALOG_CONTINUE_ACTION"
+  | "SELECT_IN_CANVAS_CLICK"
+  | "WIDGET_SELECTED_VIA_SNIPING_MODE"
+  | "SUGGESTED_WIDGET_CLICK"
+  | "ASSOCIATED_ENTITY_CLICK"
+  | "CREATE_DATA_SOURCE_AUTH_API_CLICK"
+  | "CONNECT_DATA_CLICK"
+  | "RESPONSE_TAB_RUN_ACTION_CLICK"
+  | "ASSOCIATED_ENTITY_DROPDOWN_CLICK"
+  | "PAGES_LIST_LOAD"
+  | "WIDGET_GROUP"
+  | "CLOSE_GEN_PAGE_INFO_MODAL"
+  | "PAGES_LIST_LOAD"
+  | "COMMENTS_TOGGLE_MODE"
+  | "COMMENTS_ONBOARDING_SKIP_BUTTON_CLICK"
+  | "COMMENTS_ONBOARDING_STEP_CHANGE"
+  | "COMMENTS_ONBOARDING_SUBMIT_BUTTON_CLICK"
+  | "COMMENTS_ONBOARDING_MODAL_DISMISSED"
+  | "COMMENTS_ONBOARDING_MODAL_TRIGGERED"
+  | "REPLAY_UNDO"
+  | "REPLAY_REDO"
+  | "SNIPPET_CUSTOMIZE"
+  | "SNIPPET_EXECUTE"
+  | "SNIPPET_FILTER"
+  | "SNIPPET_COPIED"
+  | "SNIPPET_LOOKUP"
+  | "SIGNPOSTING_SKIP"
+  | "SIGNPOSTING_CREATE_DATASOURCE_CLICK"
+  | "SIGNPOSTING_CREATE_QUERY_CLICK"
+  | "SIGNPOSTING_ADD_WIDGET_CLICK"
+  | "SIGNPOSTING_CONNECT_WIDGET_CLICK"
+  | "SIGNPOSTING_PUBLISH_CLICK"
+  | "SIGNPOSTING_BUILD_APP_CLICK"
+  | "SIGNPOSTING_WELCOME_TOUR_CLICK";
 
 function getApplicationId(location: Location) {
   const pathSplit = location.pathname.split("/");
@@ -207,17 +267,12 @@ class AnalyticsUtil {
     const appId = getApplicationId(windowDoc.location);
     if (userData) {
       const { segment } = getAppsmithConfigs();
-      const app = (userData.applications || []).find(
-        (app: any) => app.id === appId,
-      );
       let user: any = {};
       if (segment.enabled && segment.apiKey) {
         user = {
           userId: userData.username,
           email: userData.email,
-          currentOrgId: userData.currentOrganizationId,
           appId: appId,
-          appName: app ? app.name : undefined,
           source: "cloud",
         };
       } else {
@@ -249,7 +304,6 @@ class AnalyticsUtil {
     const { segment, smartLook } = getAppsmithConfigs();
     const windowDoc: any = window;
     const userId = userData.username;
-    FeatureFlag.identify(userData);
     if (windowDoc.analytics) {
       // This flag is only set on Appsmith Cloud. In this case, we get more detailed analytics of the user
       if (segment.apiKey) {
@@ -270,7 +324,7 @@ class AnalyticsUtil {
           AnalyticsUtil.cachedUserId = userId;
         }
         const userProperties = {
-          userId: AnalyticsUtil.cachedUserId,
+          userId: AnalyticsUtil.cachedAnonymoustId,
           source: "ce",
         };
         log.debug(

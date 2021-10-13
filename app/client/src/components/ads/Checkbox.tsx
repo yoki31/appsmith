@@ -9,12 +9,14 @@ export type CheckboxProps = CommonComponentProps & {
   isDefaultChecked?: boolean;
   onCheckChange?: (isChecked: boolean) => void;
   info?: string;
+  backgroundColor?: string;
 };
 
 const Checkmark = styled.span<{
   disabled?: boolean;
   isChecked?: boolean;
   info?: string;
+  backgroundColor?: string;
 }>`
   position: absolute;
   top: ${(props) => (props.info ? "6px" : "1px")};
@@ -25,14 +27,18 @@ const Checkmark = styled.span<{
     props.isChecked
       ? props.disabled
         ? props.theme.colors.checkbox.disabled
-        : props.theme.colors.info.main
+        : props.backgroundColor || props.theme.colors.info.main
+      : props.disabled
+      ? props.theme.colors.checkbox.disabled
       : "transparent"};
-  border: 2px solid
+  border: 1.8px solid
     ${(props) =>
       props.isChecked
         ? props.disabled
           ? props.theme.colors.checkbox.disabled
-          : props.theme.colors.info.main
+          : props.backgroundColor || props.theme.colors.info.main
+        : props.disabled
+        ? props.theme.colors.checkbox.disabled
         : props.theme.colors.checkbox.unchecked};
 
   &::after {
@@ -76,7 +82,7 @@ const StyledCheckbox = styled.label<{
   }
 `;
 
-const LabelContainer = styled.div<{ info?: string }>`
+export const LabelContainer = styled.div<{ info?: string }>`
   display: flex;
   flex-direction: column;
   .${Classes.TEXT}:first-child {
@@ -129,6 +135,7 @@ function Checkbox(props: CheckboxProps) {
         type="checkbox"
       />
       <Checkmark
+        backgroundColor={props.backgroundColor}
         disabled={props.disabled}
         info={props.info}
         isChecked={checked}

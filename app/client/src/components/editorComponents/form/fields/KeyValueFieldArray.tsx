@@ -13,6 +13,14 @@ import {
 } from "components/editorComponents/CodeEditor/EditorConfig";
 import Text, { Case, TextType } from "components/ads/Text";
 import { Classes } from "components/ads/common";
+import { AutocompleteDataType } from "utils/autocomplete/TernServer";
+import DynamicDropdownField from "./DynamicDropdownField";
+import {
+  DEFAULT_MULTI_PART_DROPDOWN_PLACEHOLDER,
+  DEFAULT_MULTI_PART_DROPDOWN_WIDTH,
+  MULTI_PART_DROPDOWN_OPTIONS,
+} from "constants/ApiEditorConstants";
+import { Colors } from "constants/Colors";
 
 type CustomStack = {
   removeTopPadding?: boolean;
@@ -26,6 +34,7 @@ const KeyValueStackContainer = styled.div<CustomStack>`
 `;
 const FormRowWithLabel = styled(FormRow)`
   flex-wrap: wrap;
+  margin-bottom: ${(props) => props.theme.spaces[2] - 1}px;
   ${FormLabel} {
     width: 100%;
   }
@@ -47,10 +56,22 @@ const AddMoreAction = styled.div`
   margin-left: 12px;
   .${Classes.TEXT} {
     margin-left: 8px;
-    color: #858282;
+    color: ${Colors.GRAY};
   }
-  svg path {
-    stroke: ${(props) => props.theme.colors.apiPane.bg};
+  svg {
+    fill: ${Colors.GRAY};
+    path {
+      fill: unset;
+    }
+  }
+
+  &:hover {
+    .${Classes.TEXT} {
+      color: ${Colors.CHARCOAL};
+    }
+    svg {
+      fill: ${Colors.CHARCOAL};
+    }
   }
 `;
 
@@ -76,11 +97,30 @@ const FlexContainer = styled.div`
     .${Classes.TEXT} {
       color: ${(props) => props.theme.colors.apiPane.text};
     }
+    border-bottom: 0px;
   }
   .key-value:nth-child(2) {
     margin-left: ${(props) => props.theme.spaces[4]}px;
   }
 `;
+
+const DynamicTextFieldWithDropdownWrapper = styled.div`
+  display: flex;
+  position: relative;
+  top: -2px;
+`;
+
+const DynamicDropdownFieldWrapper = styled.div`
+  position: relative;
+  top: 1px;
+  margin-left: 5px;
+`;
+
+const expected = {
+  type: FIELD_VALUES.API_ACTION.params,
+  example: "string",
+  autocompleteDataType: AutocompleteDataType.STRING,
+};
 
 function KeyValueRow(props: Props & WrappedFieldArrayProps) {
   useEffect(() => {
@@ -129,25 +169,53 @@ function KeyValueRow(props: Props & WrappedFieldArrayProps) {
             return (
               <FormRowWithLabel key={index}>
                 <Flex size={1}>
-                  <DynamicTextField
-                    border={CodeEditorBorder.BOTTOM_SIDE}
-                    className={`t--${field}.key.${index}`}
-                    dataTreePath={`${props.dataTreePath}[${index}].key`}
-                    hoverInteraction
-                    name={`${field}.key`}
-                    placeholder={`Key ${index + 1}`}
-                    showLightningMenu={false}
-                    theme={props.theme}
-                  />
+                  {props.hasType ? (
+                    <DynamicTextFieldWithDropdownWrapper>
+                      <DynamicTextField
+                        border={CodeEditorBorder.ALL_SIDE}
+                        className={`t--${field}.key.${index}`}
+                        dataTreePath={`${props.dataTreePath}[${index}].key`}
+                        expected={expected}
+                        height="36px"
+                        hoverInteraction
+                        name={`${field}.key`}
+                        placeholder={`Key ${index + 1}`}
+                        theme={props.theme}
+                      />
+
+                      <DynamicDropdownFieldWrapper>
+                        <DynamicDropdownField
+                          height="36px"
+                          name={`${field}.type`}
+                          options={MULTI_PART_DROPDOWN_OPTIONS}
+                          placeholder={DEFAULT_MULTI_PART_DROPDOWN_PLACEHOLDER}
+                          width={DEFAULT_MULTI_PART_DROPDOWN_WIDTH}
+                        />
+                      </DynamicDropdownFieldWrapper>
+                    </DynamicTextFieldWithDropdownWrapper>
+                  ) : (
+                    <DynamicTextField
+                      border={CodeEditorBorder.ALL_SIDE}
+                      className={`t--${field}.key.${index}`}
+                      dataTreePath={`${props.dataTreePath}[${index}].key`}
+                      expected={expected}
+                      height="36px"
+                      hoverInteraction
+                      name={`${field}.key`}
+                      placeholder={`Key ${index + 1}`}
+                      theme={props.theme}
+                    />
+                  )}
                 </Flex>
 
                 {!props.actionConfig && (
                   <Flex size={3}>
                     <DynamicTextField
-                      border={CodeEditorBorder.BOTTOM_SIDE}
+                      border={CodeEditorBorder.ALL_SIDE}
                       className={`t--${field}.value.${index}`}
                       dataTreePath={`${props.dataTreePath}[${index}].value`}
-                      expected={FIELD_VALUES.API_ACTION.params}
+                      expected={expected}
+                      height="36px"
                       hoverInteraction
                       name={`${field}.value`}
                       placeholder={`Value ${index + 1}`}
@@ -167,7 +235,8 @@ function KeyValueRow(props: Props & WrappedFieldArrayProps) {
                           props.actionConfig[index].editable === undefined
                         )
                       }
-                      expected={FIELD_VALUES.API_ACTION.params}
+                      expected={expected}
+                      height="36px"
                       name={`${field}.value`}
                       placeholder={
                         props.placeholder
@@ -185,7 +254,7 @@ function KeyValueRow(props: Props & WrappedFieldArrayProps) {
                       }
                       theme={props.theme}
                       {...otherProps}
-                      border={CodeEditorBorder.BOTTOM_SIDE}
+                      border={CodeEditorBorder.ALL_SIDE}
                       hoverInteraction
                     />
                   </Flex>
@@ -203,11 +272,7 @@ function KeyValueRow(props: Props & WrappedFieldArrayProps) {
         </>
       )}
       <AddMoreAction onClick={() => props.fields.push({ key: "", value: "" })}>
-        <Icon
-          className="t--addApiHeader"
-          name="add-more"
-          size={IconSize.LARGE}
-        />
+        <Icon className="t--addApiHeader" name="add-more" size={IconSize.XXL} />
         <Text case={Case.UPPERCASE} type={TextType.H5}>
           Add more
         </Text>
@@ -232,6 +297,7 @@ type Props = {
   dataTreePath?: string;
   hideHeader?: boolean;
   theme?: EditorTheme;
+  hasType?: boolean;
 };
 
 function KeyValueFieldArray(props: Props) {

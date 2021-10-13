@@ -7,30 +7,32 @@ import {
   matchPath,
 } from "react-router-dom";
 import ApiEditor from "./APIEditor";
+import IntegrationEditor from "./IntegrationEditor";
 import QueryEditor from "./QueryEditor";
 import DataSourceEditor from "./DataSourceEditor";
+import JSEditor from "./JSEditor";
 
+import GeneratePage from "./GeneratePage";
 import CurlImportForm from "./APIEditor/CurlImportForm";
 import ProviderTemplates from "./APIEditor/ProviderTemplates";
 import {
   API_EDITOR_ID_URL,
-  API_EDITOR_URL,
-  QUERIES_EDITOR_URL,
   QUERIES_EDITOR_ID_URL,
-  DATA_SOURCES_EDITOR_URL,
   DATA_SOURCES_EDITOR_ID_URL,
   BUILDER_PAGE_URL,
   BuilderRouteParams,
   APIEditorRouteParams,
   getCurlImportPageURL,
-  API_EDITOR_URL_WITH_SELECTED_PAGE_ID,
+  PAGE_LIST_EDITOR_URL,
+  INTEGRATION_EDITOR_URL,
+  JS_COLLECTION_EDITOR_URL,
+  JS_COLLECTION_ID_URL,
+  getGenerateTemplateURL,
   getProviderTemplatesURL,
+  getGenerateTemplateFormURL,
 } from "constants/routes";
 import styled from "styled-components";
-import {
-  useShowPropertyPane,
-  useWidgetSelection,
-} from "utils/hooks/dragResizeHooks";
+import { useShowPropertyPane } from "utils/hooks/dragResizeHooks";
 import { closeAllModals } from "actions/widgetActions";
 import { useDispatch } from "react-redux";
 import PerformanceTracker, {
@@ -41,13 +43,15 @@ import * as Sentry from "@sentry/react";
 const SentryRoute = Sentry.withSentryRouting(Route);
 
 import { SaaSEditorRoutes } from "./SaaSEditor/routes";
+import { useWidgetSelection } from "utils/hooks/useWidgetSelection";
+import PagesEditor from "./PagesEditor";
 
 const Wrapper = styled.div<{ isVisible: boolean }>`
   position: absolute;
   top: 0;
   left: 0;
   width: ${(props) => (!props.isVisible ? "0px" : "100%")};
-  height: calc(100vh - ${(props) => props.theme.smallHeaderHeight});
+  height: 100%;
   background-color: ${(props) =>
     props.isVisible ? "rgba(0, 0, 0, 0.26)" : "transparent"};
   z-index: ${(props) => (props.isVisible ? 2 : -1)};
@@ -60,6 +64,8 @@ const DrawerWrapper = styled.div<{
   background-color: white;
   width: ${(props) => (!props.isVisible ? "0" : "100%")};
   height: 100%;
+  display: flex;
+  flex-direction: column;
 `;
 
 interface RouterState {
@@ -97,10 +103,8 @@ class EditorsRouter extends React.Component<
   isMatchPath = () => {
     return matchPath(this.props.location.pathname, {
       path: [
-        API_EDITOR_URL(),
+        INTEGRATION_EDITOR_URL(),
         API_EDITOR_ID_URL(),
-        API_EDITOR_URL_WITH_SELECTED_PAGE_ID(),
-        QUERIES_EDITOR_URL(),
         QUERIES_EDITOR_ID_URL(),
       ],
       exact: true,
@@ -134,26 +138,31 @@ class EditorsRouter extends React.Component<
           onClick={this.preventClose}
         >
           <Switch>
-            <SentryRoute component={ApiEditor} exact path={API_EDITOR_URL()} />
+            <SentryRoute
+              component={IntegrationEditor}
+              exact
+              path={INTEGRATION_EDITOR_URL()}
+            />
             <SentryRoute
               component={ApiEditor}
               exact
               path={API_EDITOR_ID_URL()}
             />
             <SentryRoute
-              component={ApiEditor}
-              exact
-              path={API_EDITOR_URL_WITH_SELECTED_PAGE_ID()}
-            />
-            <SentryRoute
-              component={QueryEditor}
-              exact
-              path={QUERIES_EDITOR_URL()}
-            />
-            <SentryRoute
               component={QueryEditor}
               exact
               path={QUERIES_EDITOR_ID_URL()}
+            />
+
+            <SentryRoute
+              component={JSEditor}
+              exact
+              path={JS_COLLECTION_EDITOR_URL()}
+            />
+            <SentryRoute
+              component={JSEditor}
+              exact
+              path={JS_COLLECTION_ID_URL()}
             />
 
             <SentryRoute
@@ -165,9 +174,9 @@ class EditorsRouter extends React.Component<
               <SentryRoute exact key={props.path} {...props} />
             ))}
             <SentryRoute
-              component={DataSourceEditor}
+              component={PagesEditor}
               exact
-              path={DATA_SOURCES_EDITOR_URL()}
+              path={PAGE_LIST_EDITOR_URL()}
             />
             <SentryRoute
               component={DataSourceEditor}
@@ -178,6 +187,16 @@ class EditorsRouter extends React.Component<
               component={ProviderTemplates}
               exact
               path={getProviderTemplatesURL()}
+            />
+            <SentryRoute
+              component={GeneratePage}
+              exact
+              path={getGenerateTemplateURL()}
+            />
+            <SentryRoute
+              component={GeneratePage}
+              exact
+              path={getGenerateTemplateFormURL()}
             />
           </Switch>
         </PaneDrawer>

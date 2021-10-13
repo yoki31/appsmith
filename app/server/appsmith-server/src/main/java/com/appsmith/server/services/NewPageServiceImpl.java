@@ -26,8 +26,13 @@ import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Scheduler;
 
 import javax.validation.Validator;
+import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -70,6 +75,7 @@ public class NewPageServiceImpl extends BaseService<NewPageRepository, NewPage, 
             if (newPage.getUnpublishedPage() != null) {
                 page = newPage.getUnpublishedPage();
                 page.setName(newPage.getUnpublishedPage().getName());
+                page.setLastUpdatedTime(newPage.getUpdatedAt().getEpochSecond());
             }
         }
 
@@ -109,6 +115,10 @@ public class NewPageServiceImpl extends BaseService<NewPageRepository, NewPage, 
         return findById(page.getId(), AclPermission.MANAGE_PAGES)
                 .flatMap(newPage -> {
                     newPage.setUnpublishedPage(page);
+                    // gitSyncId will be used to sync resource across instances
+                    if (newPage.getGitSyncId() == null) {
+                        newPage.setGitSyncId(page.getApplicationId() + "_" + Instant.now().toString());
+                    }
                     return repository.save(newPage);
                 })
                 .flatMap(savedPage -> getPageByViewMode(savedPage, false));
@@ -121,6 +131,9 @@ public class NewPageServiceImpl extends BaseService<NewPageRepository, NewPage, 
 
         newPage.setApplicationId(object.getApplicationId());
         newPage.setPolicies(object.getPolicies());
+        if (newPage.getGitSyncId() == null) {
+            newPage.setGitSyncId(newPage.getApplicationId() + "_" + Instant.now().toString());
+        }
         return super.create(newPage)
                 .flatMap(page -> getPageByViewMode(page, false));
     }
@@ -209,12 +222,31 @@ public class NewPageServiceImpl extends BaseService<NewPageRepository, NewPage, 
                 })
                 .flatMapMany(pageIds -> repository.findAllByIds(pageIds, READ_PAGES))
                 .collectList()
-                .zipWith(defaultPageIdMono)
-                .flatMap(tuple -> {
+                .flatMap( pagesFromDb -> Mono.zip(
+                        Mono.just(pagesFromDb),
+                        defaultPageIdMono,
+                        applicationMono
+                )).flatMap(tuple -> {
                     List<NewPage> pagesFromDb = tuple.getT1();
                     String defaultPageId = tuple.getT2();
 
                     List<PageNameIdDTO> pageNameIdDTOList = new ArrayList<>();
+                    List<ApplicationPage> pages = tuple.getT3().getPages();
+                    List<ApplicationPage> publishedPages = tuple.getT3().getPublishedPages();
+                    Map<String, Integer> pagesOrder = new HashMap<>();
+                    Map<String, Integer> publishedPagesOrder = new HashMap<>();
+
+                    if(Boolean.TRUE.equals(view)) {
+                        for (int i = 0; i < publishedPages.size(); i++)
+                        {
+                            publishedPagesOrder.put(publishedPages.get(i).getId(), i);
+                        }
+                    } else {
+                        for (int i = 0; i < pages.size(); i++)
+                        {
+                            pagesOrder.put(pages.get(i).getId(), i);
+                        }
+                    }
 
                     for (NewPage pageFromDb : pagesFromDb) {
 
@@ -240,10 +272,15 @@ public class NewPageServiceImpl extends BaseService<NewPageRepository, NewPage, 
                         } else {
                             pageNameIdDTO.setIsDefault(false);
                         }
-
                         pageNameIdDTOList.add(pageNameIdDTO);
                     }
-
+                    if(Boolean.TRUE.equals(view)) {
+                        Collections.sort(pageNameIdDTOList,
+                                Comparator.comparing(item -> publishedPagesOrder.get(item.getId())));
+                    } else {
+                        Collections.sort(pageNameIdDTOList,
+                                Comparator.comparing(item -> pagesOrder.get(item.getId())));
+                    }
                     return Mono.just(pageNameIdDTOList);
                 });
 
@@ -351,11 +388,16 @@ public class NewPageServiceImpl extends BaseService<NewPageRepository, NewPage, 
                     copyNewFieldValuesIntoOldObject(page, dbPage.getUnpublishedPage());
                     return this.update(id, dbPage);
                 })
-                .flatMap(savedPage -> getPageByViewMode(savedPage, false));
+                .flatMap(savedPage -> applicationService.saveLastEditInformation(savedPage.getApplicationId())
+                        .then(getPageByViewMode(savedPage, false)));
     }
 
     @Override
     public Mono<NewPage> save(NewPage page) {
+        // gitSyncId will be used to sync resource across instances
+        if (page.getGitSyncId() == null) {
+            page.setGitSyncId(page.getApplicationId() + "_" + Instant.now().toString());
+        }
         return repository.save(page);
     }
 
@@ -371,6 +413,9 @@ public class NewPageServiceImpl extends BaseService<NewPageRepository, NewPage, 
 
     @Override
     public Flux<NewPage> saveAll(List<NewPage> pages) {
+        pages.stream()
+            .filter(newPage -> newPage.getGitSyncId() == null)
+            .forEach(newPage -> newPage.setGitSyncId(newPage.getApplicationId() + "_" + Instant.now().toString()));
         return repository.saveAll(pages);
     }
 
