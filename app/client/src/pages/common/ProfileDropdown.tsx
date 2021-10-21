@@ -98,6 +98,7 @@ export default function ProfileDropdown(props: TagProps) {
       position={Position.BOTTOM_RIGHT}
     >
       <ProfileImage
+        className="t-profile-menu-trigger"
         source={props.photoId ? `/api/v1/assets/${props.photoId}` : ""}
         userName={props.name || props.userName}
       />
@@ -140,7 +141,7 @@ export default function ProfileDropdown(props: TagProps) {
       />
       {user?.isSuperUser && (
         <StyledMenuItem
-          className={`t--settings ${BlueprintClasses.POPOVER_DISMISS}`}
+          className={`t--admin-settings-menu ${BlueprintClasses.POPOVER_DISMISS}`}
           icon="setting"
           onSelect={() => {
             getOnSelectAction(DropdownOnSelectActions.REDIRECT, {
