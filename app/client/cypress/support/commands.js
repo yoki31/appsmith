@@ -1,4 +1,5 @@
 /// <reference types="Cypress" />
+
 /* eslint-disable cypress/no-unnecessary-waiting */
 /* eslint-disable cypress/no-assigning-return-values */
 
@@ -25,6 +26,7 @@ const datasource = require("../locators/DatasourcesEditor.json");
 const viewWidgetsPage = require("../locators/ViewWidgets.json");
 const generatePage = require("../locators/GeneratePage.json");
 const jsEditorLocators = require("../locators/JSEditor.json");
+const welcomePage = require("../locators/welcomePage.json");
 
 let pageidcopy = " ";
 
@@ -2947,4 +2949,8 @@ Cypress.Commands.add("createJSObject", (JSCode) => {
     .type(JSCode);
   cy.wait(1000);
   cy.get(jsEditorLocators.runButton).click();
+});
+
+Cypress.Commands.add("createSuperUser", () => {
+  cy.get(welcomePage.fullName).should("be.visible");
 });
