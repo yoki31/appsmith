@@ -1,5 +1,4 @@
 /// <reference types="Cypress" />
-
 /* eslint-disable cypress/no-unnecessary-waiting */
 /* eslint-disable cypress/no-assigning-return-values */
 
@@ -2753,7 +2752,6 @@ Cypress.Commands.add("startServerAndRoutes", () => {
 
   cy.route("POST", "/api/v1/collections/actions").as("createNewJSCollection");
   cy.route("DELETE", "/api/v1/collections/actions/*").as("deleteJSCollection");
-  // cy.route("POST", "/api/v1/users/super").as("createSuperUser");
   cy.intercept("POST", "/api/v1/users/super").as("createSuperUser");
 });
 
