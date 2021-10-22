@@ -2753,7 +2753,8 @@ Cypress.Commands.add("startServerAndRoutes", () => {
 
   cy.route("POST", "/api/v1/collections/actions").as("createNewJSCollection");
   cy.route("DELETE", "/api/v1/collections/actions/*").as("deleteJSCollection");
-  cy.route("POST", "/api/v1/users/super").as("createSuperUser");
+  // cy.route("POST", "/api/v1/users/super").as("createSuperUser");
+  cy.intercept("POST", "/api/v1/users/super").as("createSuperUser");
 });
 
 Cypress.Commands.add("alertValidate", (text) => {
@@ -2987,8 +2988,7 @@ Cypress.Commands.add("createSuperUser", () => {
   cy.get(welcomePage.dataCollection).should("be.visible");
   cy.get(welcomePage.createButton).should("be.visible");
   cy.get(welcomePage.createButton).click();
-  cy.wait(2000);
-  cy.get(".t--how-appsmith-works-modal-header").should("be.visible");
+  cy.wait("@createSuperUser");
   cy.LogOut();
   cy.wait(2000);
 });
