@@ -48,11 +48,11 @@ before(function() {
     200,
   );
 
-  // cy.generateUUID().then((id) => {
-  //   appId = id;
-  //   cy.CreateAppInFirstListedOrg(id);
-  //   localStorage.setItem("AppName", appId);
-  // });
+  cy.generateUUID().then((id) => {
+    appId = id;
+    cy.CreateAppInFirstListedOrg(id);
+    localStorage.setItem("AppName", appId);
+  });
 
   cy.fixture("example").then(function(data) {
     this.data = data;
