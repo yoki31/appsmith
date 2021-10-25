@@ -10,6 +10,7 @@ import { Colors } from "constants/Colors";
 type FieldHelperProps = {
   setting: Setting;
   children: React.ReactNode;
+  className?: string;
 };
 
 const StyledIcon = styled(Icon)`
@@ -50,9 +51,9 @@ export const StyledSubtext = styled.p`
   color: ${Colors.GRAY};
 `;
 
-export function FormGroup({ children, setting }: FieldHelperProps) {
+export function FormGroup({ children, className, setting }: FieldHelperProps) {
   return (
-    <StyledFormGroup>
+    <StyledFormGroup className={className}>
       <StyledLabel>{createMessage(() => setting.label || "")}</StyledLabel>
       {setting.helpText && (
         <Tooltip content={createMessage(() => setting.helpText || "")}>

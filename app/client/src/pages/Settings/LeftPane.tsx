@@ -75,6 +75,7 @@ export default function LeftPane() {
           <Category key={config.slug}>
             <StyledLink
               $active={category == config.slug}
+              className={`t--settings-category-${config.slug}`}
               to={getAdminSettingsCategoryUrl(config.slug)}
             >
               {config.label}
