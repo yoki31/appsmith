@@ -34,7 +34,7 @@ function renderComponent() {
   });
 }
 
-describe("Button", () => {
+describe("Text", () => {
   beforeEach(() => {
     container = document.createElement("div");
     document.body.appendChild(container);

@@ -79,7 +79,7 @@ describe("Group", () => {
     expect(group).toHaveLength(0);
   });
 
-  it("is rendered for toggle", () => {
+  it("is rendered for link", () => {
     settings[0].controlType = SettingTypes.LINK;
     renderComponent();
     const { button, group, link, text, textInput, toggle } = getElements();
@@ -91,7 +91,7 @@ describe("Group", () => {
     expect(group).toHaveLength(0);
   });
 
-  it("is rendered for toggle", () => {
+  it("is rendered for text", () => {
     settings[0].controlType = SettingTypes.TEXT;
     renderComponent();
     const { button, group, link, text, textInput, toggle } = getElements();
@@ -103,7 +103,7 @@ describe("Group", () => {
     expect(group).toHaveLength(0);
   });
 
-  it("is rendered for toggle", () => {
+  it("is rendered for button", () => {
     settings[0].controlType = SettingTypes.BUTTON;
     renderComponent();
     const { button, group, link, text, textInput, toggle } = getElements();
@@ -115,7 +115,7 @@ describe("Group", () => {
     expect(group).toHaveLength(0);
   });
 
-  it("is rendered for toggle", () => {
+  it("is rendered for group", () => {
     settings[0].controlType = SettingTypes.GROUP;
     renderComponent();
     const { button, group, link, text, textInput, toggle } = getElements();
