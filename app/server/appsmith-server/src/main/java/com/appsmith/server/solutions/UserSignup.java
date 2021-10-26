@@ -215,8 +215,8 @@ public class UserSignup {
                                             false
                                     )),
                             envManager.applyChanges(Map.of(
-                                    EnvManager.Vars.APPSMITH_ENABLE_TELEMETRY.name(),
-                                    String.valueOf(userFromRequest.isAllowCollectingAnonymousData()),
+                                    EnvManager.Vars.APPSMITH_DISABLE_TELEMETRY.name(),
+                                    String.valueOf(!userFromRequest.isAllowCollectingAnonymousData()),
                                     EnvManager.Vars.APPSMITH_INSTANCE_NAME.name(),
                                     "Appsmith"
                             )),
