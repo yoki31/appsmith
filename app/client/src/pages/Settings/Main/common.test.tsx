@@ -1,7 +1,6 @@
 import { render, screen } from "test/testUtils";
 import React from "react";
 import { SettingTypes } from "../SettingsConfig";
-import ButtonComponent from "./Button";
 import { FormGroup } from "./Common";
 
 let container: any = null;
