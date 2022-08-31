@@ -94,7 +94,7 @@
     "marked": "^2.0.0",
     "memoize-one": "^5.2.1",
     "moment": "^2.24.0",
-    "moment-timezone": "^0.5.27",
+    "moment-timezone": "^0.5.35",
     "nanoid": "^2.0.4",
     "node-forge": "^0.10.0",
     "node-sass": "^6.0.1",
