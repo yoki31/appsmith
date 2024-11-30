@@ -1,6 +1,7 @@
 import store from "store";
 import React from "react";
-import { ThemeProvider, theme } from "constants/DefaultTheme";
+import { ThemeProvider } from "styled-components";
+import { theme } from "constants/DefaultTheme";
 import InputComponent from "./";
 import { Provider } from "react-redux";
 import ReactDOM from "react-dom";
@@ -25,6 +26,7 @@ describe("<InputComponent />", () => {
       ReactDOM.render(
         <Provider store={store}>
           <ThemeProvider theme={theme}>
+            {/* @ts-expect-error: type mismatch */}
             <InputComponent
               inputType="TEXT"
               isInvalid={false}
@@ -45,6 +47,7 @@ describe("<InputComponent />", () => {
     });
     const textarea = container?.querySelector("textarea");
     const styles = textarea ? getComputedStyle(textarea) : { resize: "" };
+
     expect(styles.resize).toEqual("none");
   });
 });

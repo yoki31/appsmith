@@ -1,8 +1,11 @@
-import { defaultValueValidation, InputWidgetProps } from "./index";
+import type { InputWidgetProps } from "./index";
+import { defaultValueValidation } from "./index";
 import _ from "lodash";
 
 describe("#defaultValueValidation", () => {
   const defaultInputWidgetProps: InputWidgetProps = {
+    backgroundColor: "",
+    borderRadius: "",
     bottomRow: 2,
     inputType: "NUMBER",
     inputValidators: [],
@@ -12,6 +15,7 @@ describe("#defaultValueValidation", () => {
     leftColumn: 0,
     parentColumnSpace: 71.75,
     parentRowSpace: 38,
+    primaryColor: "",
     renderMode: "CANVAS",
     rightColumn: 100,
     text: "",
@@ -37,24 +41,34 @@ describe("#defaultValueValidation", () => {
     "abcd",
   ];
   const expectedOutputs = [
-    { isValid: true, parsed: undefined, messages: [""] },
-    { isValid: true, parsed: undefined, messages: [""] },
-    { isValid: true, parsed: 0, messages: [""] },
-    { isValid: true, parsed: 123, messages: [""] },
-    { isValid: true, parsed: -23, messages: [""] },
-    { isValid: true, parsed: 0.000001, messages: [""] },
-    { isValid: true, parsed: -23, messages: [""] },
-    { isValid: true, parsed: 0, messages: [""] },
-    { isValid: true, parsed: 100, messages: [""] },
+    { isValid: true, parsed: undefined, messages: [{ name: "", message: "" }] },
+    { isValid: true, parsed: undefined, messages: [{ name: "", message: "" }] },
+    { isValid: true, parsed: 0, messages: [{ name: "", message: "" }] },
+    { isValid: true, parsed: 123, messages: [{ name: "", message: "" }] },
+    { isValid: true, parsed: -23, messages: [{ name: "", message: "" }] },
+    { isValid: true, parsed: 0.000001, messages: [{ name: "", message: "" }] },
+    { isValid: true, parsed: -23, messages: [{ name: "", message: "" }] },
+    { isValid: true, parsed: 0, messages: [{ name: "", message: "" }] },
+    { isValid: true, parsed: 100, messages: [{ name: "", message: "" }] },
     {
       isValid: false,
       parsed: undefined,
-      messages: ["This value must be a number"],
+      messages: [
+        {
+          name: "TypeError",
+          message: "This value must be a number",
+        },
+      ],
     },
     {
       isValid: false,
       parsed: undefined,
-      messages: ["This value must be a number"],
+      messages: [
+        {
+          name: "TypeError",
+          message: "This value must be a number",
+        },
+      ],
     },
   ];
 
@@ -106,6 +120,21 @@ describe("#defaultValueValidation", () => {
       const response = defaultValueValidation(input, props, _);
 
       expect(response).toStrictEqual(expectedOutputs[index]);
+    });
+  });
+
+  it("validates correctly for Number type with undefined value", () => {
+    const props = {
+      ...defaultInputWidgetProps,
+      inputType: "NUMBER",
+    };
+
+    const response = defaultValueValidation(undefined, props, _);
+
+    expect(response).toStrictEqual({
+      isValid: true,
+      parsed: undefined,
+      messages: [{ name: "", message: "" }],
     });
   });
 });

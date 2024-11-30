@@ -1,35 +1,31 @@
-import React, { useState, useEffect, ReactElement, useCallback } from "react";
+import type { ReactElement } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useSelector, useDispatch } from "react-redux";
-import { getEditorConfig } from "selectors/entitiesSelector";
-import { AppState } from "reducers/index";
-import Dropdown, { DropdownOption } from "components/ads/Dropdown";
+import { getEditorConfig } from "ee/selectors/entitiesSelector";
+import type { AppState } from "ee/reducers";
 import { fetchPluginFormConfig } from "actions/pluginActions";
 import { DROPDOWN_DIMENSION, DEFAULT_DROPDOWN_OPTION } from "../constants";
 import { SelectWrapper, Label, Bold } from "./styles";
-import TextInput from "components/ads/TextInput";
-import { GeneratePagePayload } from "./types";
-import { getSheetUrl } from "./hooks";
-import Tooltip from "components/ads/Tooltip";
+import type { GeneratePagePayload } from "./types";
 import styled from "styled-components";
-import {
+import type {
   UseSheetListReturn,
   UseSpreadSheetsReturn,
   UseSheetColumnHeadersReturn,
 } from "./hooks";
-import Icon, { IconSize } from "components/ads/Icon";
-import { Colors } from "constants/Colors";
-import { getTypographyByKey } from "constants/DefaultTheme";
+import type { DropdownOption } from "@appsmith/ads-old";
+import { getTypographyByKey, Text, TextType } from "@appsmith/ads-old";
 import { debounce } from "lodash";
-import Text, { TextType, FontWeight } from "components/ads/Text";
 import {
   createMessage,
   GEN_CRUD_TABLE_HEADER_LABEL,
   GEN_CRUD_COLUMN_HEADER_TITLE,
   GEN_CRUD_NO_COLUMNS,
   GEN_CRUD_TABLE_HEADER_TOOLTIP_DESC,
-} from "constants/messages";
+} from "ee/constants/messages";
+import { Icon, Option, Select, Input, Tooltip } from "@appsmith/ads";
 
-type Props = {
+interface Props {
   googleSheetPluginId: string;
   selectedDatasource: DropdownOption;
   selectedSpreadsheet: DropdownOption;
@@ -42,33 +38,28 @@ type Props = {
     onSubmit: () => void;
     disabled: boolean;
     isLoading: boolean;
+    // TODO: Fix this the next time the file is edited
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   }) => ReactElement<any, any>;
   sheetsListProps: UseSheetListReturn;
   spreadSheetsProps: UseSpreadSheetsReturn;
   sheetColumnsHeaderProps: UseSheetColumnHeadersReturn;
-};
+}
 
 // styles
 
-const RoundBg = styled.div`
-  width: 16px;
-  height: 16px;
-  border-radius: 16px;
-  background-color: ${Colors.GRAY};
-  display: flex;
-  justify-content: center;
-  align-items: center;
-`;
+const RoundBg = styled.div``;
 
 const Row = styled.div`
   display: flex;
   flex-direction: row;
   justify-content: flex-start;
+  align-items: center;
+  margin-bottom: 4px;
 `;
 
 const ColumnName = styled.span`
-  ${(props) => `${getTypographyByKey(props, "p3")}`};
-  color: ${Colors.GRAY};
+  ${getTypographyByKey("p3")};
   text-align: center;
   white-space: nowrap;
   overflow: hidden;
@@ -80,30 +71,31 @@ const ColumnInfoWrapper = styled.div`
   flex-direction: row;
   justify-content: flex-start;
   align-items: flex-start;
-  padding: 0px 8px;
-  margin-bottom: 10px;
+  margin-bottom: 24px;
   width: ${DROPDOWN_DIMENSION.WIDTH};
   overflow: hidden;
   flex-wrap: wrap;
+  margin-top: 2px;
+  .cs-text {
+    color: var(--ads-v2-color-fg-muted);
+  }
 `;
 
 const ColumnNameWrapper = styled.div`
   display: flex;
-`;
-
-const TooltipWrapper = styled.div`
-  margin-top: 2px;
+  color: var(--ads-v2-color-fg-muted);
 `;
 
 const RowHeading = styled.p`
-  ${(props) => `${getTypographyByKey(props, "p1")}`};
-  margin-right: 10px;
+  ${getTypographyByKey("p1")};
+  margin-right: 6px;
 `;
 
 // As TextInput with dataType as number allows `e` as input, hence adding a number validator
 // to check for only whole numbers.
 export function isNumberValidator(value: string) {
   const isValid = (/^\d+$/.test(value) && Number(value) > 0) || value === "";
+
   return {
     isValid: isValid,
     message: !isValid ? "Only numeric value allowed" : "",
@@ -132,6 +124,7 @@ function GoogleSheetForm(props: Props) {
   const { fetchAllSpreadsheets } = spreadSheetsProps;
   const {
     columnHeaderList,
+    errorFetchingColumnHeaderList,
     fetchColumnHeaderList,
     isFetchingColumnHeaderList,
   } = sheetColumnsHeaderProps;
@@ -146,9 +139,10 @@ function GoogleSheetForm(props: Props) {
     getEditorConfig(state, googleSheetPluginId),
   );
 
-  const [sheetQueryRequest, setSheetQueryRequest] = useState<
-    Record<any, string>
-  >({});
+  const [sheetQueryRequest, setSheetQueryRequest] =
+    // TODO: Fix this the next time the file is edited
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    useState<Record<any, string>>({});
 
   useEffect(() => {
     // Check if google sheet editor config is fetched.
@@ -165,19 +159,25 @@ function GoogleSheetForm(props: Props) {
 
   useEffect(() => {
     if (googleSheetEditorConfig && googleSheetEditorConfig[0]) {
+      // TODO: Fix this the next time the file is edited
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const requestObject: Record<any, string> = {};
       const configs = googleSheetEditorConfig[0]?.children;
+
       if (Array.isArray(configs)) {
         for (let index = 0; index < configs.length; index += 2) {
           const keyConfig = configs[index];
           const valueConfig = configs[index + 1];
+
           if (keyConfig && valueConfig) {
             const key = keyConfig?.initialValue;
             const value = valueConfig?.initialValue;
+
             if (key && value !== undefined) requestObject[key] = value;
           }
         }
       }
+
       setSheetQueryRequest(requestObject);
     }
   }, [googleSheetEditorConfig]);
@@ -192,6 +192,7 @@ function GoogleSheetForm(props: Props) {
     ) {
       fetchAllSpreadsheets({
         selectedDatasourceId: selectedDatasource.id,
+        pluginId: selectedDatasource?.data?.pluginId,
         requestObject: sheetQueryRequest,
       });
     }
@@ -203,18 +204,17 @@ function GoogleSheetForm(props: Props) {
     if (
       selectedDatasource.value &&
       selectedDatasource.id &&
-      selectedSpreadsheet.value &&
-      selectedSpreadsheet.id
+      selectedSpreadsheet.value
     ) {
       setSelectedSheet(DEFAULT_DROPDOWN_OPTION);
       fetchSheetsList({
         requestObject: sheetQueryRequest,
         selectedDatasourceId: selectedDatasource.id,
-        selectedSpreadsheetId: selectedSpreadsheet.id,
+        selectedSpreadsheetUrl: selectedSpreadsheet.value,
+        pluginId: selectedDatasource?.data?.pluginId,
       });
     }
   }, [
-    selectedSpreadsheet.id,
     selectedSpreadsheet.value,
     selectedDatasource.id,
     selectedDatasource.value,
@@ -228,12 +228,14 @@ function GoogleSheetForm(props: Props) {
   ) => {
     if (sheetValue && sheetObj) {
       setSelectedSheet(sheetObj);
-      if (selectedDatasource.id && selectedSpreadsheet.id) {
+
+      if (selectedDatasource.id && selectedSpreadsheet.value) {
         fetchColumnHeaderList({
           selectedDatasourceId: selectedDatasource.id,
-          selectedSpreadsheetId: selectedSpreadsheet.id,
+          selectedSpreadsheetUrl: selectedSpreadsheet.value,
           sheetName: sheetValue,
           tableHeaderIndex,
+          pluginId: selectedDatasource?.data?.pluginId,
           requestObject: sheetQueryRequest,
         });
       }
@@ -241,8 +243,9 @@ function GoogleSheetForm(props: Props) {
   };
 
   const onSubmit = () => {
-    if (selectedSpreadsheet.id) {
+    if (selectedSpreadsheet.value) {
       const columns: string[] = [];
+
       columnHeaderList.forEach(({ value }) => {
         if (value) columns.push(value);
       });
@@ -251,11 +254,12 @@ function GoogleSheetForm(props: Props) {
         searchColumn: "",
         tableName: selectedSheet.value || "",
         pluginSpecificParams: {
-          sheetUrl: getSheetUrl(selectedSpreadsheet.id),
+          sheetUrl: selectedSpreadsheet.value,
           tableHeaderIndex,
           sheetName: selectedSheet.value,
         },
       };
+
       generatePageAction(payload);
     }
   };
@@ -264,12 +268,13 @@ function GoogleSheetForm(props: Props) {
     debounce((value: string) => {
       if (
         selectedDatasource.id &&
-        selectedSpreadsheet.id &&
+        selectedSpreadsheet.value &&
         selectedSheet.value
       ) {
         fetchColumnHeaderList({
           selectedDatasourceId: selectedDatasource.id,
-          selectedSpreadsheetId: selectedSpreadsheet.id,
+          selectedSpreadsheetUrl: selectedSpreadsheet.value,
+          pluginId: selectedDatasource?.data?.pluginId,
           sheetName: selectedSheet.value,
           tableHeaderIndex: value,
           requestObject: sheetQueryRequest,
@@ -291,89 +296,97 @@ function GoogleSheetForm(props: Props) {
       {selectedSpreadsheet.value ? (
         <SelectWrapper width={DROPDOWN_DIMENSION.WIDTH}>
           <Label>
-            Select sheet from <Bold>{selectedSpreadsheet.label}</Bold>
+            Select sheet from&nbsp;<Bold>{selectedSpreadsheet.label}</Bold>
           </Label>
-          <Dropdown
-            cypressSelector="t--table-dropdown"
-            dropdownMaxHeight={"300px"}
-            height={DROPDOWN_DIMENSION.HEIGHT}
+
+          <Select
+            data-testid="t--sheetName-dropdown"
+            getPopupContainer={(triggerNode) =>
+              triggerNode.parentNode.parentNode
+            }
             isLoading={isFetchingSheetsList}
-            onSelect={onSelectSheetOption}
-            optionWidth={DROPDOWN_DIMENSION.WIDTH}
-            options={sheetsList}
-            selected={selectedSheet}
-            showLabelOnly
-            width={DROPDOWN_DIMENSION.WIDTH}
-          />
+            onChange={(value) =>
+              onSelectSheetOption(
+                value,
+                sheetsList.find((sheet) => sheet.value === value),
+              )
+            }
+            value={selectedSheet}
+          >
+            {sheetsList.map((sheet) => {
+              return (
+                <Option key={sheet.label} value={sheet.label}>
+                  {sheet?.label}
+                </Option>
+              );
+            })}
+          </Select>
         </SelectWrapper>
       ) : null}
 
       {selectedSheet.value ? (
-        <>
-          <SelectWrapper width={DROPDOWN_DIMENSION.WIDTH}>
+        <SelectWrapper width={DROPDOWN_DIMENSION.WIDTH}>
+          <>
             <Row>
               <RowHeading>
                 {createMessage(GEN_CRUD_TABLE_HEADER_LABEL)}
               </RowHeading>
-              <TooltipWrapper>
-                <Tooltip
-                  content={createMessage(GEN_CRUD_TABLE_HEADER_TOOLTIP_DESC)}
-                  hoverOpenDelay={200}
-                >
-                  <RoundBg>
-                    <Icon
-                      fillColor={Colors.WHITE}
-                      hoverFillColor={Colors.WHITE}
-                      name="help"
-                      size={IconSize.XXS}
-                    />
-                  </RoundBg>
-                </Tooltip>
-              </TooltipWrapper>
+              <Tooltip
+                content={createMessage(GEN_CRUD_TABLE_HEADER_TOOLTIP_DESC)}
+                // hoverOpenDelay={200}
+              >
+                <RoundBg>
+                  <Icon name="question-line" size="md" />
+                </RoundBg>
+              </Tooltip>
             </Row>
-            <TextInput
-              dataType="text"
-              fill
+            <Input
+              data-testid="t--tableHeaderIndex"
               onChange={tableHeaderIndexChangeHandler}
-              placeholder="Table Header Index"
+              placeholder="Table header index"
+              size="md"
+              type="text"
               value={tableHeaderIndex}
             />
-          </SelectWrapper>
-          <ColumnInfoWrapper>
-            {columnHeaderList.length ? (
-              <>
-                <Text type={TextType.P3} weight={FontWeight.BOLD}>
-                  {createMessage(GEN_CRUD_COLUMN_HEADER_TITLE)} :&nbsp;
-                </Text>
-                {columnHeaderList
-                  .slice(0, MAX_COLUMNS_VISIBLE)
-                  .map((column, index) => (
-                    <ColumnNameWrapper key={column.id}>
-                      <ColumnName>{column.label}</ColumnName>
-                      {columnHeaderList.length - 1 === index ? null : (
-                        <ColumnName>,&nbsp;</ColumnName>
-                      )}
-                    </ColumnNameWrapper>
-                  ))}
-                {columnHeaderList.length > MAX_COLUMNS_VISIBLE ? (
-                  <ColumnName>
-                    and +{columnHeaderList.length - MAX_COLUMNS_VISIBLE} more.
-                  </ColumnName>
-                ) : (
-                  ""
-                )}
-              </>
-            ) : (
-              <ColumnName>{createMessage(GEN_CRUD_NO_COLUMNS)}</ColumnName>
-            )}
-          </ColumnInfoWrapper>
-        </>
+            <ColumnInfoWrapper>
+              {columnHeaderList.length ? (
+                <>
+                  <Text type={TextType.P3}>
+                    {createMessage(GEN_CRUD_COLUMN_HEADER_TITLE)}:&nbsp;
+                  </Text>
+                  {columnHeaderList
+                    .slice(0, MAX_COLUMNS_VISIBLE)
+                    .map((column, index) => (
+                      <ColumnNameWrapper key={column.id}>
+                        <ColumnName>{column.label}</ColumnName>
+                        {columnHeaderList.length - 1 === index ? null : (
+                          <ColumnName>,&nbsp;</ColumnName>
+                        )}
+                      </ColumnNameWrapper>
+                    ))}
+                  {columnHeaderList.length > MAX_COLUMNS_VISIBLE ? (
+                    <ColumnName>
+                      and +{columnHeaderList.length - MAX_COLUMNS_VISIBLE} more.
+                    </ColumnName>
+                  ) : (
+                    ""
+                  )}
+                </>
+              ) : (
+                <ColumnName>{createMessage(GEN_CRUD_NO_COLUMNS)}</ColumnName>
+              )}
+            </ColumnInfoWrapper>
+          </>
+        </SelectWrapper>
       ) : null}
 
       {selectedSheet.value
         ? renderSubmitButton({
             onSubmit,
-            disabled: !columnHeaderList.length || isFetchingColumnHeaderList,
+            disabled:
+              !columnHeaderList.length ||
+              isFetchingColumnHeaderList ||
+              !!errorFetchingColumnHeaderList,
             isLoading: isFetchingColumnHeaderList,
           })
         : null}

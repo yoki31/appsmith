@@ -1,31 +1,103 @@
-import { IPanelProps } from "@blueprintjs/core";
-import React from "react";
-import { useEffect } from "react";
-import { useSelector } from "react-redux";
-import { AppState } from "reducers";
-import { inOnboarding, isAddWidgetComplete } from "sagas/OnboardingSagas";
-import WidgetSidebar from "../WidgetSidebar";
+import React, { useEffect } from "react";
+import { toggleInOnboardingWidgetSelection } from "actions/onboardingActions";
+import { forceOpenWidgetPanel } from "actions/widgetSidebarActions";
+import { SegmentedControl } from "@appsmith/ads";
+import { useDispatch, useSelector } from "react-redux";
+import { useLocation } from "react-router";
+import type { AppState } from "ee/reducers";
+import { builderURL } from "ee/RouteBuilder";
+import { getCurrentBasePageId } from "selectors/editorSelectors";
+import { getIsFirstTimeUserOnboardingEnabled } from "selectors/onboardingSelectors";
+import AnalyticsUtil from "ee/utils/AnalyticsUtil";
+import { trimQueryString } from "utils/helpers";
+import history from "utils/history";
 import EntityExplorer from "./EntityExplorer";
-import OnboardingExplorer from "./Onboarding";
+import { getExplorerSwitchIndex } from "selectors/editorContextSelectors";
+import { setExplorerSwitchIndex } from "actions/editorContextActions";
+import UIEntitySidebar from "../widgetSidebar/UIEntitySidebar";
+import { ExplorerWrapper } from "./Common/ExplorerWrapper";
 
-const isForceOpenWidgetPanelSelector = (state: AppState) =>
+const selectForceOpenWidgetPanel = (state: AppState) =>
   state.ui.onBoarding.forceOpenWidgetPanel;
 
-function ExplorerContent(props: IPanelProps) {
-  const isInOnboarding = useSelector(inOnboarding);
-  const addWidgetComplete = useSelector(isAddWidgetComplete);
-  const isForceOpenWidgetPanel = useSelector(isForceOpenWidgetPanelSelector);
+const options = [
+  {
+    value: "explorer",
+    label: "Explorer",
+  },
+  {
+    value: "widgets",
+    label: "Widgets",
+  },
+];
+
+function ExplorerContent() {
+  const dispatch = useDispatch();
+  const isFirstTimeUserOnboardingEnabled = useSelector(
+    getIsFirstTimeUserOnboardingEnabled,
+  );
+  const basePageId = useSelector(getCurrentBasePageId);
+  const location = useLocation();
+  const activeSwitchIndex = useSelector(getExplorerSwitchIndex);
+
+  const setActiveSwitchIndex = (index: number) => {
+    dispatch(setExplorerSwitchIndex(index));
+  };
+  const openWidgetPanel = useSelector(selectForceOpenWidgetPanel);
+
   useEffect(() => {
-    if (isForceOpenWidgetPanel) {
-      props.openPanel({ component: WidgetSidebar });
+    const currentIndex = openWidgetPanel ? 1 : 0;
+
+    if (currentIndex !== activeSwitchIndex) {
+      setActiveSwitchIndex(currentIndex);
     }
-  }, [isForceOpenWidgetPanel]);
+  }, [openWidgetPanel]);
 
-  if (isInOnboarding && !addWidgetComplete) {
-    return <OnboardingExplorer {...props} />;
-  }
+  const onChange = (value: string) => {
+    if (value === options[0].value) {
+      dispatch(forceOpenWidgetPanel(false));
+    } else if (value === options[1].value) {
+      if (
+        !(trimQueryString(builderURL({ basePageId })) === location.pathname)
+      ) {
+        history.push(builderURL({ basePageId }));
+        AnalyticsUtil.logEvent("WIDGET_TAB_CLICK", {
+          type: "WIDGET_TAB",
+          fromUrl: location.pathname,
+          toUrl: builderURL({ basePageId }),
+        });
+      }
 
-  return <EntityExplorer {...props} />;
+      AnalyticsUtil.logEvent("EXPLORER_WIDGET_CLICK");
+      dispatch(forceOpenWidgetPanel(true));
+      dispatch(setExplorerSwitchIndex(1));
+
+      if (isFirstTimeUserOnboardingEnabled) {
+        dispatch(toggleInOnboardingWidgetSelection(true));
+      }
+    }
+  };
+  const { value: activeOption } = options[activeSwitchIndex];
+
+  return (
+    <ExplorerWrapper>
+      <div
+        className="flex-shrink-0 p-3 pb-2"
+        data-testid="explorer-tab-options"
+        id="explorer-tab-options"
+      >
+        <SegmentedControl
+          onChange={onChange}
+          options={options}
+          value={activeOption}
+        />
+      </div>
+
+      <UIEntitySidebar isActive={activeOption === "widgets"} />
+
+      <EntityExplorer isActive={activeOption === "explorer"} />
+    </ExplorerWrapper>
+  );
 }
 
 export default ExplorerContent;

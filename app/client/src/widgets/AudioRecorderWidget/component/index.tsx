@@ -1,17 +1,30 @@
 import React, { useEffect, useState, useMemo, useRef } from "react";
-import styled, { css, keyframes } from "styled-components";
+import styled from "styled-components";
 import { Button, Icon } from "@blueprintjs/core";
 import { useReactMediaRecorder } from "react-media-recorder";
 import { useStopwatch } from "react-timer-hook";
 
-import { ReactComponent as RecorderDefaultIcon } from "assets/icons/widget/recorder/recorder_default.svg";
-import { ReactComponent as RecorderRecordingIcon } from "assets/icons/widget/recorder/recorder_recording.svg";
-import { ReactComponent as RecorderPauseIcon } from "assets/icons/widget/recorder/recorder_pause.svg";
-import { ReactComponent as RecorderCompleteIcon } from "assets/icons/widget/recorder/recorder_complete.svg";
-import { ReactComponent as RecorderNoPermissionIcon } from "assets/icons/widget/recorder/recorder_no_permission.svg";
 import { WIDGET_PADDING } from "constants/WidgetConstants";
-import { hexToRgb, ThemeProp } from "components/ads/common";
 import { darkenHover } from "constants/DefaultTheme";
+import { Colors } from "constants/Colors";
+import type { ThemeProp } from "WidgetProvider/constants";
+import { importSvg } from "@appsmith/ads-old";
+
+const RecorderDefaultIcon = importSvg(
+  async () => import("assets/icons/widget/recorder/recorder_default.svg"),
+);
+const RecorderRecordingIcon = importSvg(
+  async () => import("assets/icons/widget/recorder/recorder_recording.svg"),
+);
+const RecorderPauseIcon = importSvg(
+  async () => import("assets/icons/widget/recorder/recorder_pause.svg"),
+);
+const RecorderCompleteIcon = importSvg(
+  async () => import("assets/icons/widget/recorder/recorder_complete.svg"),
+);
+const RecorderNoPermissionIcon = importSvg(
+  async () => import("assets/icons/widget/recorder/recorder_no_permission.svg"),
+);
 
 export enum RecorderStatusTypes {
   PERMISSION_PROMPT = "PERMISSION_PROMPT",
@@ -40,7 +53,6 @@ const RecorderContainer = styled.div`
   justify-content: space-evenly;
   width: 100%;
   height: 100%;
-  overflow: auto;
 `;
 
 const RightContainer = styled.div`
@@ -49,7 +61,12 @@ const RightContainer = styled.div`
   flex-direction: column;
   justify-content: space-around;
   height: 100%;
-  padding-left: 8%;
+  padding-left: 16px;
+
+  .status {
+    font-size: 16px;
+    font-weight: bold;
+  }
 
   & > .controls {
     display: flex;
@@ -58,15 +75,21 @@ const RightContainer = styled.div`
       margin-left: 5%;
       border: none;
     }
+
+    button.close-button {
+      margin-left: auto;
+    }
   }
 `;
 
 const TimerContainer = styled.div<ThemeProp>`
-  color: ${({ theme }) => theme.colors.button.disabled.bgColor};
+  color: ${Colors.GREY_8};
 `;
 
 interface RecorderLeftButtonStyleProps {
-  backgroundColor: string;
+  accentColor: string;
+  boxShadow?: string;
+  borderRadius: string;
   dimension: number;
   disabled: boolean;
   iconColor: string;
@@ -74,44 +97,15 @@ interface RecorderLeftButtonStyleProps {
   status: RecorderStatus;
 }
 
-const getRgbaColor = (color: string, alpha: number) => {
-  const rgb = hexToRgb(color);
-
-  return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`;
-};
-
-const pulse = (boxShadowColor: string, dimension: number) => {
-  return keyframes`
-  0% {
-    box-shadow: 0 0 0 0px ${getRgbaColor(boxShadowColor, 0.4)};
-  }
-  100% {
-    box-shadow: 0 0 0 ${dimension * 0.1}px rgba(0, 0, 0, 0);
-  }
-`;
-};
-
-const animation = (props: RecorderLeftButtonStyleProps) => css`
-  ${pulse(props.backgroundColor, props.dimension)} 2s infinite
-`;
-
 const StyledRecorderLeftButton = styled(Button)<
   ThemeProp & RecorderLeftButtonStyleProps
 >`
   background-image: none !important;
-  border-radius: 50%;
+  border-radius: ${({ borderRadius }) => borderRadius};
   height: ${({ dimension }) => dimension * 0.8}px;
   width: ${({ dimension }) => dimension * 0.8}px;
-
-  box-shadow: ${({ backgroundColor, status }) =>
-    status === RecorderStatusTypes.RECORDING
-      ? `
-      0 0 0 1px 1px ${getRgbaColor(backgroundColor, 0.4)}
-    `
-      : "none"} !important;
+  box-shadow: ${({ boxShadow }) => `${boxShadow}`} !important;
   margin-left: ${({ dimension }) => dimension * 0.1}px;
-
-  animation: ${animation};
 
   & > svg {
     flex: 1;
@@ -136,13 +130,13 @@ const StyledRecorderLeftButton = styled(Button)<
     }
   }
 
-  ${({ backgroundColor, permissionDenied, theme }) => `
+  ${({ accentColor, permissionDenied, theme }) => `
     &:enabled {
       background: ${
-        backgroundColor
+        accentColor
           ? permissionDenied
             ? theme.colors.button.disabled.bgColor
-            : backgroundColor
+            : accentColor
           : "none"
       } !important;
     }
@@ -150,13 +144,18 @@ const StyledRecorderLeftButton = styled(Button)<
       background: ${darkenHover(
         permissionDenied
           ? theme.colors.button.disabled.bgColor
-          : backgroundColor || "#f6f6f6",
+          : accentColor || "#f6f6f6",
       )} !important;
       animation: none;
     }
     &:disabled {
       background-color: ${theme.colors.button.disabled.bgColor} !important;
       color: ${theme.colors.button.disabled.textColor} !important;
+      > svg {
+        path, circle {
+          fill: ${theme.colors.button.disabled.textColor};
+        }
+      }
     }
   `}
 `;
@@ -185,7 +184,9 @@ const renderRecorderIcon = (
 };
 
 interface RecorderLeftProps {
-  backgroundColor: string;
+  accentColor: string;
+  borderRadius: string;
+  boxShadow?: string;
   dimension: number;
   disabled: boolean;
   iconColor: string;
@@ -196,7 +197,9 @@ interface RecorderLeftProps {
 
 function RecorderLeft(props: RecorderLeftProps) {
   const {
-    backgroundColor,
+    accentColor,
+    borderRadius,
+    boxShadow,
     denied,
     dimension,
     disabled,
@@ -211,7 +214,9 @@ function RecorderLeft(props: RecorderLeftProps) {
 
   return (
     <StyledRecorderLeftButton
-      backgroundColor={backgroundColor}
+      accentColor={accentColor}
+      borderRadius={borderRadius}
+      boxShadow={boxShadow}
       dimension={dimension}
       disabled={disabled || denied}
       icon={renderRecorderIcon(denied, status)}
@@ -280,7 +285,8 @@ function PlayerButton(props: PlayerButtonProps) {
     default:
       return (
         <Button
-          icon={<Icon color="#F22B2B" icon="small-cross" iconSize={20} />}
+          className="close-button"
+          icon={<Icon color="#858282" icon="small-cross" iconSize={20} />}
           minimal
           onClick={onClick}
           outlined
@@ -469,6 +475,7 @@ function RecorderRight(props: RecorderRightProps) {
 
   const handleTimeUpdate = () => {
     const totalSeconds = Math.ceil(audioRef.current.currentTime);
+
     setCurrentDays(Math.floor(totalSeconds / (60 * 60 * 24)));
     setCurrentHours(Math.floor((totalSeconds % (60 * 60 * 24)) / (60 * 60)));
     setCurrentMinutes(Math.floor((totalSeconds % (60 * 60)) / 60));
@@ -508,7 +515,7 @@ function RecorderRight(props: RecorderRightProps) {
       <div className="status">{statusMessage}</div>
       {recorderStatus === RecorderStatusTypes.PERMISSION_DENIED ? (
         <a
-          href="https://help.sprucehealth.com/article/386-changing-permissions-for-video-and-audio-on-your-internet-browser"
+          href="https://support.google.com/chrome/answer/2693767"
           rel="noreferrer"
           target="_blank"
         >
@@ -532,25 +539,29 @@ function RecorderRight(props: RecorderRightProps) {
 }
 
 export interface RecorderComponentProps {
-  backgroundColor: string;
+  accentColor: string;
+  borderRadius: string;
+  boxShadow?: string;
   height: number;
   iconColor: string;
   isDisabled: boolean;
   onRecordingStart: () => void;
   onRecordingComplete: (blobUrl?: string, blob?: Blob) => void;
-  value?: Blob;
+  blobUrl?: string;
   width: number;
 }
 
 function AudioRecorderComponent(props: RecorderComponentProps) {
   const {
-    backgroundColor,
+    accentColor,
+    blobUrl,
+    borderRadius,
+    boxShadow,
     height,
     iconColor,
     isDisabled,
     onRecordingComplete,
     onRecordingStart,
-    value,
     width,
   } = props;
 
@@ -586,6 +597,7 @@ function AudioRecorderComponent(props: RecorderComponentProps) {
 
   useEffect(() => {
     const recorderContainerElement = recorderContainerRef.current;
+
     if (recorderContainerElement) {
       setContainerWidth(recorderContainerElement.clientWidth);
     }
@@ -600,10 +612,14 @@ function AudioRecorderComponent(props: RecorderComponentProps) {
   }, [error]);
 
   useEffect(() => {
-    if (recorderStatus !== RecorderStatusTypes.DEFAULT && value === undefined) {
+    if (
+      recorderStatus !== RecorderStatusTypes.PERMISSION_PROMPT &&
+      recorderStatus !== RecorderStatusTypes.DEFAULT &&
+      blobUrl === undefined
+    ) {
       resetRecorder();
     }
-  }, [value]);
+  }, [blobUrl]);
 
   const dimension = useMemo(() => {
     if (containerWidth > height) {
@@ -698,6 +714,7 @@ function AudioRecorderComponent(props: RecorderComponentProps) {
     if (!isReadyPlayerTimer) {
       setIsReadyPlayerTimer(true);
     }
+
     setPlayerStatus(PlayerStatusTypes.PLAY);
   };
 
@@ -717,7 +734,9 @@ function AudioRecorderComponent(props: RecorderComponentProps) {
   return (
     <RecorderContainer ref={recorderContainerRef}>
       <RecorderLeft
-        backgroundColor={backgroundColor}
+        accentColor={accentColor}
+        borderRadius={borderRadius}
+        boxShadow={boxShadow}
         denied={isPermissionDenied}
         dimension={dimension}
         disabled={isDisabled}

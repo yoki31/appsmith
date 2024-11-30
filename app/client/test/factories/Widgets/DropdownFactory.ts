@@ -1,6 +1,6 @@
 import * as Factory from "factory.ts";
 import { generateReactKey } from "utils/generators";
-import { WidgetProps } from "widgets/BaseWidget";
+import type { WidgetProps } from "widgets/BaseWidget";
 
 export const DropdownFactory = Factory.Sync.makeFactory<WidgetProps>({
   isVisible: true,
@@ -11,8 +11,8 @@ export const DropdownFactory = Factory.Sync.makeFactory<WidgetProps>({
     { label: "Non-Vegetarian", value: "NON_VEG" },
     { label: "Vegan", value: "VEGAN" },
   ],
-  defaultOptionValue: "VEG",
-  type: "DROP_DOWN_WIDGET",
+  defaultOptionValue: { label: "Vegan", value: "VEGAN" },
+  type: "SELECT_WIDGET",
   isLoading: false,
   parentColumnSpace: 74,
   parentRowSpace: 40,

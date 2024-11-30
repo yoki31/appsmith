@@ -1,19 +1,50 @@
-import {
-  ReduxActionTypes,
-  ReduxAction,
-  InitializeEditorPayload,
-} from "constants/ReduxActionConstants";
+import type { APP_MODE } from "entities/App";
+import type { ReduxAction } from "ee/constants/ReduxActionConstants";
+import { ReduxActionTypes } from "ee/constants/ReduxActionConstants";
 
-export const initEditor = (
-  applicationId: string,
-  pageId: string,
-  branch?: string,
-): ReduxAction<InitializeEditorPayload> => ({
+export const initCurrentPage = () => {
+  return {
+    type: ReduxActionTypes.INITIALIZE_CURRENT_PAGE,
+  };
+};
+
+export interface InitEditorActionPayload {
+  baseApplicationId?: string;
+  basePageId?: string;
+  branch?: string;
+  mode: APP_MODE;
+  shouldInitialiseUserDetails?: boolean;
+}
+
+export const initEditorAction = (
+  payload: InitEditorActionPayload,
+): ReduxAction<InitEditorActionPayload> => ({
   type: ReduxActionTypes.INITIALIZE_EDITOR,
+  payload,
+});
+
+export interface InitAppViewerPayload {
+  branch: string;
+  baseApplicationId?: string;
+  basePageId: string;
+  mode: APP_MODE;
+  shouldInitialiseUserDetails?: boolean;
+}
+
+export const initAppViewerAction = ({
+  baseApplicationId,
+  basePageId,
+  branch,
+  mode,
+  shouldInitialiseUserDetails,
+}: InitAppViewerPayload) => ({
+  type: ReduxActionTypes.INITIALIZE_PAGE_VIEWER,
   payload: {
-    applicationId,
-    pageId,
-    branch,
+    branch: branch,
+    baseApplicationId,
+    basePageId,
+    mode,
+    shouldInitialiseUserDetails,
   },
 });
 

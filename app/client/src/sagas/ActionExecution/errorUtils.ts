@@ -1,14 +1,18 @@
-import { TriggerMeta } from "sagas/ActionExecution/ActionExecutionSagas";
-import { TriggerSource } from "constants/AppsmithActionConstants/ActionConstants";
-import { PropertyEvaluationErrorType } from "utils/DynamicBindingUtils";
-import AppsmithConsole from "utils/AppsmithConsole";
-import LOG_TYPE from "entities/AppsmithConsole/logtype";
-import { createMessage, DEBUGGER_TRIGGER_ERROR } from "constants/messages";
-import { ENTITY_TYPE } from "entities/AppsmithConsole";
-import { Toaster } from "components/ads/Toast";
-import { Variant } from "components/ads/common";
-import { ApiResponse } from "api/ApiResponses";
+import {
+  createMessage,
+  TRIGGER_ACTION_VALIDATION_ERROR,
+} from "ee/constants/messages";
+import type { ApiResponse } from "api/ApiResponses";
 import { isString } from "lodash";
+import type { Types } from "utils/TypeHelpers";
+import type { ActionTriggerKeys } from "ee/workers/Evaluation/fns";
+import { getActionTriggerFunctionNames } from "ee/workers/Evaluation/fns";
+import AnalyticsUtil from "ee/utils/AnalyticsUtil";
+import { setDebuggerSelectedTab, showDebugger } from "actions/debuggerActions";
+import { DEBUGGER_TAB_KEYS } from "components/editorComponents/Debugger/constants";
+import store from "store";
+import showToast from "sagas/ToastSagas";
+import { call, put } from "redux-saga/effects";
 
 /*
  * The base trigger error that also logs the errors in the debugger.
@@ -17,58 +21,70 @@ import { isString } from "lodash";
 export class TriggerFailureError extends Error {
   error?: Error;
 
-  constructor(reason: string, triggerMeta: TriggerMeta, error?: Error) {
+  constructor(reason: string, error?: Error) {
     super(reason);
     this.error = error;
-    const { source, triggerPropertyName } = triggerMeta;
-    const errorMessage = error?.message || reason;
-
-    logActionExecutionError(errorMessage, source, triggerPropertyName);
   }
 }
-
-export const logActionExecutionError = (
-  errorMessage: string,
-  source?: TriggerSource,
-  triggerPropertyName?: string,
-  errorType?: PropertyEvaluationErrorType,
-) => {
-  AppsmithConsole.addError({
-    id: `${source?.id}-${triggerPropertyName}`,
-    logType: LOG_TYPE.TRIGGER_EVAL_ERROR,
-    text: createMessage(DEBUGGER_TRIGGER_ERROR, triggerPropertyName),
-    source: {
-      type: ENTITY_TYPE.WIDGET,
-      id: source?.id ?? "",
-      name: source?.name ?? "",
-      propertyPath: triggerPropertyName,
-    },
-    messages: [
-      {
-        type: errorType,
-        message: errorMessage,
-      },
-    ],
-  });
-
-  Toaster.show({
-    text: errorMessage,
-    variant: Variant.danger,
-    showDebugButton: true,
-  });
-};
 
 export class PluginTriggerFailureError extends TriggerFailureError {
   responseData: unknown[] = [];
 
-  constructor(
-    reason: string,
-    responseData: unknown[],
-    triggerMeta: TriggerMeta,
-  ) {
-    super(reason, triggerMeta);
+  constructor(reason: string, responseData: unknown[]) {
+    super(reason);
     this.responseData = responseData;
   }
+}
+
+export class ActionValidationError extends TriggerFailureError {
+  constructor(
+    functionName: ActionTriggerKeys,
+    argumentName: string,
+    expectedType: Types,
+    received: Types,
+  ) {
+    const errorMessage = createMessage(
+      TRIGGER_ACTION_VALIDATION_ERROR,
+      getActionTriggerFunctionNames()[functionName],
+      argumentName,
+      expectedType,
+      received,
+    );
+
+    super(errorMessage);
+  }
+}
+
+export function* showToastOnExecutionError(
+  errorMessage: string,
+  showCTA = true,
+) {
+  function onDebugClick() {
+    AnalyticsUtil.logEvent("OPEN_DEBUGGER", {
+      source: "TOAST",
+    });
+    store.dispatch(showDebugger(true));
+    store.dispatch(setDebuggerSelectedTab(DEBUGGER_TAB_KEYS.ERROR_TAB));
+  }
+
+  const action = showCTA
+    ? {
+        text: "debug",
+        effect: () => onDebugClick(),
+        className: "t--toast-debug-button",
+      }
+    : undefined;
+
+  // This is the toast that is rendered when any unhandled error occurs in JS object.
+  yield call(showToast, errorMessage, {
+    kind: "error",
+    action,
+  });
+}
+
+export function* showDebuggerOnExecutionError() {
+  yield put(showDebugger(true));
+  yield put(setDebuggerSelectedTab(DEBUGGER_TAB_KEYS.ERROR_TAB));
 }
 
 /*
@@ -95,18 +111,6 @@ export class UserCancelledActionExecutionError extends PluginActionExecutionErro
   constructor() {
     super("User cancelled action execution", true);
     this.name = "UserCancelledActionExecutionError";
-  }
-}
-
-export class TriggerEvaluationError extends Error {
-  constructor(message: string) {
-    super(message);
-  }
-}
-
-export class UncaughtAppsmithPromiseError extends TriggerFailureError {
-  constructor(message: string, triggerMeta: TriggerMeta, error: Error) {
-    super(message, triggerMeta, error);
   }
 }
 

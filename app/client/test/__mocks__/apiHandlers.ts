@@ -4,9 +4,9 @@ import {
   fetchApplicationThreadsMockResponse,
   createNewThreadMockResponse,
 } from "mockResponses/CommentApiMockResponse";
-import CreateOrganisationMockResponse from "mockResponses/CreateOrganisationMockResponse.json";
+import CreateWorkspaceMockResponse from "mockResponses/CreateWorkspaceMockResponse.json";
 import ApplicationsNewMockResponse from "mockResponses/ApplicationsNewMockResponse.json";
-
+import FetchReleasesMockResponse from "mockResponses/FetchReleasesMockResponse.json";
 const mockSuccessRes = {
   responseMeta: { status: 200, success: true },
   data: {},
@@ -14,11 +14,14 @@ const mockSuccessRes = {
 
 export const handlers = [
   // mock apis here
-  rest.post("/api/v1/organizations", (req, res, ctx) => {
-    return res(ctx.status(200), ctx.json(CreateOrganisationMockResponse));
+  rest.post("/api/v1/workspaces", (req, res, ctx) => {
+    return res(ctx.status(200), ctx.json(CreateWorkspaceMockResponse));
   }),
   rest.get("/api/v1/applications/new", (req, res, ctx) => {
     return res(ctx.status(200), ctx.json(ApplicationsNewMockResponse));
+  }),
+  rest.get("/api/v1/applications/releaseItems", (req, res, ctx) => {
+    return res(ctx.status(200), ctx.json(FetchReleasesMockResponse));
   }),
   // comment thread api
   // fetch application threads, accept query { applicationId }

@@ -27,6 +27,10 @@ export const HelpMap: Record<string, { path: string; searchKey: string }> = {
     path: "/widget-reference/input",
     searchKey: "Input",
   },
+  INPUT_WIDGET_V2: {
+    path: "/widget-reference/input",
+    searchKey: "Input",
+  },
   DATE_PICKER_WIDGET: {
     path: "/widget-reference/datepicker",
     searchKey: "DatePicker",
@@ -39,11 +43,19 @@ export const HelpMap: Record<string, { path: string; searchKey: string }> = {
     path: "/widget-reference/table",
     searchKey: "Table",
   },
+  TABLE_WIDGET_V2: {
+    path: "/widget-reference/table",
+    searchKey: "Table",
+  },
   VIDEO_WIDGET: {
     path: "/widget-reference/video",
     searchKey: "Video",
   },
   DROP_DOWN_WIDGET: {
+    path: "/widget-reference/dropdown",
+    searchKey: "Select",
+  },
+  SELECT_WIDGET: {
     path: "/widget-reference/dropdown",
     searchKey: "Select",
   },
@@ -127,6 +139,10 @@ export const HelpMap: Record<string, { path: string; searchKey: string }> = {
     path: "",
     searchKey: "",
   },
+  MULTI_SELECT_WIDGET_V2: {
+    path: "",
+    searchKey: "",
+  },
   RATE_WIDGET: {
     path: "/widget-reference/rate",
     searchKey: "Rate",
@@ -141,7 +157,7 @@ export const HelpMap: Record<string, { path: string; searchKey: string }> = {
   },
   MENU_BUTTON_WIDGET: {
     path: "/widget-reference/menu-button",
-    searchKey: "Menu Button",
+    searchKey: "Menu button",
   },
   TREE_MULTI_SELECT_WIDGET: {
     path: "/widget-reference/tree-multi-select",
@@ -153,7 +169,7 @@ export const HelpMap: Record<string, { path: string; searchKey: string }> = {
   },
   ICON_BUTTON_WIDGET: {
     path: "/widget-reference/icon-button",
-    searchKey: "Icon Button",
+    searchKey: "Icon button",
   },
   STATBOX_WIDGET: {
     path: "/widget-reference/statbox",
@@ -167,9 +183,20 @@ export const HelpMap: Record<string, { path: string; searchKey: string }> = {
     path: "/widget-reference/audio-recorder",
     searchKey: "Audio Recorder",
   },
+  PROGRESSBAR_WIDGET: {
+    path: "/widget-reference/progressbar",
+    searchKey: "Progress Bar",
+  },
+  SWITCH_GROUP_WIDGET: {
+    path: "/widget-reference/switch-group",
+    searchKey: "Switch Group",
+  },
+  MAP_CHART_WIDGET: {
+    path: "/widget-reference/map-chart",
+    searchKey: "Map Chart",
+  },
 };
 
 export const HelpBaseURL = "https://docs.appsmith.com";
 
-export const HELP_MODAL_WIDTH = 240;
-export const HELP_MODAL_HEIGHT = 206;
+export const HELP_MODAL_WIDTH = 170;

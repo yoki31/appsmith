@@ -1,12 +1,12 @@
-import { createImmerReducer } from "utils/AppsmithUtils";
+import { createImmerReducer } from "utils/ReducerUtils";
+import type { ReduxAction } from "ee/constants/ReduxActionConstants";
 import {
   ReduxActionTypes,
   ReduxActionErrorTypes,
-  ReduxAction,
-} from "constants/ReduxActionConstants";
-import { WidgetProps } from "widgets/BaseWidget";
+} from "ee/constants/ReduxActionConstants";
+import type { WidgetProps } from "widgets/BaseWidget";
 import { compareAndGenerateImmutableCanvasStructure } from "utils/canvasStructureHelpers";
-import { WidgetType } from "constants/WidgetConstants";
+import type { WidgetType } from "constants/WidgetConstants";
 
 export interface CanvasStructure {
   widgetName: string;
@@ -59,6 +59,11 @@ const pageCanvasStructureReducer = createImmerReducer(initialState, {
     action: ReduxAction<{ pageId: string }>,
   ) => {
     return { ...state, [action.payload.pageId]: false };
+  },
+  [ReduxActionTypes.RESET_APPLICATION_WIDGET_STATE_REQUEST]: (
+    state: PageCanvasStructureReduxState,
+  ) => {
+    Object.keys(state).forEach((key) => delete state[key]);
   },
 });
 

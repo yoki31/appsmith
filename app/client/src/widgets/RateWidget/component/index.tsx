@@ -1,14 +1,14 @@
-import React, { useState, useEffect } from "react";
-import { Icon, Position } from "@blueprintjs/core";
+import React from "react";
+import { Icon } from "@blueprintjs/core";
 import { IconNames } from "@blueprintjs/icons";
 import styled from "styled-components";
 import Rating from "react-rating";
 import _ from "lodash";
 
-import { RateSize, RATE_SIZES } from "../constants";
-import TooltipComponent from "components/ads/Tooltip";
-import { disable } from "constants/DefaultTheme";
-import { ComponentProps } from "widgets/BaseComponent";
+import type { RateSize } from "../constants";
+import { RATE_SIZES } from "../constants";
+import { TooltipComponent } from "@design-system/widgets-old";
+import type { ComponentProps } from "widgets/BaseComponent";
 
 /*
   Note:
@@ -20,7 +20,8 @@ import { ComponentProps } from "widgets/BaseComponent";
 
 interface RateContainerProps {
   isDisabled: boolean;
-  scrollable: boolean;
+  readonly?: boolean;
+  minHeight?: number;
 }
 
 export const RateContainer = styled.div<RateContainerProps>`
@@ -31,16 +32,42 @@ export const RateContainer = styled.div<RateContainerProps>`
   align-content: flex-start;
   overflow: auto;
 
+  ${({ minHeight }) => `
+    ${minHeight ? `min-height: ${minHeight}px;` : ""}
+  `};
+
   > span {
-    align-self: ${(props) => (props.scrollable ? "flex-start" : "center")};
+    display: flex !important;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 5px;
+    height: auto;
+
+    & > span {
+      height: 100%;
+
+      & > span {
+        height: 100%;
+        padding: 0;
+        display: flex !important;
+        align-items: center;
+      }
+    }
   }
 
-  ${({ isDisabled }) => isDisabled && disable}
+  ${({ isDisabled }) =>
+    isDisabled &&
+    `cursor: not-allowed;
+    & > * {
+      pointer-events: none;
+    }
+  `}
 `;
 
-export const Star = styled(Icon)`
-  padding: ${(props) =>
-    props.iconSize === 12 ? 2.92 : props.iconSize === 16 ? 4.37 : 4.93}px;
+export const Star = styled(Icon)<{ isActive?: boolean; isDisabled?: boolean }>`
+  path {
+    stroke-width: ${(props) => (props.isActive ? "0" : "1px")};
+  }
 `;
 
 export interface RateComponentProps extends ComponentProps {
@@ -54,39 +81,58 @@ export interface RateComponentProps extends ComponentProps {
   inactiveColor?: string;
   isAllowHalf?: boolean;
   readonly?: boolean;
-  leftColumn?: number;
-  rightColumn?: number;
-  topRow?: number;
-  bottomRow?: number;
+  minHeight?: number;
 }
 
-function renderStarsWithTooltip(props: RateComponentProps) {
+const getIconColor = (props: RateComponentProps, isActive?: boolean) => {
+  const { activeColor, inactiveColor, isDisabled } = props;
+
+  if (isDisabled) {
+    return isActive
+      ? "var(--wds-color-bg-disabled-strong)"
+      : inactiveColor ?? "var(--wds-color-icon)";
+  }
+
+  return isActive
+    ? activeColor ?? "var(--wds-color-icon)"
+    : inactiveColor ?? "var(--wds-color-icon)";
+};
+
+function renderStarsWithTooltip(props: RateComponentProps, isActive?: boolean) {
   const rateTooltips = props.tooltips || [];
   const rateTooltipsCount = rateTooltips.length;
   const deltaCount = props.maxCount - rateTooltipsCount;
+
   if (rateTooltipsCount === 0) {
     return (
       <Star
-        color={props.activeColor}
+        color={getIconColor(props, isActive)}
         icon={IconNames.STAR}
         iconSize={RATE_SIZES[props.size]}
+        isActive={isActive}
+        isDisabled={props.isDisabled}
       />
     );
   }
+
   const starWithTooltip = rateTooltips.map((tooltip) => (
-    <TooltipComponent content={tooltip} key={tooltip} position={Position.TOP}>
+    <TooltipComponent content={tooltip} key={tooltip} position="top">
       <Star
-        color={props.activeColor}
+        color={getIconColor(props, isActive)}
         icon={IconNames.STAR}
         iconSize={RATE_SIZES[props.size]}
+        isActive={isActive}
+        isDisabled={props.isDisabled}
       />
     </TooltipComponent>
   ));
   const starWithoutTooltip = _.times(deltaCount, (num: number) => (
     <Star
-      color={props.activeColor}
+      color={getIconColor(props, isActive)}
       icon={IconNames.STAR}
       iconSize={RATE_SIZES[props.size]}
+      isActive={isActive}
+      isDisabled={props.isDisabled}
       key={num}
     />
   ));
@@ -98,50 +144,26 @@ function RateComponent(props: RateComponentProps) {
   const rateContainerRef = React.createRef<HTMLDivElement>();
 
   const {
-    bottomRow,
-    inactiveColor,
     isAllowHalf,
     isDisabled,
-    leftColumn,
     maxCount,
+    minHeight,
     onValueChanged,
     readonly,
-    rightColumn,
-    size,
-    topRow,
     value,
   } = props;
-
-  const [scrollable, setScrollable] = useState(false);
-
-  useEffect(() => {
-    const rateContainerElement = rateContainerRef.current;
-    if (
-      rateContainerElement &&
-      rateContainerElement.scrollHeight > rateContainerElement.clientHeight
-    ) {
-      setScrollable(true);
-    } else {
-      setScrollable(false);
-    }
-  }, [leftColumn, rightColumn, topRow, bottomRow, maxCount, size]);
 
   return (
     <RateContainer
       isDisabled={Boolean(isDisabled)}
+      minHeight={minHeight}
+      readonly={readonly}
       ref={rateContainerRef}
-      scrollable={scrollable}
     >
       <Rating
-        emptySymbol={
-          <Star
-            color={inactiveColor}
-            icon={IconNames.STAR}
-            iconSize={RATE_SIZES[size]}
-          />
-        }
+        emptySymbol={renderStarsWithTooltip(props, false)}
         fractions={isAllowHalf ? 2 : 1}
-        fullSymbol={renderStarsWithTooltip(props)}
+        fullSymbol={renderStarsWithTooltip(props, true)}
         initialRating={value}
         onChange={onValueChanged}
         readonly={readonly}

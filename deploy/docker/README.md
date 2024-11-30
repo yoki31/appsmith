@@ -45,19 +45,24 @@ services:
     ports:
       - "80:80"
       - "443:443"
-      - "9001:9001"
     volumes:
       - ./stacks:/appsmith-stacks
-    labels:
-      com.centurylinklabs.watchtower.enable: "true"
+    restart: unless-stopped
+  #   # Uncomment the lines below to enable auto-update
+  #   labels:
+  #     com.centurylinklabs.watchtower.enable: "true"
 
-  auto_update:
-    image: containrrr/watchtower:latest-dev
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-    # Update check interval in seconds.
-    command: --interval 300 --label-enable --cleanup
+  # auto_update:
+  #   image: containrrr/watchtower
+  #   volumes:
+  #     - /var/run/docker.sock:/var/run/docker.sock
+  #   # Update check interval in seconds.
+  #   command: --schedule "0 0 * ? * *" --label-enable --cleanup
+  #   restart: unless-stopped
+
+
 ```
+>>Note: To enable auto-update for Appsmith, please uncomment all the commented lines in the docker-compose file.
 
 After saving this file, `cd` to the folder that contains this file and run the following command to start Appsmith:
 
@@ -87,6 +92,16 @@ To make Appsmith available on a custom domain, please update your domain's DNS r
 * [NameCheap](https://www.namecheap.com/support/knowledgebase/article.aspx/9776/2237/how-to-create-a-subdomain-for-my-domain)
 * [Domain.com](https://www.domain.com/help/article/domain-management-how-to-update-subdomains)
 
+## Custom SSL Certificate
+
+In our container, we support to generate a free SSL certificate If you have your owned certificate, please follow these steps to use it inside the container.
+- Firstly, please rename your certificate file as `fullchain.pem` and key file as `privkey.pem`
+- Then, copy these files into the sub-directory `<mounting-directory>/ssl/` (*Note: Please change `<mounting-directory>` by the mounting volume directory in the `docker-compose.yml`. Default is `./stacks`*)
+- Restart the container using `docker restart appsmith`
+
+The container will check the certificate files in the folder `<mounting-directory>/ssl` and use them if they are existed.
+
+*Note: In case of the certificate files have different name from `fullchain.pem` and `privkey.pem`, it will be considered as missing custom certificate and auto-provisioning the certificate by Let's Encrypt*
 ## Instance Management Utilities
 
 The image includes an `appsmithctl` command to help with the management and maintenance of your instance. The following subsections describe what's available.
@@ -149,7 +164,7 @@ docker-compose exec appsmith-ce supervisorctl restart backend
 
 The container runs multiple processes, including the Appsmith server, Nginx, MongoDB etc., inside a single Docker container. These processes are started and managed by [supervisord](http://supervisord.org/).
 
-Supervisord comes with a web interface for managing the various processes, available at <http://localhost:9001>, as well as a command line interface towards the same goal.
+Supervisord comes with a web interface for managing the various processes, available at <http://localhost/supervisor/>, as well as a command line interface towards the same goal.
 
 Here's a screenshot of the web interface listing all the processes managed:
 

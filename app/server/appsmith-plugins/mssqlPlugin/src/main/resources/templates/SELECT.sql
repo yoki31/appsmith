@@ -1,1 +1,3 @@
-SELECT * FROM users where role = {{ roleDropdown.selectedOptionValue }} ORDER BY id LIMIT 10;
+SELECT TOP 10 * FROM <<your_table_name>>;
+
+-- Please enter a valid table name and hit RUN

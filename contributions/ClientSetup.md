@@ -2,139 +2,229 @@
 
 Appsmith's client (UI/frontend) uses the ReactJS library and Typescript. The application also uses libraries like react-redux and redux-saga for workflows. We use VS Code Editor as our primary editor.
 
-
 [![How to Setup Appsmith for Client Side Development](../static/images/client-yt-video-thumbnail.jpg)](https://www.youtube.com/watch?v=FwJlVWVx0X0)
-
 
 ### Pre-requisites:
 
 On your development machine, please ensure that:
 
 1. You have `docker` installed in your system. If not, please visit: [https://docs.docker.com/get-docker/](https://docs.docker.com/get-docker/)
-1. You have `mkcert` installed. Please visit: [https://github.com/FiloSottile/mkcert#installation](https://github.com/FiloSottile/mkcert#installation) for details. For `mkcert` to work with Firefox, you may need to install the `nss` utility. Details are in the link above.
+1. You have `mkcert` installed. Please visit: [https://github.com/FiloSottile/mkcert#installation](https://github.com/FiloSottile/mkcert#installation) for details.
 
-  Note:
-  - On Linux, you can easily install `mkcert` using the following command
-  ```
-  curl -s https://api.github.com/repos/FiloSottile/mkcert/releases/latest \
-  | grep "browser_download_url.*linux-amd64" \
-  | cut -d : -f 2,3 | tr -d \" \
-  | wget -i - -O mkcert
-  chmod +x  mkcert
-  sudo mv mkcert /usr/local/bin
-  ```
+   - For `mkcert` to work with Firefox, you may need to install the `nss` utility. Details are in the link above.
+   - On Linux, you can easily install `mkcert` using the following command
+
+     ```
+     curl -s https://api.github.com/repos/FiloSottile/mkcert/releases/latest \
+     | grep "browser_download_url.*linux-amd64" \
+     | cut -d : -f 2,3 | tr -d \" \
+     | wget -i - -O mkcert
+     chmod +x  mkcert
+     sudo mv mkcert /usr/local/bin
+     ```
 
 1. You have `envsubst` installed. Use `brew install gettext` on MacOS. Linux machines usually have this installed.
 1. You have cloned the repo in your local machine.
 1. You have yarn installed as a global npm package, i.e. `npm install -g yarn`.
+1. <b>Create local HTTPS certificates</b>
 
-### Create local HTTPS certificates:
+   1. Run the following command from the project root.
 
-1. Run the following command from the project root.
+      ```bash
+      cd app/client/docker && mkcert -install && mkcert "*.appsmith.com" && cd ../../..
+      ```
 
-   ```bash
-   cd app/client/docker && mkcert -install && mkcert "*.appsmith.com" && cd ../../..
-   ```
+      This command will create 2 files in the `docker/` directory:
 
-   This command will create 2 files in the `docker/` directory:
+      - `_wildcard.appsmith.com-key.pem`
+      - `_wildcard.appsmith.com.pem`
 
-   - `_wildcard.appsmith.com-key.pem`
-   - `_wildcard.appsmith.com.pem`
+   1. Add the domain `dev.appsmith.com` to `/etc/hosts`.
 
-1. Add the domain `dev.appsmith.com` to `/etc/hosts`.
+      ```bash
+      echo "127.0.0.1 dev.appsmith.com" | sudo tee -a /etc/hosts
+      ```
 
-   ```bash
-   echo "127.0.0.1 dev.appsmith.com" | sudo tee -a /etc/hosts
-   ```
+      Note:
 
-   Note:
+      - Please be careful when copying the above string as space between the IP and the string goes missing sometimes.
+      - Please check that the string is copied properly
 
-   - Please be careful when copying the above string as space between the IP and the string goes missing sometimes.
-   - Please check that the string is copied properly
-
-   ```
-   cat /etc/hosts | grep appsmith
-   ```
+        ```
+        cat /etc/hosts | grep appsmith
+        ```
 
 1. Run cmd: `cp .env.example .env`
+1. Run Backend server
 
-1. Run the script `start-https.sh` to start the Nginx container that will proxy the frontend code on your local system.
+   - The backend server can be run in two ways
+     1. Use Appsmith's staging server hosted at `https://release.app.appsmith.com` for development purposes. <b>(Recommended)</b>
+     1. Run the backend server locally. To setup the backend server locally, refer [here](#running-backend-locally).
+   - Run the script `start-https.sh` to start the nginx container that will proxy the frontend requests to the backend server.
 
-   ```bash
-   cd app/client
-   ./start-https.sh https://release.app.appsmith.com
-   ```
+     - Pass the server name as an argument to this command to use that server as backend.
+
+       ```bash
+       cd app/client
+       ./start-https.sh https://release.app.appsmith.com // uses Appsmith's staging backend server as backend for your local frontend code
+       ```
+
+     - If you want to use the backend server running on your local, you do not need to pass a parameter when running `start-https.sh`.
 
 ### Steps to build & run the code:
 
 1. Run `yarn install`.
 
-    Note:
+   Note:
 
-    - On the Ubuntu Linux platform, please run the following cmd before step 2 below:
+   - On the Ubuntu Linux platform, please run the following cmd before step 2 below:
 
-        ```
-        echo fs.inotify.max_user_watches=524288 | sudo tee -a /etc/sysctl.conf && sudo sysctl -p
-        ```
+     ```
+     echo fs.inotify.max_user_watches=524288 | sudo tee -a /etc/sysctl.conf && sudo sysctl -p
+     ```
 
-2. Run `yarn start`.
+1. Run `yarn start`.
 
-    🎉 Your Appsmith client is now running on https://dev.appsmith.com.
+   - 🎉 Your Appsmith client is now running on https://dev.appsmith.com.
+   - <b>This URL must be opened with https and not have port 3000 in it.</b>
 
-    This URL must be opened with https and not have port 3000 in it.
+1. If yarn start throws mismatch node version error
 
-#### Note:
+   - This error occurs because the node version is not compatible with the app environment. In this case, Node version manager can be used, allowing multiple node versions in different projects.
+   - Check below for installation and usage details:
 
-- By default, your client app points to the local API server - `http://host.docker.internal:8080` for MacOS or `http://localhost:8080` for Linux. If you don't have the API server running on your local system, your page will load with errors. To set up the API server on your local system, please follow the instructions [here](https://github.com/appsmithorg/appsmith/blob/release/contributions/ServerSetup.md)
-- If you cannot set up the API server on your local system, you can also [use Appsmith's staging API server](#if-you-would-like-to-hit-a-different-appsmith-server).
-
-#### If yarn start throws mismatch node version error
-
-This error occurs because the node version is not compatible with the app environment. In this case, Node version manager can be used, allowing multiple node versions in different projects. Check below for installation and usage details:
-
-1. Install a node version manager. For eg: check [nvm](https://github.com/nvm-sh/nvm) or [fnm](https://github.com/Schniz/fnm).
-1. In the project's root, run `nvm use 14.15.4` or `fnm use 14.15.4`.
-
-#### If you would like to hit a different Appsmith server:
-
-- You can pass the server URL as an arg to the `start-https.sh` script.
-
-    ```bash
-    ./start-https.sh https://release.app.appsmith.com
-    ```
-
-- Run
-
-    ```
-    yarn
-    yarn start
-    ```
+     1. Install a node version manager. For eg: check [nvm](https://github.com/nvm-sh/nvm) or [fnm](https://github.com/Schniz/fnm).
+     1. In the project's root, run `nvm use 18.17.1` or `fnm use 18.17.1`.
 
 ### Running Tests on Client
 
-1. To run the Cypress integration tests, you can create a local file `app/client/cypress.env.json` to populate `USERNAME` and `PASSWORD` env variables or use one of the methods [from their docs](https://docs.cypress.io/guides/guides/environment-variables.html#Setting).
+#### Integration Tests
 
-   ```json
-   {
-     "USERNAME": "Enter username",
-     "PASSWORD": "Enter password"
-   }
-   ```
+##### Pre-flight checks
 
-1. run:
+- The base URL can be updated on a temporary basis in the `cypress.config.ts` file based on the configuration you used for running the codebase locally. By default, it’s `https://dev.appsmith.com` .
+- If you wish to run Git test cases locally, please add `APPSMITH_GIT_ROOT=./container-volumes/git-storage` to the folder `app/server/.env` and run the server locally instead of via Docker container.
+
+##### Setup Cypress configurations
+
+To setup the configurations for running integration tests via Cypress, use these commands below,
+
 ```bash
-  cd app/client
-  yarn run test
+  cd app/client/cypress/scripts
+  yarn install
+  yarn run setup
 ```
 
-Please check out our [Testing Contribution](docs/TestAutomation.md) guide for more details on setting up & troubleshooting Cypress runs on your machine.
+**Prompt:**  
+ `Do you wish to continue without setting up the local server with docker? (yes/no):`
+
+**Options:**
+- **`no`:** Selecting "no" will trigger the setup of a local server using Docker with the `appsmith-ce:release` image.
+- **`yes`:** Selecting "yes" will skip the local server setup process.
 
 
-2. To run the Jest unit tests, run:
+**Prompt:**  
+ `https://dev.appsmith.com is not accessible. Do you wish to continue without setting it up?  (yes/no):`
+
+**Options:**
+- **`no`:**  Simply close the process.
+- **`yes`:** Continue on the process for next stage
+
+**Prompt:**  
+ `TED (TestEventDriver) is not running. Do you want to pull & run the latest Docker container for TED (TestEventDriver)?  (yes/no):`
+
+**Options:**
+- **`no`:**  It will not create TED setup in local machine.
+- **`yes`:** Download the TED image and run the image for test purposes.
+
+##### Running Cypress tests locally
+
+To run a specific test file in headless fashion, use the following command:
+
 ```bash
-  cd app/client
-  yarn run test:unit
+  cd app/client/
+  yarn install
+  npx cypress run --spec <spec path> --browser chrome
 ```
+
+To open Cypress in the browser and run the tests visually
+
+```bash
+  cd app/client/
+  yarn install
+  npx cypress open
+```
+
+- <b><a name="running-backend-locally">Running appsmith backend server locally</a></b>
+
+  - There are two configurations available for running the backend server locally.
+
+    1.  Running the server from source code.
+        - Refer to [documentation](https://github.com/appsmithorg/appsmith/blob/release/contributions/ServerSetup.md) for setting up backend to do this.
+    1.  Running the server from a docker image. There are two ways to get a backend docker image
+
+        1. Pull latest release branch docker image from Appsmith's public docker hub account.
+
+           ```
+           docker rm appsmith;
+
+           cd ~/appsmith;
+
+           rm -rf stacks;
+
+           docker pull appsmith/appsmith-ce
+
+           docker run -d --name appsmith -p 8000:80 appsmith/appsmith-ce:latest;
+
+           docker logs -f appsmith;
+
+           ./start-https.sh http://localhost:8000 // if nginx is installed locally
+           ./start-https.sh http://host.docker.internal:8000 // if nginx is running on docker
+
+           ```
+
+        1. Create docker image from local source code
+
+           ```
+           cd ~/appsmith
+           ./scripts/local_testing.sh -l # This builds a fat docker image of local backend and frontend
+           # The docker image created above will show up in your docker desktop application
+
+           docker run -d --name appsmith -p 8000:80 appsmith/appsmith-ce:local-testing;
+
+           ./start-https.sh http://localhost:8000 // if nginx is installed locally
+           ./start-https.sh http://host.docker.internal:8000 // if nginx is running on docker
+
+           ```
+
+- Please check out our [Testing Contribution](docs/TestAutomation.md) guide for more details on setting up & troubleshooting Cypress runs on your machine.
+
+### Running Unit Tests
+
+- To run the Jest unit tests, run:
+
+  ```bash
+    cd app/client
+    yarn run test:unit
+  ```
+
+- To run a single jest test,
+
+  ```bash
+    cd app/client
+
+    # Run either command below to run a test
+    npx jest <file_path/file_name>
+
+    # or
+
+    yarn jest src/widgets/<filepath>/<filename>.test.ts --silent=false
+  ```
+
+- To run a single jest test in watch mode,
+  ```bash
+    npx jest --watch <file_path/file_name>
+  ```
 
 ### Windows WSL2 Setup
 
@@ -147,6 +237,7 @@ Before you follow the instructions above, make sure to check the following steps
 3. You have **Docker Desktop** installed with the WSL2 backend. If not, please visit: [https://docs.docker.com/docker-for-windows/wsl/](https://docs.docker.com/docker-for-windows/wsl/).
 
 In the above [Docker Desktop Setup](https://docs.docker.com/docker-for-windows/wsl/) instructions, make sure to:
+
 1. Set WSL Distro to run in WSL2 mode.
 2. Enable integration with the WSL Distro in Docker Desktop.
 3. Install [Remote-WSL](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-wsl) extension in VSCode.
@@ -155,11 +246,11 @@ Make sure to Clone the Repo in the WSL file system instead of the Windows file s
 
 And finally, you can open the folder in VSCode with WSL by following the instructions in [Docker Desktop Setup](https://docs.docker.com/docker-for-windows/wsl/),
 or by,
+
 1. Clicking on the Green button on the Bottom Left corner in VSCode.
 2. Selecting **Open Folder in WSL** and navigating to the folder in WSL.
 
 After this, you can continue Setting up from [here](#pre-requisites).
-
 
 ### Troubleshooting
 

@@ -1,44 +1,24 @@
-import React, { memo, MutableRefObject, useRef } from "react";
+import type { MutableRefObject } from "react";
+import React, { memo, useCallback, useRef } from "react";
 import styled from "styled-components";
 import HighlightedCode, {
   SYNTAX_HIGHLIGHTING_SUPPORTED_LANGUAGES,
 } from "components/editorComponents/HighlightedCode";
-import {
-  Classes,
-  Icon,
-  Popover,
-  PopoverInteractionKind,
-  Position,
-} from "@blueprintjs/core";
+import { Collapse } from "@blueprintjs/core";
 import { CurrentValueViewer } from "components/editorComponents/CodeEditor/EvaluatedValuePopup";
 import { EditorTheme } from "components/editorComponents/CodeEditor/EditorConfig";
 import useClipboard from "utils/hooks/useClipboard";
-import { Colors } from "constants/Colors";
 import { Skin } from "constants/DefaultTheme";
-import { ControlIcons } from "icons/ControlIcons";
-
-import { ContextMenuPopoverModifiers } from "../helpers";
 import { EntityClassNames } from ".";
-import ScrollIndicator from "components/ads/ScrollIndicator";
-import TooltipComponent from "components/ads/Tooltip";
-import { COPY_ELEMENT, createMessage } from "constants/messages";
-import { TOOLTIP_HOVER_ON_DELAY } from "constants/AppConstants";
+import { Tooltip, Icon } from "@appsmith/ads";
+import { COPY_ELEMENT, createMessage } from "ee/constants/messages";
+import CollapseToggle from "./CollapseToggle";
+import AnalyticsUtil from "ee/utils/AnalyticsUtil";
+import type { EntityProperty as EntityPropertyType } from "ee/pages/Editor/Explorer/Entity/getEntityProperties";
 
-const StyledValue = styled.pre<{ step: number }>`
-  & {
-    display: inline;
-    font-size: 10px;
-    line-height: 12px;
-    color: ${Colors.GRAY_CHATEAU};
-    padding-left: ${(props) =>
-      props.step * props.theme.spaces[2] + props.theme.spaces[3]}px;
-    margin: 0;
-  }
-`;
-
-const Wrapper = styled.div<{ step: number }>`
+const Wrapper = styled.div`
   &&&& {
-    margin: ${(props) => props.theme.spaces[2]}px 0;
+    padding: ${(props) => props.theme.spaces[0]}px;
 
     position: relative;
     code {
@@ -54,30 +34,30 @@ const Wrapper = styled.div<{ step: number }>`
       top: 0;
       width: 100%;
       font-size: 12px;
-      color: white;
+      /* color: white; */
       display: flex;
       justify-content: center;
       align-items: center;
       text-align: center;
-      z-index: 1;
+      z-index: 2;
+      border-radius: var(--ads-v2-border-radius);
       &.success {
-        background: ${Colors.TUNDORA};
+        background: var(--ads-v2-color-bg-success);
       }
       &.error {
-        background: ${Colors.RED};
+        background: var(--ads-v2-color-bg-error);
       }
     }
 
     & {
       code.${SYNTAX_HIGHLIGHTING_SUPPORTED_LANGUAGES.APPSMITH} {
         display: flex;
-        white-space: pre-wrap;
+        white-space: nowrap;
         background: transparent;
         font-size: 11px;
         overflow-wrap: break-word;
         text-shadow: none;
-        padding-left: ${(props) =>
-          props.step * props.theme.spaces[2] + props.theme.spaces[3]}px;
+        padding-left: ${(props) => props.theme.spaces[3]}px;
         padding-right: 20px;
         & span.token.property {
           overflow: hidden;
@@ -87,56 +67,24 @@ const Wrapper = styled.div<{ step: number }>`
       }
     }
 
-    & .${Classes.POPOVER_WRAPPER} {
-      display: inline;
-      vertical-align: middle;
-      margin-left: 4px;
-      cursor: pointer;
+    .type-text {
+      font-size: 12px;
     }
-    & .${Classes.POPOVER_TARGET} {
-      display: inline;
-    }
-  }
-`;
-
-const StyledPopoverContent = styled.div`
-  background: ${Colors.WHITE};
-  max-height: 500px;
-  width: 400px;
-  padding: 10px;
-  overflow: auto;
-  & > div {
-    max-height: 100%;
-    & > pre {
-      overflow: hidden;
-    }
-  }
-  & > pre {
-    width: 100%;
-    overflow: hidden;
-    white-space: pre-wrap;
-    color: white;
   }
 `;
 
 const CopyBox = styled.div`
   cursor: pointer;
   position: relative;
-  .${Classes.POPOVER_WRAPPER} {
-    position: absolute;
-    right: 4px;
-    top: 8px;
+  padding: 0 8px;
+  .copy-icon {
+    /* margin-right: 5px; */
     opacity: 0;
-    z-index: 2;
-    fill: ${Colors.TUNDORA};
-    &:hover {
-      opacity: 1;
-    }
   }
   &:hover {
     &:before {
       content: "";
-      background: ${Colors.Gallery};
+      background: var(--ads-v2-color-bg-subtle);
       opacity: 1;
       position: absolute;
       left: 0;
@@ -144,8 +92,9 @@ const CopyBox = styled.div`
       top: 0;
       width: 100%;
       z-index: -1;
+      border-radius: var(--ads-v2-border-radius);
     }
-    .${Classes.POPOVER_WRAPPER} {
+    .copy-icon {
       opacity: 1;
     }
   }
@@ -156,106 +105,76 @@ const StyledHighlightedCode = styled(HighlightedCode)`
   padding-bottom: 4px;
 `;
 
-const CollapseIcon = ControlIcons.COLLAPSE_CONTROL;
-const collapseIcon = <CollapseIcon color={Colors.ALTO} height={8} width={10} />;
+export interface EntityPropertyProps extends EntityPropertyType {
+  index: number;
+}
 
-export type EntityPropertyProps = {
-  propertyName: string;
-  entityName: string;
-  value: string;
-  step: number;
-};
-
-const transformedValue = (value: any) => {
-  if (
-    typeof value === "object" ||
-    Array.isArray(value) ||
-    (value && value.length && value.length > 30)
-  ) {
-    return JSON.stringify(value).slice(0, 25) + "...";
-  }
-  return `${value}`;
-};
-
-/* eslint-disable react/display-name */
 export const EntityProperty = memo((props: EntityPropertyProps) => {
   const propertyRef: MutableRefObject<HTMLDivElement | null> = useRef(null);
   const write = useClipboard(propertyRef);
-  const popoverContentRef = React.createRef<HTMLDivElement>();
+
+  const [isOpen, setIsOpen] = React.useState(props.index === 0);
 
   const codeText = `{{${props.entityName}.${props.propertyName}}}`;
 
-  const showPopup =
-    typeof props.value === "object" ||
-    Array.isArray(props.value) ||
-    (props.value && props.value.length && props.value.length > 25);
   const isString = typeof props.value === "string";
 
   const copyBindingToClipboard = () => {
+    AnalyticsUtil.logEvent("BINDING_COPIED", {
+      entityType: props.entityType,
+      codeText,
+    });
     write(codeText);
   };
 
-  let propertyValue = (
-    <StyledValue className="value" step={props.step}>
-      {transformedValue(props.value)}
-    </StyledValue>
+  const toggleChildren = useCallback(
+    (e) => {
+      e.stopPropagation();
+      setIsOpen(!isOpen);
+    },
+    [isOpen],
   );
-  if (showPopup) {
-    propertyValue = (
-      <>
-        <StyledValue className="value" step={props.step}>
-          {transformedValue(props.value)}
-        </StyledValue>
-        <Popover
-          interactionKind={PopoverInteractionKind.HOVER}
-          modifiers={ContextMenuPopoverModifiers}
-          position="left"
-        >
-          {collapseIcon}
-          {showPopup && (
-            <StyledPopoverContent ref={popoverContentRef}>
-              {!isString && (
-                <CurrentValueViewer
-                  evaluatedValue={props.value}
-                  hideLabel
-                  theme={EditorTheme.LIGHT}
-                />
-              )}
-              {isString && <pre>{props.value}</pre>}
-              <ScrollIndicator containerRef={popoverContentRef} mode="DARK" />
-            </StyledPopoverContent>
-          )}
-        </Popover>
-      </>
-    );
-  }
 
   return (
-    <Wrapper className={`${EntityClassNames.PROPERTY}`} step={props.step}>
+    <Wrapper className={`${EntityClassNames.PROPERTY}`}>
       <CopyBox>
-        <StyledHighlightedCode
-          className="binding"
-          codeText={codeText}
-          language={SYNTAX_HIGHLIGHTING_SUPPORTED_LANGUAGES.APPSMITH}
-          onClick={copyBindingToClipboard}
-          ref={propertyRef}
-          skin={Skin.DARK}
-        />
-        <TooltipComponent
-          boundary="viewport"
-          content={createMessage(COPY_ELEMENT)}
-          hoverOpenDelay={TOOLTIP_HOVER_ON_DELAY}
-          position={Position.RIGHT}
-        >
-          <Icon
-            color={Colors.ALTO}
-            icon="duplicate"
-            iconSize={14}
-            onClick={copyBindingToClipboard}
+        <div className="flex flex-grow items-center">
+          <CollapseToggle
+            className={`${EntityClassNames.COLLAPSE_TOGGLE}`}
+            disabled={false}
+            isOpen={isOpen}
+            isVisible
+            onClick={toggleChildren}
           />
-        </TooltipComponent>
+          <StyledHighlightedCode
+            className="binding flex-1"
+            codeText={codeText}
+            language={SYNTAX_HIGHLIGHTING_SUPPORTED_LANGUAGES.APPSMITH}
+            onClick={copyBindingToClipboard}
+            ref={propertyRef}
+            skin={Skin.LIGHT}
+          />
+          <Tooltip content={createMessage(COPY_ELEMENT)} placement="right">
+            <Icon
+              className="copy-icon"
+              name="duplicate"
+              onClick={copyBindingToClipboard}
+              size="md"
+            />
+          </Tooltip>
+        </div>
       </CopyBox>
-      {propertyValue}
+      <Collapse className="px-4" isOpen={isOpen}>
+        {isString ? (
+          <span className="type-text">{props.value}</span>
+        ) : (
+          <CurrentValueViewer
+            evaluatedValue={props.value}
+            hideLabel
+            theme={EditorTheme.LIGHT}
+          />
+        )}
+      </Collapse>
     </Wrapper>
   );
 });

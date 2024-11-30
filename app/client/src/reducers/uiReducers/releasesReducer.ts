@@ -1,5 +1,6 @@
-import { createReducer } from "utils/AppsmithUtils";
-import { ReduxAction, ReduxActionTypes } from "constants/ReduxActionConstants";
+import { createReducer } from "utils/ReducerUtils";
+import type { ReduxAction } from "ee/constants/ReduxActionConstants";
+import { ReduxActionTypes } from "ee/constants/ReduxActionConstants";
 
 const initialState: ReleasesState = {
   newReleasesCount: "",
@@ -17,9 +18,11 @@ const importReducer = createReducer(initialState, {
   }),
 });
 
-export type ReleasesState = {
+export interface ReleasesState {
   newReleasesCount: string;
+  // TODO: Fix this the next time the file is edited
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   releaseItems: any[];
-};
+}
 
 export default importReducer;

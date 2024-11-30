@@ -1,5 +1,6 @@
-import { createReducer } from "utils/AppsmithUtils";
-import { ReduxAction, ReduxActionTypes } from "constants/ReduxActionConstants";
+import { createReducer } from "utils/ReducerUtils";
+import type { ReduxAction } from "ee/constants/ReduxActionConstants";
+import { ReduxActionTypes } from "ee/constants/ReduxActionConstants";
 
 const initialState: HelpReduxState = {
   url: "",

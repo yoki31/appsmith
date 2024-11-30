@@ -1,113 +1,93 @@
 import * as React from "react";
-import styled from "styled-components";
-import { Button, ButtonGroup, IButtonProps } from "@blueprintjs/core";
 
-import BaseControl, { ControlProps } from "./BaseControl";
-import { ControlIcons } from "icons/ControlIcons";
-import { ThemeProp } from "components/ads/common";
+import type { ControlData, ControlProps } from "./BaseControl";
+import BaseControl from "./BaseControl";
+import { borderRadiusOptions } from "constants/ThemeConstants";
+import type { DSEventDetail } from "utils/AppsmithUtils";
+import { SegmentedControl, Tooltip } from "@appsmith/ads";
 import {
-  ButtonBorderRadius,
-  ButtonBorderRadiusTypes,
-} from "components/constants";
-
-const StyledButtonGroup = styled(ButtonGroup)`
-  height: 33px;
-`;
-
-const StyledButton = styled(Button)<ThemeProp & IButtonProps>`
-  border: ${(props) =>
-    props.active ? `1px solid #6A86CE` : `1px solid #A9A7A7`};
-  border-radius: 0;
-  box-shadow: none !important;
-  background-image: none !important;
-  background-color: #ffffff !important;
-  & > div {
-    display: flex;
-  }
-  &.bp3-active {
-    box-shadow: none !important;
-    background-color: #ffffff !important;
-  }
-  &:hover {
-    background-color: #ffffff !important;
-  }
-`;
+  DSEventTypes,
+  DS_EVENT,
+  emitInteractionAnalyticsEvent,
+} from "utils/AppsmithUtils";
 
 export interface BorderRadiusOptionsControlProps extends ControlProps {
-  propertyValue: ButtonBorderRadius | undefined;
-  onChange: (borderRaidus: ButtonBorderRadius) => void;
-  options: any[];
+  propertyValue: string | undefined;
 }
 
-class BorderRadiusOptionsControl extends BaseControl<
-  BorderRadiusOptionsControlProps
-> {
-  constructor(props: BorderRadiusOptionsControlProps) {
-    super(props);
+const options = Object.keys(borderRadiusOptions).map((optionKey) => ({
+  label: (
+    <Tooltip content={optionKey} key={optionKey}>
+      <div
+        className="w-5 h-5 border-t-2 border-l-2"
+        style={{
+          borderColor: "var(--ads-v2-color-fg)",
+          borderTopLeftRadius: borderRadiusOptions[optionKey],
+        }}
+      />
+    </Tooltip>
+  ),
+  value: borderRadiusOptions[optionKey],
+}));
+
+const optionsValues = new Set(Object.values(borderRadiusOptions));
+
+class BorderRadiusOptionsControl extends BaseControl<BorderRadiusOptionsControlProps> {
+  componentRef = React.createRef<HTMLDivElement>();
+
+  componentDidMount() {
+    this.componentRef.current?.addEventListener(
+      DS_EVENT,
+      this.handleAdsEvent as (arg0: Event) => void,
+    );
   }
+
+  componentWillUnmount() {
+    this.componentRef.current?.removeEventListener(
+      DS_EVENT,
+      this.handleAdsEvent as (arg0: Event) => void,
+    );
+  }
+
+  handleAdsEvent = (e: CustomEvent<DSEventDetail>) => {
+    if (
+      e.detail.component === "ButtonGroup" &&
+      e.detail.event === DSEventTypes.KEYPRESS
+    ) {
+      emitInteractionAnalyticsEvent(this.componentRef.current, {
+        key: e.detail.meta.key,
+      });
+      e.stopPropagation();
+    }
+  };
 
   static getControlType() {
     return "BORDER_RADIUS_OPTIONS";
   }
 
   public render() {
-    const { options, propertyValue } = this.props;
-
     return (
-      <StyledButtonGroup fill>
-        {options.map((option: ButtonBorderRadius) => {
-          const active =
-            option === ButtonBorderRadiusTypes.SHARP
-              ? propertyValue === option || propertyValue === undefined
-              : propertyValue === option;
-          const icon =
-            option === ButtonBorderRadiusTypes.SHARP ? (
-              <ControlIcons.BORDER_RADIUS_SHARP color="#979797" width={15} />
-            ) : option === ButtonBorderRadiusTypes.ROUNDED ? (
-              <ControlIcons.BORDER_RADIUS_ROUNDED color="#979797" width={15} />
-            ) : (
-              <ControlIcons.BORDER_RADIUS_CIRCLE color="#979797" width={15} />
-            );
-
-          return (
-            <StyledButton
-              active={active}
-              icon={icon}
-              key={option}
-              large
-              onClick={() => this.toggleOption(option)}
-            />
+      <SegmentedControl
+        isFullWidth={false}
+        onChange={(value, isUpdatedViaKeyboard = false) => {
+          this.updateProperty(
+            this.props.propertyName,
+            value,
+            isUpdatedViaKeyboard,
           );
-        })}
-        {/* <StyledButton
-          active={propertyValue === ButtonBorderRadiusTypes.SHARP || undefined}
-          icon={<ControlIcons.BORDER_RADIUS_SHARP color="#979797" width={15} />}
-          large
-          onClick={() => this.toggleOption(ButtonBorderRadiusTypes.SHARP)}
-        />
-        <StyledButton
-          active={propertyValue === ButtonBorderRadiusTypes.ROUNDED}
-          icon={
-            <ControlIcons.BORDER_RADIUS_ROUNDED color="#979797" width={15} />
-          }
-          large
-          onClick={() => this.toggleOption(ButtonBorderRadiusTypes.ROUNDED)}
-        />
-        <StyledButton
-          active={propertyValue === ButtonBorderRadiusTypes.CIRCLE}
-          icon={
-            <ControlIcons.BORDER_RADIUS_CIRCLE color="#979797" width={15} />
-          }
-          large
-          onClick={() => this.toggleOption(ButtonBorderRadiusTypes.CIRCLE)}
-        /> */}
-      </StyledButtonGroup>
+        }}
+        options={options}
+        ref={this.componentRef}
+        value={this.props.evaluatedValue || ""}
+      />
     );
   }
 
-  private toggleOption = (option: ButtonBorderRadius) => {
-    this.updateProperty(this.props.propertyName, option);
-  };
+  // TODO: Fix this the next time the file is edited
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static canDisplayValueInUI(config: ControlData, value: any): boolean {
+    return optionsValues.has(value);
+  }
 }
 
 export default BorderRadiusOptionsControl;

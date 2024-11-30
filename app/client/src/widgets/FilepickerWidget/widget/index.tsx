@@ -1,20 +1,29 @@
-import React from "react";
-import BaseWidget, { WidgetProps, WidgetState } from "../../BaseWidget";
-import { WidgetType } from "constants/WidgetConstants";
-import FilePickerComponent from "../component";
-import Uppy from "@uppy/core";
-import GoogleDrive from "@uppy/google-drive";
-import Webcam from "@uppy/webcam";
-import Url from "@uppy/url";
-import OneDrive from "@uppy/onedrive";
-import { ValidationTypes } from "constants/WidgetValidation";
+import type { Uppy } from "@uppy/core";
+import type Dashboard from "@uppy/dashboard";
+import type {
+  AutocompletionDefinitions,
+  PropertyUpdates,
+  SnipingModeProperty,
+  WidgetCallout,
+} from "WidgetProvider/constants";
+import type { DerivedPropertiesMap } from "WidgetProvider/factory";
 import { EventType } from "constants/AppsmithActionConstants/ActionConstants";
-import { DerivedPropertiesMap } from "utils/WidgetFactory";
-import Dashboard from "@uppy/dashboard";
-import shallowequal from "shallowequal";
-import _ from "lodash";
-import FileDataTypes from "./FileDataTypes";
+import { WIDGET_TAGS } from "constants/WidgetConstants";
+import { ValidationTypes } from "constants/WidgetValidation";
+import type { SetterConfig } from "entities/AppTheming";
 import { EvaluationSubstitutionType } from "entities/DataTree/dataTreeFactory";
+import _ from "lodash";
+import log from "loglevel";
+import { buildDeprecationWidgetMessage } from "pages/Editor/utils";
+import React from "react";
+import shallowequal from "shallowequal";
+import { importUppy, isUppyLoaded } from "utils/importUppy";
+import { DefaultAutocompleteDefinitions } from "widgets/WidgetUtils";
+import type { WidgetProps, WidgetState } from "../../BaseWidget";
+import BaseWidget from "../../BaseWidget";
+import FilePickerComponent from "../component";
+import IconSVG from "../icon.svg";
+import FileDataTypes from "./FileDataTypes";
 
 class FilePickerWidget extends BaseWidget<
   FilePickerWidgetProps,
@@ -23,8 +32,78 @@ class FilePickerWidget extends BaseWidget<
   constructor(props: FilePickerWidgetProps) {
     super(props);
     this.state = {
-      isLoading: false,
-      uppy: this.initializeUppy(),
+      areFilesLoading: false,
+      isWaitingForUppyToLoad: false,
+    };
+  }
+
+  static type = "FILE_PICKER_WIDGET";
+
+  static getConfig() {
+    return {
+      name: "FilePicker",
+      iconSVG: IconSVG,
+      needsMeta: true,
+      hideCard: true,
+      isDeprecated: true,
+      replacement: "FILE_PICKER_WIDGET_V2",
+      tags: [WIDGET_TAGS.INPUTS],
+    };
+  }
+
+  static getDefaults() {
+    return {
+      rows: 4,
+      files: [],
+      selectedFiles: [],
+      allowedFileTypes: [],
+      label: "Select Files",
+      columns: 16,
+      maxNumFiles: 1,
+      maxFileSize: 5,
+      fileDataType: FileDataTypes.Base64,
+      widgetName: "FilePicker",
+      isDefaultClickDisabled: true,
+      version: 1,
+      isRequired: false,
+      isDisabled: false,
+      animateLoading: true,
+    };
+  }
+
+  static getMethods() {
+    return {
+      getSnipingModeUpdates: (
+        propValueMap: SnipingModeProperty,
+      ): PropertyUpdates[] => {
+        return [
+          {
+            propertyPath: "onFilesSelected",
+            propertyValue: propValueMap.run,
+            isDynamicPropertyPath: true,
+          },
+        ];
+      },
+      getEditorCallouts(): WidgetCallout[] {
+        return [
+          {
+            message: buildDeprecationWidgetMessage(
+              FilePickerWidget.getConfig().name,
+            ),
+          },
+        ];
+      },
+    };
+  }
+
+  static getAutocompleteDefinitions(): AutocompletionDefinitions {
+    return {
+      "!doc":
+        "Filepicker widget is used to allow users to upload files from their local machines to any cloud storage via API. Cloudinary and Amazon S3 have simple APIs for cloud storage uploads",
+      "!url": "https://docs.appsmith.com/widget-reference/filepicker",
+      isVisible: DefaultAutocompleteDefinitions.isVisible,
+      files: "[$__file__$]",
+      isDisabled: "bool",
     };
   }
 
@@ -67,14 +146,20 @@ class FilePickerWidget extends BaseWidget<
             isTriggerProperty: false,
             validation: {
               type: ValidationTypes.NUMBER,
-              params: { min: 1, max: 100, default: 5 },
+              params: {
+                min: 1,
+                max: 100,
+                default: 5,
+                passThroughOnZero: false,
+              },
             },
           },
           {
             propertyName: "allowedFileTypes",
             helpText: "Restricts the type of files which can be uploaded",
-            label: "Allowed File Types",
-            controlType: "MULTI_SELECT",
+            label: "Allowed file types",
+            controlType: "DROP_DOWN",
+            isMultiSelect: true,
             placeholderText: "Select file types",
             options: [
               {
@@ -134,7 +219,7 @@ class FilePickerWidget extends BaseWidget<
           {
             helpText: "Set the format of the data read from the files",
             propertyName: "fileDataType",
-            label: "Data Format",
+            label: "Data format",
             controlType: "DROP_DOWN",
             options: [
               {
@@ -183,14 +268,25 @@ class FilePickerWidget extends BaseWidget<
             isTriggerProperty: false,
             validation: { type: ValidationTypes.BOOLEAN },
           },
+          {
+            propertyName: "animateLoading",
+            label: "Animate loading",
+            controlType: "SWITCH",
+            helpText: "Controls the loading of the widget",
+            defaultValue: true,
+            isJSConvertible: true,
+            isBindProperty: true,
+            isTriggerProperty: false,
+            validation: { type: ValidationTypes.BOOLEAN },
+          },
         ],
       },
       {
-        sectionName: "Actions",
+        sectionName: "Events",
         children: [
           {
             helpText:
-              "Triggers an action when the user selects a file. Upload files to a CDN and stores their URLs in filepicker.files",
+              "when the user selects a file. Upload files to a CDN and stores their URLs in filepicker.files",
             propertyName: "onFilesSelected",
             label: "onFilesSelected",
             controlType: "ACTION_SELECTOR",
@@ -202,13 +298,9 @@ class FilePickerWidget extends BaseWidget<
       },
     ];
   }
-
   static getDefaultPropertiesMap(): Record<string, string> {
-    return {
-      selectedFiles: "defaultSelectedFiles",
-    };
+    return {};
   }
-
   static getDerivedPropertiesMap(): DerivedPropertiesMap {
     return {
       isValid: `{{ this.isRequired ? this.files.length > 0 : true }}`,
@@ -216,6 +308,8 @@ class FilePickerWidget extends BaseWidget<
     };
   }
 
+  // TODO: Fix this the next time the file is edited
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   static getMetaPropertiesMap(): Record<string, any> {
     return {
       selectedFiles: [],
@@ -224,10 +318,12 @@ class FilePickerWidget extends BaseWidget<
   }
 
   /**
-   * if uppy is not initialized before, initialize it
-   * else setState of uppy instance
+   * Import and initialize the Uppy instance. We use memoize() to ensure that
+   * once we initialize the instance, we keep returning it.
    */
-  initializeUppy = () => {
+  loadAndInitUppyOnce = _.memoize(async () => {
+    const { Uppy } = await importUppy();
+
     const uppyState = {
       id: this.props.widgetId,
       autoProceed: false,
@@ -248,13 +344,17 @@ class FilePickerWidget extends BaseWidget<
       },
     };
 
-    return Uppy(uppyState);
-  };
+    const uppy = Uppy(uppyState);
+
+    await this.initializeUppyEventListeners(uppy);
+
+    return uppy;
+  });
 
   /**
    * set states on the uppy instance with new values
    */
-  reinitializeUppy = (props: FilePickerWidgetProps) => {
+  reinitializeUppy = async (props: FilePickerWidgetProps) => {
     const uppyState = {
       id: props.widgetId,
       autoProceed: false,
@@ -273,14 +373,19 @@ class FilePickerWidget extends BaseWidget<
       },
     };
 
-    this.state.uppy.setOptions(uppyState);
+    const uppy = await this.loadAndInitUppyOnce();
+
+    uppy.setOptions(uppyState);
   };
 
   /**
    * add all uppy events listeners needed
    */
-  initializeUppyEventListeners = () => {
-    this.state.uppy
+  initializeUppyEventListeners = async (uppy: Uppy) => {
+    const { Dashboard, GoogleDrive, OneDrive, Url, Webcam } =
+      await importUppy();
+
+    uppy
       .use(Dashboard, {
         target: "body",
         metaFields: [],
@@ -301,7 +406,7 @@ class FilePickerWidget extends BaseWidget<
         disablePageScrollWhenModalOpen: true,
         proudlyDisplayPoweredByUppy: false,
         onRequestCloseModal: () => {
-          const plugin = this.state.uppy.getPlugin("Dashboard");
+          const plugin = uppy.getPlugin("Dashboard") as Dashboard;
 
           if (plugin) {
             plugin.closeModal();
@@ -317,39 +422,50 @@ class FilePickerWidget extends BaseWidget<
       .use(Url, { companionUrl: "https://companion.uppy.io" })
       .use(OneDrive, {
         companionUrl: "https://companion.uppy.io/",
-      })
-      .use(Webcam, {
-        onBeforeSnapshot: () => Promise.resolve(),
+      });
+
+    if (location.protocol === "https:") {
+      uppy.use(Webcam, {
+        onBeforeSnapshot: async () => Promise.resolve(),
         countdown: false,
         mirror: true,
         facingMode: "user",
         locale: {},
       });
+    }
 
-    this.state.uppy.on("file-removed", (file: any) => {
+    // TODO: Fix this the next time the file is edited
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    uppy.on("file-removed", (file: any) => {
       const updatedFiles = this.props.selectedFiles
         ? this.props.selectedFiles.filter((dslFile) => {
             return file.id !== dslFile.id;
           })
         : [];
+
       this.props.updateWidgetMetaProperty("selectedFiles", updatedFiles);
     });
 
-    this.state.uppy.on("files-added", (files: any[]) => {
+    // TODO: Fix this the next time the file is edited
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    uppy.on("files-added", (files: any[]) => {
       const dslFiles = this.props.selectedFiles
         ? [...this.props.selectedFiles]
         : [];
-      const fileReaderPromises = files.map((file) => {
+      const fileReaderPromises = files.map(async (file) => {
         const reader = new FileReader();
+
         return new Promise((resolve) => {
           reader.readAsDataURL(file.data);
           reader.onloadend = () => {
             const base64data = reader.result;
             const binaryReader = new FileReader();
+
             binaryReader.readAsBinaryString(file.data);
             binaryReader.onloadend = () => {
               const rawData = binaryReader.result;
               const textReader = new FileReader();
+
               textReader.readAsText(file.data);
               textReader.onloadend = () => {
                 const text = textReader.result;
@@ -363,8 +479,8 @@ class FilePickerWidget extends BaseWidget<
                     this.props.fileDataType === FileDataTypes.Base64
                       ? base64data
                       : this.props.fileDataType === FileDataTypes.Binary
-                      ? rawData
-                      : text,
+                        ? rawData
+                        : text,
                   name: file.meta ? file.meta.name : undefined,
                 };
 
@@ -383,7 +499,7 @@ class FilePickerWidget extends BaseWidget<
       });
     });
 
-    this.state.uppy.on("upload", () => {
+    uppy.on("upload", () => {
       this.onFilesSelected();
     });
   };
@@ -404,66 +520,115 @@ class FilePickerWidget extends BaseWidget<
         },
       });
 
-      this.setState({ isLoading: true });
+      this.setState({ areFilesLoading: true });
     }
   };
 
   handleActionComplete = () => {
-    this.setState({ isLoading: false });
+    this.setState({ areFilesLoading: false });
   };
 
-  componentDidUpdate(prevProps: FilePickerWidgetProps) {
+  async componentDidUpdate(prevProps: FilePickerWidgetProps) {
     if (
       prevProps.selectedFiles &&
       prevProps.selectedFiles.length > 0 &&
       this.props.selectedFiles === undefined
     ) {
-      this.state.uppy.reset();
+      (await this.loadAndInitUppyOnce()).reset();
     } else if (
       !shallowequal(prevProps.allowedFileTypes, this.props.allowedFileTypes) ||
       prevProps.maxNumFiles !== this.props.maxNumFiles ||
       prevProps.maxFileSize !== this.props.maxFileSize
     ) {
-      this.reinitializeUppy(this.props);
+      await this.reinitializeUppy(this.props);
     }
   }
 
-  componentDidMount() {
-    this.initializeUppyEventListeners();
+  async componentDidMount() {
+    try {
+      await this.loadAndInitUppyOnce();
+    } catch (e) {
+      log.debug("Error in initializing uppy");
+    }
   }
 
   componentWillUnmount() {
-    this.state.uppy.close();
+    this.loadAndInitUppyOnce().then((uppy) => {
+      uppy.close();
+    });
   }
 
-  getPageView() {
+  static getSetterConfig(): SetterConfig {
+    return {
+      __setters: {
+        setVisibility: {
+          path: "isVisible",
+          type: "boolean",
+        },
+        setDisabled: {
+          path: "isDisabled",
+          type: "boolean",
+        },
+      },
+    };
+  }
+
+  getWidgetView() {
     return (
       <FilePickerComponent
+        closeModal={async () => {
+          const uppy = await this.loadAndInitUppyOnce();
+
+          const dashboardPlugin = uppy.getPlugin("Dashboard") as Dashboard;
+
+          dashboardPlugin.closeModal();
+        }}
         files={this.props.selectedFiles || []}
         isDisabled={this.props.isDisabled}
-        isLoading={this.props.isLoading || this.state.isLoading}
+        isLoading={
+          this.props.isLoading ||
+          this.state.areFilesLoading ||
+          this.state.isWaitingForUppyToLoad
+        }
         key={this.props.widgetId}
         label={this.props.label}
-        uppy={this.state.uppy}
+        openModal={async () => {
+          // If Uppy is still loading, show a spinner to indicate that handling the click
+          // will take some time.
+          //
+          // Copying the `isUppyLoaded` value because `isUppyLoaded` *will* always be true
+          // by the time `await this.initUppyInstanceOnce()` resolves.
+          const isUppyLoadedByThisPoint = isUppyLoaded;
+
+          if (!isUppyLoadedByThisPoint)
+            this.setState({ isWaitingForUppyToLoad: true });
+
+          const uppy = await this.loadAndInitUppyOnce();
+
+          if (!isUppyLoadedByThisPoint)
+            this.setState({ isWaitingForUppyToLoad: false });
+
+          const dashboardPlugin = uppy.getPlugin("Dashboard") as Dashboard;
+
+          dashboardPlugin.openModal();
+        }}
         widgetId={this.props.widgetId}
       />
     );
   }
-
-  static getWidgetType(): WidgetType {
-    return "FILE_PICKER_WIDGET";
-  }
 }
 
 export interface FilePickerWidgetState extends WidgetState {
-  isLoading: boolean;
-  uppy: any;
+  areFilesLoading: boolean;
+  isWaitingForUppyToLoad: boolean;
 }
 
 export interface FilePickerWidgetProps extends WidgetProps {
   label: string;
   maxNumFiles?: number;
   maxFileSize?: number;
+  // TODO: Fix this the next time the file is edited
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   selectedFiles?: any[];
   allowedFileTypes: string[];
   onFilesSelected?: string;

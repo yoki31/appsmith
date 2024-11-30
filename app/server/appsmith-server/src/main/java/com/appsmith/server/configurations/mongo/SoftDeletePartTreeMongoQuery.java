@@ -2,53 +2,54 @@ package com.appsmith.server.configurations.mongo;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.mongodb.core.ReactiveMongoOperations;
-import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.repository.query.ConvertingParameterAccessor;
 import org.springframework.data.mongodb.repository.query.ReactiveMongoQueryMethod;
 import org.springframework.data.mongodb.repository.query.ReactivePartTreeMongoQuery;
-import org.springframework.data.repository.query.QueryMethodEvaluationContextProvider;
+import org.springframework.data.repository.query.ReactiveQueryMethodEvaluationContextProvider;
 import org.springframework.expression.spel.standard.SpelExpressionParser;
+import reactor.core.publisher.Mono;
 
 import java.lang.reflect.Method;
 
-import static org.springframework.data.mongodb.core.query.Criteria.where;
+import static com.appsmith.server.repositories.ce.BaseAppsmithRepositoryCEImpl.notDeleted;
 
 @Slf4j
 public class SoftDeletePartTreeMongoQuery extends ReactivePartTreeMongoQuery {
     private ReactivePartTreeMongoQuery reactivePartTreeQuery;
     private Method method;
 
-    SoftDeletePartTreeMongoQuery(Method method, ReactivePartTreeMongoQuery reactivePartTreeMongoQuery,
-                                 ReactiveMongoOperations mongoOperations,
-                                 SpelExpressionParser expressionParser,
-                                 QueryMethodEvaluationContextProvider evaluationContextProvider) {
-        super((ReactiveMongoQueryMethod) reactivePartTreeMongoQuery.getQueryMethod(),
-                mongoOperations, expressionParser, evaluationContextProvider);
+    SoftDeletePartTreeMongoQuery(
+            Method method,
+            ReactivePartTreeMongoQuery reactivePartTreeMongoQuery,
+            ReactiveMongoOperations mongoOperations,
+            SpelExpressionParser expressionParser,
+            ReactiveQueryMethodEvaluationContextProvider evaluationContextProvider) {
+        super(
+                (ReactiveMongoQueryMethod) reactivePartTreeMongoQuery.getQueryMethod(),
+                mongoOperations,
+                expressionParser,
+                evaluationContextProvider);
         this.reactivePartTreeQuery = reactivePartTreeMongoQuery;
         this.method = method;
     }
 
     @Override
-    protected Query createQuery(ConvertingParameterAccessor accessor) {
-        Query query = super.createQuery(accessor);
-        return withNotDeleted(query);
+    protected Mono<Query> createQuery(ConvertingParameterAccessor accessor) {
+        Mono<Query> queryMono = super.createQuery(accessor);
+        return withNotDeleted(queryMono);
     }
 
     @Override
-    protected Query createCountQuery(ConvertingParameterAccessor accessor) {
-        Query query = super.createCountQuery(accessor);
-        return withNotDeleted(query);
+    protected Mono<Query> createCountQuery(ConvertingParameterAccessor accessor) {
+        Mono<Query> queryMono = super.createCountQuery(accessor);
+        return withNotDeleted(queryMono);
     }
 
-    private Query withNotDeleted(Query query) {
-        return query.addCriteria(notDeleted());
-    }
-
-    private Criteria notDeleted() {
-        return new Criteria().orOperator(
-                where("deleted").exists(false),
-                where("deleted").is(false)
-        );
+    private Mono<Query> withNotDeleted(Mono<Query> queryMono) {
+        return queryMono.map(query -> {
+            query.addCriteria(notDeleted());
+            return query;
+        });
     }
 }

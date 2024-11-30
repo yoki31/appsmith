@@ -1,38 +1,42 @@
 {
   "identifier": "UPLOAD_FILE_FROM_BODY",
-  "controlType": "SECTION",
+  "controlType": "SECTION_V2",
   "conditionals": {
-    "show": "{{actionConfiguration.formData.command === 'UPLOAD_FILE_FROM_BODY'}}"
+    "show": "{{actionConfiguration.formData.command.data === 'UPLOAD_FILE_FROM_BODY'}}"
   },
   "children": [
     {
-      "controlType": "SECTION",
-      "label": "Select Bucket to Query",
+      "controlType": "DOUBLE_COLUMN_ZONE",
       "children": [
         {
-          "label": "Bucket Name",
-          "configProperty": "actionConfiguration.formData.bucket",
+          "label": "Bucket name",
+          "configProperty": "actionConfiguration.formData.bucket.data",
           "controlType": "QUERY_DYNAMIC_INPUT_TEXT",
           "evaluationSubstitutionType": "TEMPLATE",
           "isRequired": true,
           "initialValue": ""
+        },
+        {
+          "label": "Expiry duration of signed URL (minutes)",
+          "configProperty": "actionConfiguration.formData.create.expiry.data",
+          "controlType": "QUERY_DYNAMIC_INPUT_TEXT",
+          "initialValue": "5"
         }
       ]
     },
     {
-      "controlType": "SECTION",
-      "label": "Query",
+      "controlType": "DOUBLE_COLUMN_ZONE",
       "description": "Optional",
       "children": [
         {
-          "label": "File Path",
-          "configProperty": "actionConfiguration.path",
+          "label": "File path",
+          "configProperty": "actionConfiguration.formData.path.data",
           "controlType": "QUERY_DYNAMIC_INPUT_TEXT",
           "initialValue": ""
         },
         {
-          "label": "File Data Type",
-          "configProperty": "actionConfiguration.formData.create.dataType",
+          "label": "File data type",
+          "configProperty": "actionConfiguration.formData.create.dataType.data",
           "controlType": "DROP_DOWN",
           "initialValue": "YES",
           "options": [
@@ -45,18 +49,19 @@
               "value": "NO"
             }
           ]
-        },
-        {
-          "label": "Expiry Duration of Signed URL (Minutes)",
-          "configProperty": "actionConfiguration.formData.create.expiry",
-          "controlType": "QUERY_DYNAMIC_INPUT_TEXT",
-          "initialValue": "5"
-        },
+        }
+      ]
+    },
+    {
+      "controlType": "SINGLE_COLUMN_ZONE",
+      "description": "Optional",
+      "children": [
         {
           "label": "Content",
-          "configProperty": "actionConfiguration.body",
+          "configProperty": "actionConfiguration.formData.body.data",
           "controlType": "QUERY_DYNAMIC_TEXT",
-          "initialValue": ""
+          "initialValue": "",
+          "placeHolderText": "{{ FilePicker1.files[0] }}"
         }
       ]
     }

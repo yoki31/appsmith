@@ -1,289 +1,210 @@
-import React from "react";
-import { RouteComponentProps } from "react-router";
-import { connect } from "react-redux";
-import { getFormValues } from "redux-form";
-import styled from "styled-components";
-import {
-  INTEGRATION_EDITOR_URL,
-  INTEGRATION_TABS,
-  QueryEditorRouteParams,
-} from "constants/routes";
+import React, { useCallback, useMemo } from "react";
+import { useDispatch, useSelector } from "react-redux";
+import type { RouteComponentProps } from "react-router";
+
+import AnalyticsUtil from "ee/utils/AnalyticsUtil";
+import Editor from "./Editor";
 import history from "utils/history";
-import QueryEditorForm from "./Form";
-import { deleteAction, runAction } from "actions/pluginActionActions";
-import { AppState } from "reducers";
+import MoreActionsMenu from "../Explorer/Actions/MoreActionsMenu";
+import BackToCanvas from "components/common/BackToCanvas";
+import { INTEGRATION_TABS } from "constants/routes";
 import {
   getCurrentApplicationId,
   getIsEditorInitialized,
+  getPagePermissions,
 } from "selectors/editorSelectors";
-import { QUERY_EDITOR_FORM_NAME } from "constants/forms";
-import { Plugin, UIComponentTypes } from "api/PluginApi";
-import { Datasource } from "entities/Datasource";
+import { changeQuery } from "PluginActionEditor/store";
+import { DatasourceCreateEntryPoints } from "constants/Datasource";
 import {
-  getPluginIdsOfPackageNames,
-  getPlugins,
+  getActionByBaseId,
+  getIsActionConverting,
   getPluginImages,
-  getAction,
-  getActionResponses,
-  getDBAndRemoteDatasources,
-} from "selectors/entitiesSelector";
-import { PLUGIN_PACKAGE_DBS } from "constants/QueryEditorConstants";
-import { QueryAction, QueryActionConfig } from "entities/Action";
-import Spinner from "components/editorComponents/Spinner";
-import CenteredWrapper from "components/designSystems/appsmith/CenteredWrapper";
-import { changeQuery } from "actions/queryPaneActions";
-import PerformanceTracker, {
-  PerformanceTransactionName,
-} from "utils/PerformanceTracker";
-import AnalyticsUtil from "utils/AnalyticsUtil";
+  getPluginSettingConfigs,
+} from "ee/selectors/entitiesSelector";
+import { integrationEditorURL } from "ee/RouteBuilder";
+import { QueryEditorContextProvider } from "./QueryEditorContext";
+import type { QueryEditorRouteParams } from "constants/routes";
 import {
-  initFormEvaluations,
-  startFormEvaluations,
-} from "actions/evaluationActions";
-import { getUIComponent } from "selectors/formSelectors";
-import { diff } from "deep-diff";
+  getHasCreateActionPermission,
+  getHasDeleteActionPermission,
+  getHasManageActionPermission,
+} from "ee/utils/BusinessFeatures/permissionPageHelpers";
+import { FEATURE_FLAG } from "ee/entities/FeatureFlag";
+import { useFeatureFlag } from "utils/hooks/useFeatureFlag";
+import Disabler from "pages/common/Disabler";
+import ConvertToModuleInstanceCTA from "ee/pages/Editor/EntityEditor/ConvertToModuleInstanceCTA";
+import { MODULE_TYPE } from "ee/constants/ModuleConstants";
+import ConvertEntityNotification from "ee/pages/common/ConvertEntityNotification";
+import { PluginType } from "entities/Action";
+import { Icon } from "@appsmith/ads";
+import { resolveIcon } from "../utils";
+import { ENTITY_ICON_SIZE, EntityIcon } from "../Explorer/ExplorerIcons";
+import { getIDEViewMode } from "selectors/ideSelectors";
+import { EditorViewMode } from "ee/entities/IDE/constants";
+import { saveActionName } from "actions/pluginActionActions";
 
-const EmptyStateContainer = styled.div`
-  display: flex;
-  height: 100%;
-  font-size: 20px;
-`;
+type QueryEditorProps = RouteComponentProps<QueryEditorRouteParams>;
 
-const LoadingContainer = styled(CenteredWrapper)`
-  height: 50%;
-`;
+function QueryEditor(props: QueryEditorProps) {
+  const { baseApiId, basePageId, baseQueryId } = props.match.params;
+  const baseActionId = baseQueryId || baseApiId;
+  const dispatch = useDispatch();
+  const action = useSelector((state) =>
+    getActionByBaseId(state, baseActionId || ""),
+  );
+  const pluginId = action?.pluginId || "";
+  const isEditorInitialized = useSelector(getIsEditorInitialized);
+  const applicationId: string = useSelector(getCurrentApplicationId);
+  const isFeatureEnabled = useFeatureFlag(FEATURE_FLAG.license_gac_enabled);
+  const settingsConfig = useSelector((state) =>
+    getPluginSettingConfigs(state, pluginId),
+  );
+  const pagePermissions = useSelector(getPagePermissions);
+  const isConverting = useSelector((state) =>
+    getIsActionConverting(state, action?.id || ""),
+  );
+  const pluginImages = useSelector(getPluginImages);
+  const editorMode = useSelector(getIDEViewMode);
+  const icon = resolveIcon({
+    iconLocation: pluginImages[pluginId] || "",
+    pluginType: action?.pluginType || "",
+    moduleType: action?.actionConfiguration?.body?.moduleType,
+  }) || (
+    <EntityIcon
+      height={`${ENTITY_ICON_SIZE}px`}
+      width={`${ENTITY_ICON_SIZE}px`}
+    >
+      <Icon name="module" />
+    </EntityIcon>
+  );
 
-type ReduxDispatchProps = {
-  runAction: (actionId: string) => void;
-  deleteAction: (id: string, name: string) => void;
-  changeQueryPage: (queryId: string) => void;
-  runFormEvaluation: (formId: string, formData: QueryActionConfig) => void;
-  initFormEvaluation: (
-    editorConfig: any,
-    settingConfig: any,
-    formId: string,
-  ) => void;
-};
+  const isDeletePermitted = getHasDeleteActionPermission(
+    isFeatureEnabled,
+    action?.userPermissions,
+  );
 
-type ReduxStateProps = {
-  plugins: Plugin[];
-  dataSources: Datasource[];
-  isRunning: boolean;
-  isDeleting: boolean;
-  formData: QueryAction;
-  runErrorMessage: Record<string, string>;
-  pluginIds: Array<string> | undefined;
-  responses: any;
-  isCreating: boolean;
-  pluginImages: Record<string, string>;
-  editorConfig: any;
-  settingConfig: any;
-  isEditorInitialized: boolean;
-  uiComponent: UIComponentTypes;
-  applicationId: string;
-};
+  const isChangePermitted = getHasManageActionPermission(
+    isFeatureEnabled,
+    action?.userPermissions,
+  );
 
-type StateAndRouteProps = RouteComponentProps<QueryEditorRouteParams>;
+  const isCreatePermitted = getHasCreateActionPermission(
+    isFeatureEnabled,
+    pagePermissions,
+  );
 
-type Props = StateAndRouteProps & ReduxDispatchProps & ReduxStateProps;
-
-class QueryEditor extends React.Component<Props> {
-  constructor(props: Props) {
-    super(props);
-    // Call the first evaluations when the page loads
-    this.props.initFormEvaluation(
-      this.props.editorConfig,
-      this.props.settingConfig,
-      this.props.match.params.queryId,
-    );
-  }
-
-  componentDidMount() {
-    this.props.changeQueryPage(this.props.match.params.queryId);
-
-    PerformanceTracker.stopTracking(PerformanceTransactionName.OPEN_ACTION, {
-      actionType: "QUERY",
-    });
-  }
-  handleDeleteClick = () => {
-    const { queryId } = this.props.match.params;
-    const { formData } = this.props;
-    this.props.deleteAction(queryId, formData.name);
-  };
-
-  handleRunClick = () => {
-    const { dataSources, match } = this.props;
-    PerformanceTracker.startTracking(
-      PerformanceTransactionName.RUN_QUERY_CLICK,
-      { queryId: this.props.match.params.queryId },
-    );
-    AnalyticsUtil.logEvent("RUN_QUERY_CLICK", {
-      queryId: this.props.match.params.queryId,
-      dataSourceSize: dataSources.length,
-    });
-    this.props.runAction(match.params.queryId);
-  };
-
-  componentDidUpdate(prevProps: Props) {
-    if (prevProps.isRunning === true && this.props.isRunning === false) {
-      PerformanceTracker.stopTracking(
-        PerformanceTransactionName.RUN_QUERY_CLICK,
-      );
-    }
-    // Update the page when the queryID is changed by changing the
-    // URL or selecting new query from the query pane
-    if (prevProps.match.params.queryId !== this.props.match.params.queryId) {
-      this.props.changeQueryPage(this.props.match.params.queryId);
-    }
-    // If statement to debounce and track changes in the formData to update evaluations
-    if (
-      this.props.uiComponent === UIComponentTypes.UQIDbEditorForm &&
-      !!this.props.formData &&
-      (!prevProps.formData ||
-        (this.props.formData.hasOwnProperty("actionConfiguration") &&
-          !!prevProps.formData &&
-          prevProps.formData.hasOwnProperty("actionConfiguration") &&
-          !!diff(prevProps.formData, this.props.formData)))
-    ) {
-      this.props.runFormEvaluation(
-        this.props.formData.id,
-        this.props.formData.actionConfiguration,
-      );
-    }
-  }
-
-  render() {
-    const {
-      applicationId,
-      dataSources,
-      editorConfig,
-      isCreating,
-      isDeleting,
-      isEditorInitialized,
-      isRunning,
-      match: {
-        params: { queryId },
-      },
-      pluginIds,
-      pluginImages,
-      responses,
-      runErrorMessage,
-      settingConfig,
-      uiComponent,
-    } = this.props;
-    const { pageId } = this.props.match.params;
-
-    if (!pluginIds?.length) {
-      return (
-        <EmptyStateContainer>{"Plugin is not installed"}</EmptyStateContainer>
-      );
-    }
-
-    if (isCreating || !isEditorInitialized) {
-      return (
-        <LoadingContainer>
-          <Spinner size={30} />
-        </LoadingContainer>
-      );
-    }
-
-    const DATASOURCES_OPTIONS = dataSources.map((dataSource) => ({
-      label: dataSource.name,
-      value: dataSource.id,
-      image: pluginImages[dataSource.pluginId],
-    }));
-
-    const onCreateDatasourceClick = () => {
-      history.push(
-        INTEGRATION_EDITOR_URL(applicationId, pageId, INTEGRATION_TABS.NEW),
-      );
+  const moreActionsMenu = useMemo(() => {
+    const convertToModuleProps = {
+      canCreateModuleInstance: isCreatePermitted,
+      canDeleteEntity: isDeletePermitted,
+      entityId: action?.id || "",
+      moduleType: MODULE_TYPE.QUERY,
     };
+
     return (
-      <QueryEditorForm
-        DATASOURCES_OPTIONS={DATASOURCES_OPTIONS}
-        dataSources={dataSources}
-        editorConfig={editorConfig}
-        executedQueryData={responses[queryId]}
-        isDeleting={isDeleting}
-        isRunning={isRunning}
-        location={this.props.location}
-        onCreateDatasourceClick={onCreateDatasourceClick}
-        onDeleteClick={this.handleDeleteClick}
-        onRunClick={this.handleRunClick}
-        runErrorMessage={runErrorMessage[queryId]}
-        settingConfig={settingConfig}
-        uiComponent={uiComponent}
+      <>
+        <MoreActionsMenu
+          basePageId={basePageId}
+          className="t--more-action-menu"
+          id={action?.id || ""}
+          isChangePermitted={isChangePermitted}
+          isDeletePermitted={isDeletePermitted}
+          name={action?.name || ""}
+          prefixAdditionalMenus={
+            editorMode === EditorViewMode.SplitScreen && (
+              <ConvertToModuleInstanceCTA {...convertToModuleProps} />
+            )
+          }
+        />
+        {action?.pluginType !== PluginType.INTERNAL &&
+          editorMode !== EditorViewMode.SplitScreen && (
+            // Need to remove this check once workflow query is supported in module
+            <ConvertToModuleInstanceCTA {...convertToModuleProps} />
+          )}
+      </>
+    );
+  }, [
+    action?.id,
+    action?.name,
+    action?.pluginType,
+    isChangePermitted,
+    isDeletePermitted,
+    basePageId,
+    isCreatePermitted,
+    editorMode,
+  ]);
+
+  const actionRightPaneBackLink = useMemo(() => {
+    return <BackToCanvas basePageId={basePageId} />;
+  }, [basePageId]);
+
+  const changeQueryPage = useCallback(
+    (baseQueryId: string) => {
+      dispatch(
+        changeQuery({ baseQueryId: baseQueryId, basePageId, applicationId }),
+      );
+    },
+    [basePageId, applicationId, dispatch],
+  );
+
+  const onCreateDatasourceClick = useCallback(() => {
+    history.push(
+      integrationEditorURL({
+        basePageId: basePageId,
+        selectedTab: INTEGRATION_TABS.NEW,
+      }),
+    );
+    // Event for datasource creation click
+    const entryPoint = DatasourceCreateEntryPoints.QUERY_EDITOR;
+
+    AnalyticsUtil.logEvent("NAVIGATE_TO_CREATE_NEW_DATASOURCE_PAGE", {
+      entryPoint,
+    });
+  }, [basePageId]);
+
+  // custom function to return user to integrations page if action is not found
+  const onEntityNotFoundBackClick = useCallback(
+    () =>
+      history.push(
+        integrationEditorURL({
+          basePageId: basePageId,
+          selectedTab: INTEGRATION_TABS.ACTIVE,
+        }),
+      ),
+    [basePageId],
+  );
+
+  const notification = useMemo(() => {
+    if (!isConverting) return null;
+
+    return (
+      <ConvertEntityNotification
+        icon={icon}
+        name={action?.name || ""}
+        withPadding
       />
     );
-  }
+  }, [action?.name, isConverting, icon]);
+
+  return (
+    <QueryEditorContextProvider
+      actionRightPaneBackLink={actionRightPaneBackLink}
+      changeQueryPage={changeQueryPage}
+      moreActionsMenu={moreActionsMenu}
+      notification={notification}
+      onCreateDatasourceClick={onCreateDatasourceClick}
+      onEntityNotFoundBackClick={onEntityNotFoundBackClick}
+      saveActionName={saveActionName}
+    >
+      <Disabler isDisabled={isConverting}>
+        <Editor
+          {...props}
+          isEditorInitialized={isEditorInitialized}
+          settingsConfig={settingsConfig}
+        />
+      </Disabler>
+    </QueryEditorContextProvider>
+  );
 }
 
-const mapStateToProps = (state: AppState, props: any): ReduxStateProps => {
-  const { runErrorMessage } = state.ui.queryPane;
-  const { plugins } = state.entities;
-
-  const { editorConfigs, settingConfigs } = plugins;
-  const formData = getFormValues(QUERY_EDITOR_FORM_NAME)(state) as QueryAction;
-  const queryAction = getAction(
-    state,
-    props.match.params.queryId,
-  ) as QueryAction;
-  let pluginId;
-  if (queryAction) {
-    pluginId = queryAction.pluginId;
-  }
-  let editorConfig: any;
-
-  if (editorConfigs && pluginId) {
-    editorConfig = editorConfigs[pluginId];
-  }
-
-  let settingConfig: any;
-
-  if (settingConfigs && pluginId) {
-    settingConfig = settingConfigs[pluginId];
-  }
-
-  const allPlugins = getPlugins(state);
-  let uiComponent = UIComponentTypes.DbEditorForm;
-  if (!!pluginId) uiComponent = getUIComponent(pluginId, allPlugins);
-
-  return {
-    pluginImages: getPluginImages(state),
-    plugins: allPlugins,
-    runErrorMessage,
-    pluginIds: getPluginIdsOfPackageNames(state, PLUGIN_PACKAGE_DBS),
-    dataSources: getDBAndRemoteDatasources(state),
-    responses: getActionResponses(state),
-    isRunning: state.ui.queryPane.isRunning[props.match.params.queryId],
-    isDeleting: state.ui.queryPane.isDeleting[props.match.params.queryId],
-    formData,
-    editorConfig,
-    settingConfig,
-    isCreating: state.ui.apiPane.isCreating,
-    isEditorInitialized: getIsEditorInitialized(state),
-    uiComponent,
-    applicationId: getCurrentApplicationId(state),
-  };
-};
-
-const mapDispatchToProps = (dispatch: any): ReduxDispatchProps => ({
-  deleteAction: (id: string, name: string) =>
-    dispatch(deleteAction({ id, name })),
-  runAction: (actionId: string) => dispatch(runAction(actionId)),
-  changeQueryPage: (queryId: string) => {
-    dispatch(changeQuery(queryId));
-  },
-  runFormEvaluation: (formId: string, formData: QueryActionConfig) => {
-    dispatch(startFormEvaluations(formId, formData));
-  },
-  initFormEvaluation: (
-    editorConfig: any,
-    settingsConfig: any,
-    formId: string,
-  ) => {
-    dispatch(initFormEvaluations(editorConfig, settingsConfig, formId));
-  },
-});
-
-export default connect(mapStateToProps, mapDispatchToProps)(QueryEditor);
+export default QueryEditor;

@@ -1,60 +1,78 @@
-import React, { ReactNode, useState, useEffect } from "react";
-import { isPermitted } from "pages/Applications/permissionHelpers";
-import Dialog from "components/ads/DialogComponent";
-import { useDispatch } from "react-redux";
-import { setShowAppInviteUsersDialog } from "actions/applicationActions";
+import React, { useState, useEffect } from "react";
+import {
+  Button,
+  Modal,
+  ModalBody,
+  ModalContent,
+  ModalHeader,
+} from "@appsmith/ads";
 
-type FormDialogComponentProps = {
+interface FormDialogComponentProps {
   isOpen?: boolean;
-  canOutsideClickClose?: boolean;
-  orgId?: string;
-  title: string;
+  // TODO: Fix this the next time the file is edited
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  workspace?: any;
+  title?: string;
+  message?: string;
+  // TODO: Fix this the next time the file is edited
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   Form: any;
-  trigger: ReactNode;
-  permissionRequired?: string;
-  permissions?: string[];
-  setMaxWidth?: boolean;
+  onClose?: () => void;
   applicationId?: string;
-};
+  placeholder?: string;
+  hideDefaultTrigger?: boolean;
+}
 
 export function FormDialogComponent(props: FormDialogComponentProps) {
-  const [isOpen, setIsOpenState] = useState(!!props.isOpen);
-  const dispatch = useDispatch();
-
-  const setIsOpen = (isOpen: boolean) => {
-    setIsOpenState(isOpen);
-    dispatch(setShowAppInviteUsersDialog(isOpen));
-  };
+  const [isModalOpen, setIsModalOpenState] = useState(!!props.isOpen);
 
   useEffect(() => {
     setIsOpen(!!props.isOpen);
   }, [props.isOpen]);
 
+  const setIsOpen = (isOpen: boolean) => {
+    setIsModalOpenState(isOpen);
+  };
+
+  const onOpenChange = (isOpen: boolean) => {
+    props?.onClose?.();
+    setIsOpen(isOpen);
+  };
+
   const Form = props.Form;
 
-  if (
-    props.permissions &&
-    props.permissionRequired &&
-    !isPermitted(props.permissions, props.permissionRequired)
-  )
-    return null;
-
   return (
-    <Dialog
-      canOutsideClickClose={!!props.canOutsideClickClose}
-      isOpen={isOpen}
-      onOpening={() => setIsOpen(true)}
-      setMaxWidth={props.setMaxWidth}
-      setModalClose={() => setIsOpen(false)}
-      title={props.title}
-      trigger={props.trigger}
-    >
-      <Form
-        applicationId={props.applicationId}
-        onCancel={() => setIsOpen(false)}
-        orgId={props.orgId}
-      />
-    </Dialog>
+    <>
+      {!props.hideDefaultTrigger && (
+        <Button
+          kind="secondary"
+          onClick={() => setIsOpen(true)}
+          size="md"
+          startIcon={"share-line"}
+        >
+          Share
+        </Button>
+      )}
+      <Modal
+        onOpenChange={(isOpen) => isModalOpen && onOpenChange(isOpen)}
+        open={isModalOpen}
+      >
+        <ModalContent style={{ width: "640px" }}>
+          <ModalHeader>
+            <div className="text-ellipsis overflow-hidden whitespace-nowrap">
+              {props.title || `Invite users to ${props.workspace.name}`}
+            </div>
+          </ModalHeader>
+          <ModalBody>
+            <Form
+              applicationId={props.applicationId}
+              placeholder={props.placeholder}
+              workspaceId={props.workspace.id}
+            />
+          </ModalBody>
+        </ModalContent>
+      </Modal>
+    </>
   );
 }
 

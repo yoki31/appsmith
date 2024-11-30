@@ -1,58 +1,86 @@
 package com.external.plugins;
 
+import com.appsmith.external.constants.Authentication;
 import com.appsmith.external.models.ActionConfiguration;
 import com.appsmith.external.models.ActionExecutionResult;
+import com.appsmith.external.models.DBAuth;
 import com.appsmith.external.models.DatasourceConfiguration;
 import com.appsmith.external.models.Endpoint;
 import com.appsmith.external.models.RequestParamDTO;
+import com.external.plugins.exceptions.ElasticSearchPluginError;
 import lombok.extern.slf4j.Slf4j;
+import mockwebserver3.MockResponse;
+import mockwebserver3.MockWebServer;
 import org.apache.http.HttpHost;
+import org.apache.http.auth.AuthScope;
+import org.apache.http.auth.UsernamePasswordCredentials;
+import org.apache.http.client.CredentialsProvider;
+import org.apache.http.impl.client.BasicCredentialsProvider;
+import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RestClient;
-import org.junit.Assert;
-import org.junit.BeforeClass;
-import org.junit.ClassRule;
-import org.junit.Test;
+import org.elasticsearch.client.RestClientBuilder;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;
 import org.testcontainers.elasticsearch.ElasticsearchContainer;
-import org.testcontainers.utility.DockerImageName;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static com.appsmith.external.constants.ActionConstants.ACTION_CONFIGURATION_BODY;
 import static com.appsmith.external.constants.ActionConstants.ACTION_CONFIGURATION_PATH;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @Slf4j
+@Testcontainers
 public class ElasticSearchPluginTest {
-    ElasticSearchPlugin.ElasticSearchPluginExecutor pluginExecutor = new ElasticSearchPlugin.ElasticSearchPluginExecutor();
+    ElasticSearchPlugin.ElasticSearchPluginExecutor pluginExecutor =
+            new ElasticSearchPlugin.ElasticSearchPluginExecutor();
 
-    @ClassRule
-    public static final ElasticsearchContainer container = new ElasticsearchContainer("docker.elastic.co/elasticsearch/elasticsearch:7.12.1")
-            .withEnv("discovery.type", "single-node");
+    @Container
+    public static final ElasticsearchContainer container = new ElasticsearchContainer(
+                    "docker.elastic.co/elasticsearch/elasticsearch:7.12.1")
+            .withEnv("discovery.type", "single-node")
+            .withPassword("esPassword");
 
+    private static String username = "elastic";
+    private static String password = "esPassword";
     private static final DatasourceConfiguration dsConfig = new DatasourceConfiguration();
+    private static DBAuth elasticInstanceCredentials =
+            new DBAuth(DBAuth.Type.USERNAME_PASSWORD, username, password, null);
     private static String host;
     private static Integer port;
 
-    @BeforeClass
+    @BeforeAll
     public static void setUp() throws IOException {
         port = container.getMappedPort(9200);
         host = "http://" + container.getContainerIpAddress();
 
-        final RestClient client = RestClient.builder(
-                new HttpHost(container.getContainerIpAddress(), port, "http")
-        ).build();
+        final CredentialsProvider credentialsProvider = new BasicCredentialsProvider();
+        credentialsProvider.setCredentials(AuthScope.ANY, new UsernamePasswordCredentials(username, password));
+
+        RestClient client = RestClient.builder(new HttpHost(container.getContainerIpAddress(), port, "http"))
+                .setHttpClientConfigCallback(new RestClientBuilder.HttpClientConfigCallback() {
+                    @Override
+                    public HttpAsyncClientBuilder customizeHttpClient(HttpAsyncClientBuilder httpClientBuilder) {
+                        return httpClientBuilder.setDefaultCredentialsProvider(credentialsProvider);
+                    }
+                })
+                .build();
 
         Request request;
 
@@ -69,8 +97,11 @@ public class ElasticSearchPluginTest {
         client.performRequest(request);
 
         client.close();
-
+        elasticInstanceCredentials.setAuthenticationType(Authentication.BASIC);
+        elasticInstanceCredentials.setUsername(username);
+        elasticInstanceCredentials.setPassword(password);
         dsConfig.setEndpoints(List.of(new Endpoint(host, port.longValue())));
+        dsConfig.setAuthentication(elasticInstanceCredentials);
     }
 
     private Mono<ActionExecutionResult> execute(HttpMethod method, String path, String body) {
@@ -82,6 +113,27 @@ public class ElasticSearchPluginTest {
         return pluginExecutor
                 .datasourceCreate(dsConfig)
                 .flatMap(conn -> pluginExecutor.execute(conn, dsConfig, actionConfiguration));
+    }
+
+    private DatasourceConfiguration createDatasourceConfiguration() {
+        DatasourceConfiguration datasourceConfiguration = new DatasourceConfiguration();
+        datasourceConfiguration.setAuthentication(elasticInstanceCredentials);
+        Endpoint endpoint = new Endpoint();
+        endpoint.setHost("localhost");
+        endpoint.setPort(Long.valueOf(port));
+        datasourceConfiguration.setEndpoints(Collections.singletonList(endpoint));
+        return datasourceConfiguration;
+    }
+
+    @Test
+    public void testDefaultPort() {
+
+        Endpoint endpoint = new Endpoint();
+        endpoint.setHost(host);
+
+        Long defaultPort = pluginExecutor.getPort(endpoint);
+
+        assertEquals(9200L, defaultPort);
     }
 
     @Test
@@ -99,18 +151,17 @@ public class ElasticSearchPluginTest {
 
     @Test
     public void testMultiGet() {
-        final String contentJson = "{\n" +
-                "  \"docs\": [\n" +
-                "    {\n" +
-                "      \"_index\": \"planets\",\n" +
-                "      \"_id\": \"id1\"\n" +
-                "    },\n" +
-                "    {\n" +
-                "      \"_index\": \"planets\",\n" +
-                "      \"_id\": \"id2\"\n" +
-                "    }\n" +
-                "  ]\n" +
-                "}";
+        final String contentJson = "{\n" + "  \"docs\": [\n"
+                + "    {\n"
+                + "      \"_index\": \"planets\",\n"
+                + "      \"_id\": \"id1\"\n"
+                + "    },\n"
+                + "    {\n"
+                + "      \"_index\": \"planets\",\n"
+                + "      \"_id\": \"id2\"\n"
+                + "    }\n"
+                + "  ]\n"
+                + "}";
         StepVerifier.create(execute(HttpMethod.GET, "/planets/_mget", contentJson))
                 .assertNext(result -> {
                     assertNotNull(result);
@@ -127,10 +178,12 @@ public class ElasticSearchPluginTest {
                      * - The other two RequestParamDTO attributes - label and type are null at this point.
                      */
                     List<RequestParamDTO> expectedRequestParams = new ArrayList<>();
-                    expectedRequestParams.add(new RequestParamDTO("actionConfiguration.httpMethod", HttpMethod.GET.toString(),
-                            null, null, null));
-                    expectedRequestParams.add(new RequestParamDTO(ACTION_CONFIGURATION_PATH, "/planets/_mget", null, null, null));
-                    expectedRequestParams.add(new RequestParamDTO(ACTION_CONFIGURATION_BODY,  contentJson, null, null, null));
+                    expectedRequestParams.add(new RequestParamDTO(
+                            "actionConfiguration.httpMethod", HttpMethod.GET.toString(), null, null, null));
+                    expectedRequestParams.add(
+                            new RequestParamDTO(ACTION_CONFIGURATION_PATH, "/planets/_mget", null, null, null));
+                    expectedRequestParams.add(
+                            new RequestParamDTO(ACTION_CONFIGURATION_BODY, contentJson, null, null, null));
                     assertEquals(result.getRequest().getRequestParams().toString(), expectedRequestParams.toString());
                 })
                 .verifyComplete();
@@ -182,15 +235,15 @@ public class ElasticSearchPluginTest {
 
     @Test
     public void testBulkWithArrayBody() {
-        final String contentJson = "[\n" +
-                "  { \"index\" : { \"_index\" : \"test1\", \"_type\": \"doc\", \"_id\" : \"1\" } },\n" +
-                "  { \"field1\" : \"value1\" },\n" +
-                "  { \"delete\" : { \"_index\" : \"test1\", \"_type\": \"doc\", \"_id\" : \"2\" } },\n" +
-                "  { \"create\" : { \"_index\" : \"test1\", \"_type\": \"doc\", \"_id\" : \"3\" } },\n" +
-                "  { \"field1\" : \"value3\" },\n" +
-                "  { \"update\" : {\"_id\" : \"1\", \"_type\": \"doc\", \"_index\" : \"test1\"} },\n" +
-                "  { \"doc\" : {\"field2\" : \"value2\"} }\n" +
-                "]";
+        final String contentJson =
+                "[\n" + "  { \"index\" : { \"_index\" : \"test1\", \"_type\": \"doc\", \"_id\" : \"1\" } },\n"
+                        + "  { \"field1\" : \"value1\" },\n"
+                        + "  { \"delete\" : { \"_index\" : \"test1\", \"_type\": \"doc\", \"_id\" : \"2\" } },\n"
+                        + "  { \"create\" : { \"_index\" : \"test1\", \"_type\": \"doc\", \"_id\" : \"3\" } },\n"
+                        + "  { \"field1\" : \"value3\" },\n"
+                        + "  { \"update\" : {\"_id\" : \"1\", \"_type\": \"doc\", \"_index\" : \"test1\"} },\n"
+                        + "  { \"doc\" : {\"field2\" : \"value2\"} }\n"
+                        + "]";
 
         StepVerifier.create(execute(HttpMethod.POST, "/_bulk", contentJson))
                 .assertNext(result -> {
@@ -206,14 +259,13 @@ public class ElasticSearchPluginTest {
 
     @Test
     public void testBulkWithDirectBody() {
-        final String contentJson =
-                "{ \"index\" : { \"_index\" : \"test2\", \"_type\": \"doc\", \"_id\" : \"1\" } }\n" +
-                "{ \"field1\" : \"value1\" }\n" +
-                "{ \"delete\" : { \"_index\" : \"test2\", \"_type\": \"doc\", \"_id\" : \"2\" } }\n" +
-                "{ \"create\" : { \"_index\" : \"test2\", \"_type\": \"doc\", \"_id\" : \"3\" } }\n" +
-                "{ \"field1\" : \"value3\" }\n" +
-                "{ \"update\" : {\"_id\" : \"1\", \"_type\": \"doc\", \"_index\" : \"test2\"} }\n" +
-                "{ \"doc\" : {\"field2\" : \"value2\"} }\n";
+        final String contentJson = "{ \"index\" : { \"_index\" : \"test2\", \"_type\": \"doc\", \"_id\" : \"1\" } }\n"
+                + "{ \"field1\" : \"value1\" }\n"
+                + "{ \"delete\" : { \"_index\" : \"test2\", \"_type\": \"doc\", \"_id\" : \"2\" } }\n"
+                + "{ \"create\" : { \"_index\" : \"test2\", \"_type\": \"doc\", \"_id\" : \"3\" } }\n"
+                + "{ \"field1\" : \"value3\" }\n"
+                + "{ \"update\" : {\"_id\" : \"1\", \"_type\": \"doc\", \"_index\" : \"test2\"} }\n"
+                + "{ \"doc\" : {\"field2\" : \"value2\"} }\n";
 
         StepVerifier.create(execute(HttpMethod.POST, "/_bulk", contentJson))
                 .assertNext(result -> {
@@ -230,60 +282,63 @@ public class ElasticSearchPluginTest {
     @Test
     public void itShouldValidateDatasourceWithNoEndpoints() {
         DatasourceConfiguration invalidDatasourceConfiguration = new DatasourceConfiguration();
+        invalidDatasourceConfiguration.setAuthentication(elasticInstanceCredentials);
 
-        Assert.assertEquals(Set.of("No endpoint provided. Please provide a host:port where ElasticSearch is reachable."),
+        assertEquals(
+                Set.of("No endpoint provided. Please provide a host:port where ElasticSearch is reachable."),
                 pluginExecutor.validateDatasource(invalidDatasourceConfiguration));
     }
 
     @Test
     public void itShouldValidateDatasourceWithEmptyPort() {
         DatasourceConfiguration datasourceConfiguration = new DatasourceConfiguration();
+        datasourceConfiguration.setAuthentication(elasticInstanceCredentials);
         Endpoint endpoint = new Endpoint();
         endpoint.setHost(host);
         datasourceConfiguration.setEndpoints(Collections.singletonList(endpoint));
 
-        Assert.assertEquals(Set.of("Missing port for endpoint"),
-                pluginExecutor.validateDatasource(datasourceConfiguration));
+        assertEquals(Set.of(), pluginExecutor.validateDatasource(datasourceConfiguration));
     }
 
     @Test
     public void itShouldValidateDatasourceWithEmptyHost() {
         DatasourceConfiguration datasourceConfiguration = new DatasourceConfiguration();
+        datasourceConfiguration.setAuthentication(elasticInstanceCredentials);
         Endpoint endpoint = new Endpoint();
         endpoint.setPort(Long.valueOf(port));
         datasourceConfiguration.setEndpoints(Collections.singletonList(endpoint));
 
-        Assert.assertEquals(Set.of("Missing host for endpoint"),
-                pluginExecutor.validateDatasource(datasourceConfiguration));
+        assertEquals(Set.of("Missing host for endpoint"), pluginExecutor.validateDatasource(datasourceConfiguration));
     }
 
     @Test
     public void itShouldValidateDatasourceWithMissingEndpoint() {
         DatasourceConfiguration datasourceConfiguration = new DatasourceConfiguration();
-
+        datasourceConfiguration.setAuthentication(elasticInstanceCredentials);
         Endpoint endpoint = new Endpoint();
         datasourceConfiguration.setEndpoints(Collections.singletonList(endpoint));
 
-        Assert.assertEquals(Set.of("Missing port for endpoint", "Missing host for endpoint"),
-                pluginExecutor.validateDatasource(datasourceConfiguration));
+        assertEquals(Set.of("Missing host for endpoint"), pluginExecutor.validateDatasource(datasourceConfiguration));
     }
 
     @Test
     public void itShouldValidateDatasourceWithEndpointNoProtocol() {
         DatasourceConfiguration datasourceConfiguration = new DatasourceConfiguration();
         Endpoint endpoint = new Endpoint();
+        datasourceConfiguration.setAuthentication(elasticInstanceCredentials);
         endpoint.setHost("localhost");
         endpoint.setPort(Long.valueOf(port));
         datasourceConfiguration.setEndpoints(Collections.singletonList(endpoint));
 
-        Assert.assertEquals(Set.of("Invalid host provided. It should be of the form http(s)://your-es-url.com"),
-                pluginExecutor.validateDatasource(datasourceConfiguration)
-        );
+        assertEquals(
+                Set.of("Invalid host provided. It should be of the form http(s)://your-es-url.com"),
+                pluginExecutor.validateDatasource(datasourceConfiguration));
     }
 
     @Test
     public void itShouldTestDatasourceWithInvalidEndpoint() {
         DatasourceConfiguration datasourceConfiguration = new DatasourceConfiguration();
+        datasourceConfiguration.setAuthentication(elasticInstanceCredentials);
         Endpoint endpoint = new Endpoint();
         endpoint.setHost("localhost");
         endpoint.setPort(Long.valueOf(port));
@@ -301,6 +356,323 @@ public class ElasticSearchPluginTest {
         StepVerifier.create(pluginExecutor.testDatasource(dsConfig))
                 .assertNext(result -> {
                     assertTrue(result.getInvalids().isEmpty());
+                })
+                .verifyComplete();
+    }
+
+    @Test
+    public void shouldVerifyUnauthorized() {
+        final Integer secureHostPort = container.getMappedPort(9200);
+        final String secureHostEndpoint = "http://" + container.getHttpHostAddress();
+        DatasourceConfiguration datasourceConfiguration = new DatasourceConfiguration();
+        Endpoint endpoint = new Endpoint(secureHostEndpoint, Long.valueOf(secureHostPort));
+        datasourceConfiguration.setEndpoints(Collections.singletonList(endpoint));
+
+        StepVerifier.create(
+                        pluginExecutor.testDatasource(datasourceConfiguration).map(result -> {
+                            return (Set<String>) result.getInvalids();
+                        }))
+                .expectNext(Set.of("Your username or password is not correct"))
+                .verifyComplete();
+    }
+
+    @Test
+    public void shouldVerifyNotFound() {
+        final Integer secureHostPort = container.getMappedPort(9200);
+        final String secureHostEndpoint = "http://esdatabasenotfound.co";
+        DatasourceConfiguration datasourceConfiguration = new DatasourceConfiguration();
+        Endpoint endpoint = new Endpoint(secureHostEndpoint, Long.valueOf(secureHostPort));
+        datasourceConfiguration.setEndpoints(Collections.singletonList(endpoint));
+
+        StepVerifier.create(
+                        pluginExecutor.testDatasource(datasourceConfiguration).map(result -> {
+                            return (Set<String>) result.getInvalids();
+                        }))
+                .expectNext(
+                        Set.of("Either your host URL is invalid or the page you are trying to access does not exist"))
+                .verifyComplete();
+    }
+
+    @Test
+    public void itShouldDenyTestDatasourceWithInstanceMetadataAws() {
+        DatasourceConfiguration datasourceConfiguration = new DatasourceConfiguration();
+        datasourceConfiguration.setAuthentication(elasticInstanceCredentials);
+        Endpoint endpoint = new Endpoint();
+        endpoint.setHost("http://169.254.169.254");
+        endpoint.setPort(Long.valueOf(port));
+        datasourceConfiguration.setEndpoints(Collections.singletonList(endpoint));
+
+        StepVerifier.create(pluginExecutor.testDatasource(datasourceConfiguration))
+                .assertNext(result -> {
+                    assertFalse(result.getInvalids().isEmpty());
+                    assertTrue(result.getInvalids()
+                            .contains("Error running HEAD request: Host 169.254.169.254 is not allowed"));
+                })
+                .verifyComplete();
+    }
+
+    @Test
+    public void itShouldDenyTestDatasourceWithInstanceMetadataAwsWithDnsResolution() {
+        DatasourceConfiguration datasourceConfiguration = new DatasourceConfiguration();
+        datasourceConfiguration.setAuthentication(elasticInstanceCredentials);
+        Endpoint endpoint = new Endpoint();
+        endpoint.setHost("http://169.254.169.254.nip.io");
+        endpoint.setPort(Long.valueOf(port));
+        datasourceConfiguration.setEndpoints(Collections.singletonList(endpoint));
+
+        StepVerifier.create(pluginExecutor.testDatasource(datasourceConfiguration))
+                .assertNext(result -> {
+                    assertFalse(result.getInvalids().isEmpty());
+                    assertTrue(result.getInvalids()
+                            .contains("Error running HEAD request: Host 169.254.169.254.nip.io is not allowed"));
+                })
+                .verifyComplete();
+    }
+
+    @Test
+    public void itShouldDenyTestDatasourceWithInstanceMetadataGcp() {
+        DatasourceConfiguration datasourceConfiguration = new DatasourceConfiguration();
+        datasourceConfiguration.setAuthentication(elasticInstanceCredentials);
+        Endpoint endpoint = new Endpoint();
+        endpoint.setHost("http://metadata.google.internal");
+        endpoint.setPort(Long.valueOf(port));
+        datasourceConfiguration.setEndpoints(Collections.singletonList(endpoint));
+
+        StepVerifier.create(pluginExecutor.testDatasource(datasourceConfiguration))
+                .assertNext(result -> {
+                    assertFalse(result.getInvalids().isEmpty());
+                    assertTrue(result.getInvalids()
+                            .contains("Error running HEAD request: Host metadata.google.internal is not allowed"));
+                })
+                .verifyComplete();
+    }
+
+    @Test
+    public void itShouldRejectGetToMetadataAws() {
+        DatasourceConfiguration datasourceConfiguration = new DatasourceConfiguration();
+        datasourceConfiguration.setAuthentication(elasticInstanceCredentials);
+        Endpoint endpoint = new Endpoint();
+        endpoint.setHost("http://169.254.169.254");
+        endpoint.setPort(Long.valueOf(port));
+        datasourceConfiguration.setEndpoints(Collections.singletonList(endpoint));
+
+        final ActionConfiguration actionConfiguration = new ActionConfiguration();
+        actionConfiguration.setHttpMethod(HttpMethod.GET);
+        actionConfiguration.setPath("/");
+
+        final Mono<ActionExecutionResult> resultMono = pluginExecutor
+                .datasourceCreate(datasourceConfiguration)
+                .flatMap(conn -> pluginExecutor.execute(conn, dsConfig, actionConfiguration));
+
+        StepVerifier.create(resultMono)
+                .assertNext(result -> {
+                    assertFalse(result.getIsExecutionSuccess());
+                    assertEquals(
+                            "Host 169.254.169.254 is not allowed",
+                            result.getPluginErrorDetails().getDownstreamErrorMessage());
+                })
+                .verifyComplete();
+    }
+
+    @Test
+    public void itShouldRejectGetToMetadataAwsWithDnsResolution() {
+        DatasourceConfiguration datasourceConfiguration = new DatasourceConfiguration();
+        datasourceConfiguration.setAuthentication(elasticInstanceCredentials);
+        Endpoint endpoint = new Endpoint();
+        endpoint.setHost("http://169.254.169.254.nip.io");
+        endpoint.setPort(Long.valueOf(port));
+        datasourceConfiguration.setEndpoints(Collections.singletonList(endpoint));
+
+        final ActionConfiguration actionConfiguration = new ActionConfiguration();
+        actionConfiguration.setHttpMethod(HttpMethod.GET);
+        actionConfiguration.setPath("/");
+
+        final Mono<ActionExecutionResult> resultMono = pluginExecutor
+                .datasourceCreate(datasourceConfiguration)
+                .flatMap(conn -> pluginExecutor.execute(conn, dsConfig, actionConfiguration));
+
+        StepVerifier.create(resultMono)
+                .assertNext(result -> {
+                    assertFalse(result.getIsExecutionSuccess());
+                    assertEquals(
+                            "Host 169.254.169.254.nip.io is not allowed",
+                            result.getPluginErrorDetails().getDownstreamErrorMessage());
+                })
+                .verifyComplete();
+    }
+
+    @Test
+    public void itShouldRejectGetToMetadataAwsWithDnsResolutionAndRedirect() throws IOException {
+        MockWebServer mockWebServer = new MockWebServer();
+        MockResponse mockRedirectResponse = new MockResponse()
+                .setResponseCode(301)
+                .addHeader("Location", "http://169.254.169.254.nip.io/latest/meta-data");
+        mockWebServer.enqueue(mockRedirectResponse);
+        mockWebServer.start();
+
+        DatasourceConfiguration datasourceConfiguration = new DatasourceConfiguration();
+        datasourceConfiguration.setAuthentication(elasticInstanceCredentials);
+        Endpoint endpoint = new Endpoint();
+        endpoint.setHost("http://" + mockWebServer.getHostName());
+        endpoint.setPort((long) mockWebServer.getPort());
+        datasourceConfiguration.setEndpoints(Collections.singletonList(endpoint));
+
+        final ActionConfiguration actionConfiguration = new ActionConfiguration();
+        actionConfiguration.setHttpMethod(HttpMethod.GET);
+        actionConfiguration.setPath("/");
+
+        final Mono<ActionExecutionResult> resultMono = pluginExecutor
+                .datasourceCreate(datasourceConfiguration)
+                .flatMap(conn -> pluginExecutor.execute(conn, dsConfig, actionConfiguration));
+
+        StepVerifier.create(resultMono)
+                .assertNext(result -> {
+                    assertFalse(result.getIsExecutionSuccess());
+                    assertEquals(
+                            "Host 169.254.169.254.nip.io is not allowed",
+                            result.getPluginErrorDetails().getDownstreamErrorMessage());
+                })
+                .verifyComplete();
+    }
+
+    @Test
+    public void itShouldRejectGetToMetadataGcp() {
+        DatasourceConfiguration datasourceConfiguration = new DatasourceConfiguration();
+        datasourceConfiguration.setAuthentication(elasticInstanceCredentials);
+        Endpoint endpoint = new Endpoint();
+        endpoint.setHost("http://metadata.google.internal");
+        endpoint.setPort(Long.valueOf(port));
+        datasourceConfiguration.setEndpoints(Collections.singletonList(endpoint));
+
+        final ActionConfiguration actionConfiguration = new ActionConfiguration();
+        actionConfiguration.setHttpMethod(HttpMethod.GET);
+        actionConfiguration.setPath("/");
+
+        final Mono<ActionExecutionResult> resultMono = pluginExecutor
+                .datasourceCreate(datasourceConfiguration)
+                .flatMap(conn -> pluginExecutor.execute(conn, dsConfig, actionConfiguration));
+
+        StepVerifier.create(resultMono)
+                .assertNext(result -> {
+                    assertFalse(result.getIsExecutionSuccess());
+                    assertEquals(
+                            "Host metadata.google.internal is not allowed",
+                            result.getPluginErrorDetails().getDownstreamErrorMessage());
+                })
+                .verifyComplete();
+    }
+
+    @Test
+    public void itShouldRejectGetToMetadataGcpAndRedirect() throws IOException {
+        MockWebServer mockWebServer = new MockWebServer();
+        MockResponse mockRedirectResponse =
+                new MockResponse().setResponseCode(301).addHeader("Location", "http://metadata.google.internal");
+        mockWebServer.enqueue(mockRedirectResponse);
+        mockWebServer.start();
+
+        DatasourceConfiguration datasourceConfiguration = new DatasourceConfiguration();
+        datasourceConfiguration.setAuthentication(elasticInstanceCredentials);
+        Endpoint endpoint = new Endpoint();
+        endpoint.setHost("http://" + mockWebServer.getHostName());
+        endpoint.setPort((long) mockWebServer.getPort());
+        datasourceConfiguration.setEndpoints(Collections.singletonList(endpoint));
+
+        final ActionConfiguration actionConfiguration = new ActionConfiguration();
+        actionConfiguration.setHttpMethod(HttpMethod.GET);
+        actionConfiguration.setPath("/");
+
+        final Mono<ActionExecutionResult> resultMono = pluginExecutor
+                .datasourceCreate(datasourceConfiguration)
+                .flatMap(conn -> pluginExecutor.execute(conn, dsConfig, actionConfiguration));
+
+        StepVerifier.create(resultMono)
+                .assertNext(result -> {
+                    assertFalse(result.getIsExecutionSuccess());
+                    assertEquals(
+                            "Host metadata.google.internal is not allowed",
+                            result.getPluginErrorDetails().getDownstreamErrorMessage());
+                })
+                .verifyComplete();
+    }
+
+    @Test
+    public void verifyUniquenessOfElasticSearchPluginErrorCode() {
+        assert (Arrays.stream(ElasticSearchPluginError.values())
+                        .map(ElasticSearchPluginError::getAppErrorCode)
+                        .distinct()
+                        .count()
+                == ElasticSearchPluginError.values().length);
+
+        assert (Arrays.stream(ElasticSearchPluginError.values())
+                        .map(ElasticSearchPluginError::getAppErrorCode)
+                        .filter(appErrorCode -> appErrorCode.length() != 11 || !appErrorCode.startsWith("PE-ELS"))
+                        .collect(Collectors.toList())
+                        .size()
+                == 0);
+    }
+
+    @Test
+    public void testGetEndpointIdentifierForRateLimit_endpointNotPresent_ReturnsEmptyString() {
+        DatasourceConfiguration dsConfig = createDatasourceConfiguration();
+        // setting endpoints to empty list
+        dsConfig.setEndpoints(new ArrayList());
+
+        final Mono<String> rateLimitIdentifierMono = pluginExecutor.getEndpointIdentifierForRateLimit(dsConfig);
+
+        StepVerifier.create(rateLimitIdentifierMono)
+                .assertNext(endpointIdentifier -> {
+                    assertEquals("", endpointIdentifier);
+                })
+                .verifyComplete();
+    }
+
+    @Test
+    public void testGetEndpointIdentifierForRateLimit_HostAbsent_ReturnsEmptyString() {
+        DatasourceConfiguration dsConfig = createDatasourceConfiguration();
+
+        // Setting hostname and port
+        dsConfig.getEndpoints().get(0).setHost("");
+        dsConfig.getEndpoints().get(0).setPort(9200L);
+
+        final Mono<String> endPointIdentifierMono = pluginExecutor.getEndpointIdentifierForRateLimit(dsConfig);
+
+        StepVerifier.create(endPointIdentifierMono)
+                .assertNext(endpointIdentifier -> {
+                    assertEquals("", endpointIdentifier);
+                })
+                .verifyComplete();
+    }
+
+    @Test
+    public void testGetEndpointIdentifierForRateLimit_HostAndPortPresent_ReturnsCorrectString() {
+        DatasourceConfiguration dsConfig = createDatasourceConfiguration();
+
+        // Setting hostname and port
+        dsConfig.getEndpoints().get(0).setHost("localhost");
+        dsConfig.getEndpoints().get(0).setPort(590L);
+
+        final Mono<String> endPointIdentifierMono = pluginExecutor.getEndpointIdentifierForRateLimit(dsConfig);
+
+        StepVerifier.create(endPointIdentifierMono)
+                .assertNext(endpointIdentifier -> {
+                    assertEquals("localhost_590", endpointIdentifier);
+                })
+                .verifyComplete();
+    }
+
+    @Test
+    public void testGetEndpointIdentifierForRateLimit_HostPresentPortAbsent_ReturnsCorrectString() {
+        DatasourceConfiguration dsConfig = createDatasourceConfiguration();
+
+        // Setting hostname and port
+        dsConfig.getEndpoints().get(0).setHost("localhost");
+        dsConfig.getEndpoints().get(0).setPort(null);
+
+        final Mono<String> endPointIdentifierMono = pluginExecutor.getEndpointIdentifierForRateLimit(dsConfig);
+
+        StepVerifier.create(endPointIdentifierMono)
+                .assertNext(endpointIdentifier -> {
+                    assertEquals("localhost_9200", endpointIdentifier);
                 })
                 .verifyComplete();
     }

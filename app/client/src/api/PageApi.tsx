@@ -1,16 +1,21 @@
 import Api from "api/Api";
-import { ApiResponse } from "./ApiResponses";
-import axios, { AxiosPromise, CancelTokenSource } from "axios";
-import { PageAction } from "constants/AppsmithActionConstants/ActionConstants";
-import { DSLWidget } from "widgets/constants";
-import {
-  ClonePageActionPayload,
-  CreatePageActionPayload,
-} from "actions/pageActions";
+import type { ApiResponse } from "./ApiResponses";
+import type { AxiosPromise, CancelTokenSource } from "axios";
+import axios from "axios";
+import type {
+  LayoutOnLoadActionErrors,
+  PageAction,
+} from "constants/AppsmithActionConstants/ActionConstants";
+import type { DSLWidget } from "WidgetProvider/constants";
+import type { FetchApplicationResponse } from "ee/api/ApplicationApi";
+import type { APP_MODE } from "entities/App";
 
 export interface FetchPageRequest {
-  id: string;
+  pageId: string;
   isFirstLoad?: boolean;
+  handleResponseLater?: boolean;
+  migrateDSL?: boolean;
+  pageWithMigratedDsl?: FetchPageResponse;
 }
 
 export interface FetchPublishedPageRequest {
@@ -22,6 +27,7 @@ export interface SavePageRequest {
   dsl: DSLWidget;
   layoutId: string;
   pageId: string;
+  applicationId: string;
 }
 
 export interface PageLayout {
@@ -29,48 +35,72 @@ export interface PageLayout {
   dsl: Partial<DSLWidget>;
   layoutOnLoadActions: PageAction[][];
   layoutActions: PageAction[];
+  layoutOnLoadActionErrors?: LayoutOnLoadActionErrors[];
 }
 
-export type FetchPageResponse = ApiResponse & {
-  data: {
+export interface PageLayoutsRequest {
+  layoutId: string;
+  pageId: string;
+  layout: {
+    dsl: DSLWidget;
+  };
+}
+
+export interface FetchPageResponseData {
+  isDefault?: boolean;
+  isHidden?: boolean;
+  id: string;
+  baseId: string;
+  name: string;
+  slug: string;
+  applicationId: string;
+  layouts: Array<PageLayout>;
+  lastUpdatedTime: number;
+  customSlug?: string;
+  userPermissions?: string[];
+  layoutOnLoadActionErrors?: LayoutOnLoadActionErrors[];
+}
+
+export type FetchPublishedPageResponseData = FetchPageResponseData;
+
+export interface SavePageResponseData {
+  id: string;
+  layoutOnLoadActions: PageAction[][];
+  dsl: Partial<DSLWidget>;
+  messages: string[];
+  actionUpdates: Array<{
+    executeOnLoad: boolean;
     id: string;
     name: string;
-    applicationId: string;
-    layouts: Array<PageLayout>;
-  };
-};
-
-export type FetchPublishedPageResponse = ApiResponse & {
-  data: {
-    id: string;
-    dsl: Partial<DSLWidget>;
-    pageId: string;
-  };
-};
-
-export interface SavePageResponse extends ApiResponse {
-  data: {
-    id: string;
-    layoutOnLoadActions: PageAction[][];
-    dsl: Partial<DSLWidget>;
-    messages: string[];
-    actionUpdates: Array<{
-      executeOnLoad: boolean;
-      id: string;
-      name: string;
-    }>;
-  };
+    collectionId?: string;
+  }>;
+  layoutOnLoadActionErrors?: Array<LayoutOnLoadActionErrors>;
 }
 
-export type CreatePageRequest = Omit<
-  CreatePageActionPayload,
-  "blockNavigation"
->;
+export interface CreatePageRequest {
+  applicationId: string;
+  name: string;
+  layouts: Partial<PageLayout>[];
+}
 
 export interface UpdatePageRequest {
-  id: string;
-  name: string;
+  pageId: string;
+  name?: string;
   isHidden?: boolean;
+  customSlug?: string;
+}
+
+export interface UpdatePageResponse {
+  id: string;
+  baseId: string;
+  name: string;
+  slug: string;
+  customSlug?: string;
+  applicationId: string;
+  layouts: Array<PageLayout>;
+  isHidden: boolean;
+  lastUpdatedTime: number;
+  defaultResources: unknown[];
 }
 
 export interface SetPageOrderRequest {
@@ -79,38 +109,36 @@ export interface SetPageOrderRequest {
   applicationId: string;
 }
 
-export interface CreatePageResponse extends ApiResponse {
-  data: unknown;
-}
+export type CreatePageResponse = ApiResponse;
 
-export interface FetchPageListResponse extends ApiResponse {
-  data: {
-    pages: Array<{
-      id: string;
-      name: string;
-      isDefault: boolean;
-      isHidden?: boolean;
-      layouts: Array<PageLayout>;
-    }>;
-    organizationId: string;
-  };
+export interface FetchPageListResponseData {
+  pages: Array<{
+    id: string;
+    baseId: string;
+    name: string;
+    isDefault: boolean;
+    isHidden?: boolean;
+    layouts: Array<PageLayout>;
+    slug: string;
+    userPermissions?: string[];
+    description?: string;
+  }>;
+  workspaceId: string;
 }
 
 export interface DeletePageRequest {
-  id: string;
+  pageId: string;
 }
 
-export type ClonePageRequest = Omit<ClonePageActionPayload, "blockNavigation">;
+export interface ClonePageRequest {
+  pageId: string;
+}
 
 export interface UpdateWidgetNameRequest {
   pageId: string;
   layoutId: string;
   newName: string;
   oldName: string;
-}
-
-export interface UpdateWidgetNameResponse extends ApiResponse {
-  data: PageLayout;
 }
 
 export interface GenerateTemplatePageRequest {
@@ -121,131 +149,153 @@ export interface GenerateTemplatePageRequest {
   columns?: string[];
   searchColumn?: string;
   mode?: string;
+  // TODO: Fix this the next time the file is edited
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   pluginSpecificParams?: Record<any, any>;
 }
 
-export type GenerateTemplatePageRequestResponse = ApiResponse & {
-  data: {
-    id: string;
-    name: string;
-    applicationId: string;
-    layouts: Array<PageLayout>;
-  };
-};
+export interface GenerateTemplatePageResponseData {
+  id: string;
+  name: string;
+  applicationId: string;
+  layouts: Array<PageLayout>;
+}
+
+export type SavePageResponse = ApiResponse<SavePageResponseData>;
+
+export type FetchPageListResponse = ApiResponse<FetchPageListResponseData>;
+
+export type UpdateWidgetNameResponse = ApiResponse<PageLayout>;
+
+export type GenerateTemplatePageRequestResponse =
+  ApiResponse<GenerateTemplatePageResponseData>;
+
+export type FetchPageResponse = ApiResponse<FetchPageResponseData>;
+
+export type FetchPublishedPageResponse =
+  ApiResponse<FetchPublishedPageResponseData>;
+
+export interface FetchAppAndPagesRequest {
+  applicationId?: string | null;
+  pageId?: string | null;
+  mode: APP_MODE;
+}
 
 class PageApi extends Api {
   static url = "v1/pages";
-  static refactorLayoutURL = "v1/layouts/refactor";
   static pageUpdateCancelTokenSource?: CancelTokenSource = undefined;
-  static getLayoutUpdateURL = (pageId: string, layoutId: string) => {
-    return `v1/layouts/${layoutId}/pages/${pageId}`;
-  };
-
-  static getGenerateTemplateURL = (pageId?: string) => {
-    return `${PageApi.url}/crud-page${pageId ? `/${pageId}` : ""}`;
-  };
 
   static getPublishedPageURL = (pageId: string, bustCache?: boolean) => {
     const url = `v1/pages/${pageId}/view`;
+
     return !!bustCache ? url + "?v=" + +new Date() : url;
   };
 
-  static updatePageUrl = (pageId: string) => `${PageApi.url}/${pageId}`;
-  static setPageOrderUrl = (
-    applicationId: string,
-    pageId: string,
-    order: number,
-  ) => `v1/applications/${applicationId}/page/${pageId}/reorder?order=${order}`;
-
-  static fetchPage(
+  static async fetchPage(
     pageRequest: FetchPageRequest,
-  ): AxiosPromise<FetchPageResponse> {
-    return Api.get(PageApi.url + "/" + pageRequest.id);
+  ): Promise<AxiosPromise<FetchPageResponse>> {
+    const params = { migrateDsl: pageRequest.migrateDSL };
+
+    return Api.get(PageApi.url + "/" + pageRequest.pageId, undefined, {
+      params,
+    });
   }
 
   static savePage(
-    savePageRequest: SavePageRequest,
+    request: SavePageRequest,
   ): AxiosPromise<SavePageResponse> | undefined {
     if (PageApi.pageUpdateCancelTokenSource) {
       PageApi.pageUpdateCancelTokenSource.cancel();
     }
-    const body = { dsl: savePageRequest.dsl };
+
+    const body = { dsl: request.dsl };
+
     PageApi.pageUpdateCancelTokenSource = axios.CancelToken.source();
+    const { applicationId, layoutId, pageId } = request;
+
     return Api.put(
-      PageApi.getLayoutUpdateURL(
-        savePageRequest.pageId,
-        savePageRequest.layoutId,
-      ),
+      `v1/layouts/${layoutId}/pages/${pageId}?applicationId=${applicationId}`,
       body,
       undefined,
       { cancelToken: PageApi.pageUpdateCancelTokenSource.token },
     );
   }
 
-  static fetchPublishedPage(
+  static async saveAllPages(
+    applicationId: string,
+    pageLayouts: PageLayoutsRequest[],
+  ) {
+    return Api.put(`v1/layouts/application/${applicationId}`, {
+      pageLayouts,
+    });
+  }
+
+  static async fetchPublishedPage(
     pageRequest: FetchPublishedPageRequest,
-  ): AxiosPromise<FetchPublishedPageResponse> {
+  ): Promise<AxiosPromise<FetchPublishedPageResponse>> {
     return Api.get(
       PageApi.getPublishedPageURL(pageRequest.pageId, pageRequest.bustCache),
     );
   }
 
-  static createPage(
-    createPageRequest: CreatePageRequest,
-  ): AxiosPromise<FetchPageResponse> {
-    return Api.post(PageApi.url, createPageRequest);
+  static async createPage(
+    request: CreatePageRequest,
+  ): Promise<AxiosPromise<FetchPageResponse>> {
+    return Api.post(PageApi.url, request);
   }
 
-  static updatePage(request: UpdatePageRequest): AxiosPromise<ApiResponse> {
-    return Api.put(PageApi.updatePageUrl(request.id), request);
+  static async updatePage(
+    request: UpdatePageRequest,
+  ): Promise<AxiosPromise<ApiResponse<UpdatePageResponse>>> {
+    const { pageId, ...rest } = request;
+
+    return Api.put(`${PageApi.url}/${pageId}`, rest);
   }
 
-  static generateTemplatePage(
+  static async generateTemplatePage(
     request: GenerateTemplatePageRequest,
-  ): AxiosPromise<ApiResponse> {
-    if (request.pageId) {
-      return Api.put(PageApi.getGenerateTemplateURL(request.pageId), request);
+  ): Promise<AxiosPromise<ApiResponse>> {
+    const { pageId, ...rest } = request;
+
+    if (pageId) {
+      return Api.put(`${PageApi.url}/crud-page/${pageId}`, rest);
     } else {
-      return Api.post(PageApi.getGenerateTemplateURL(), request);
+      return Api.post(`${PageApi.url}/crud-page`, rest);
     }
   }
 
-  static fetchPageList(
-    applicationId: string,
-  ): AxiosPromise<FetchPageListResponse> {
-    return Api.get(PageApi.url + "/application/" + applicationId);
+  static async deletePage(
+    request: DeletePageRequest,
+  ): Promise<AxiosPromise<ApiResponse>> {
+    return Api.delete(`${PageApi.url}/${request.pageId}`);
   }
 
-  static fetchPageListViewMode(
-    applicationId: string,
-  ): AxiosPromise<FetchPageListResponse> {
-    return Api.get(PageApi.url + "/view/application/" + applicationId);
+  static async clonePage(
+    request: ClonePageRequest,
+  ): Promise<AxiosPromise<FetchPageResponse>> {
+    return Api.post(`${PageApi.url}/clone/${request.pageId}`);
   }
 
-  static deletePage(request: DeletePageRequest): AxiosPromise<ApiResponse> {
-    return Api.delete(PageApi.url + "/" + request.id);
-  }
-
-  static clonePage(request: ClonePageRequest): AxiosPromise<ApiResponse> {
-    return Api.post(PageApi.url + "/clone/" + request.id);
-  }
-
-  static updateWidgetName(
+  static async updateWidgetName(
     request: UpdateWidgetNameRequest,
-  ): AxiosPromise<UpdateWidgetNameResponse> {
-    return Api.put(PageApi.refactorLayoutURL, request);
+  ): Promise<AxiosPromise<UpdateWidgetNameResponse>> {
+    return Api.put("v1/layouts/refactor", request);
   }
 
-  static setPageOrder(
+  static async setPageOrder(
     request: SetPageOrderRequest,
-  ): AxiosPromise<FetchPageListResponse> {
+  ): Promise<AxiosPromise<FetchPageListResponse>> {
+    const { applicationId, order, pageId } = request;
+
     return Api.put(
-      PageApi.setPageOrderUrl(
-        request.applicationId,
-        request.pageId,
-        request.order,
-      ),
+      `v1/applications/${applicationId}/page/${pageId}/reorder?order=${order}`,
     );
+  }
+
+  static async fetchAppAndPages(
+    params: FetchAppAndPagesRequest,
+  ): Promise<AxiosPromise<FetchApplicationResponse>> {
+    return Api.get(PageApi.url, params);
   }
 }
 

@@ -1,6 +1,7 @@
-import { createReducer } from "utils/AppsmithUtils";
-import { ReduxAction, ReduxActionTypes } from "constants/ReduxActionConstants";
-import { TourType } from "entities/Tour";
+import { createReducer } from "utils/ReducerUtils";
+import type { ReduxAction } from "ee/constants/ReduxActionConstants";
+import { ReduxActionTypes } from "ee/constants/ReduxActionConstants";
+import type { TourType } from "entities/Tour";
 
 const initialState: TourReducerState = {
   isTourInProgress: false,
@@ -31,10 +32,10 @@ const tourReducer = createReducer(initialState, {
   }),
 });
 
-export type TourReducerState = {
+export interface TourReducerState {
   isTourInProgress: boolean;
   activeTourType?: TourType;
   activeTourIndex: number;
-};
+}
 
 export default tourReducer;

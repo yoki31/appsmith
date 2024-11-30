@@ -1,145 +1,74 @@
-import React, { useState, useCallback, useContext } from "react";
+import React, { useState, useEffect } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import styled from "styled-components";
 import "@github/g-emoji-element";
-import Dialog from "components/ads/DialogComponent";
-import UpdatesButton from "./UpdatesButton";
-import { AppState } from "reducers";
-import { LayersContext } from "constants/Layers";
+import type { AppState } from "ee/reducers";
 import ReleasesAPI from "api/ReleasesAPI";
 import { resetReleasesCount } from "actions/releasesActions";
-import { HelpIcons } from "icons/HelpIcons";
-import ReleaseComponent, { Release, StyledSeparator } from "./ReleaseComponent";
-import { withTheme } from "styled-components";
-import { Color } from "constants/Colors";
+import type { Release } from "./ReleaseComponent";
+import ReleaseComponent from "./ReleaseComponent";
+import { ReduxActionTypes } from "ee/constants/ReduxActionConstants";
+import { Modal, ModalBody, ModalContent, ModalHeader } from "@appsmith/ads";
+import { isAirgapped } from "ee/utils/airgapHelpers";
 
-const CloseIcon = HelpIcons.CLOSE_ICON;
-
-const HeaderContents = styled.div`
-  padding: 20px 0;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding-bottom: ${(props) => props.theme.spaces[7]}px;
+const Container = styled.div`
+  position: relative;
+  width: 100%;
+  height: 410px;
 `;
 
-const Heading = styled.div`
-  color: ${(props) => props.theme.colors.modal.headerText};
-  display: flex;
-  justify-content: center;
-  font-weight: ${(props) => props.theme.typography.h1.fontWeight};
-  font-size: ${(props) => props.theme.typography.h1.fontSize}px;
-  line-height: ${(props) => props.theme.typography.h1.lineHeight}px;
-  letter-spacing: ${(props) => props.theme.typography.h1.letterSpacing};
-`;
-
-const ViewInGithubLink = styled.a`
-  cursor: pointer;
-  text-decoration: none;
-  :hover {
-    text-decoration: underline;
-    color: ${(props) => props.theme.colors.text.normal};
-  }
-  font-weight: ${(props) => props.theme.typography.releaseList.fontWeight};
-  font-size: ${(props) => props.theme.typography.releaseList.fontSize}px;
-  line-height: ${(props) => props.theme.typography.releaseList.lineHeight}px;
-  letter-spacing: ${(props) =>
-    props.theme.typography.releaseList.letterSpacing}px;
-  color: ${(props) => props.theme.colors.text.normal};
-  margin-right: ${(props) => props.theme.spaces[4]}px;
-`;
-
-const HeaderRight = styled.div`
-  display: flex;
-`;
-
-const CloseIconContainer = styled.div`
-  width: 20px;
-  height: 20px;
-  cursor: pointer;
-  &:hover {
-    background-color: ${(props) => props.theme.colors.modal.hoverState};
-  }
-`;
-
-const Header = withTheme(
-  ({ onClose, theme }: { onClose: () => void; theme: any }) => (
-    <>
-      <HeaderContents>
-        <Heading>Product Updates</Heading>
-        <HeaderRight>
-          <ViewInGithubLink
-            href="https://github.com/appsmithorg/appsmith/releases"
-            target="_blank"
-          >
-            View on Github
-          </ViewInGithubLink>
-          <CloseIconContainer
-            data-cy="t--product-updates-close-btn"
-            onClick={onClose}
-          >
-            <CloseIcon
-              color={theme.colors.text.normal as Color}
-              height={20}
-              width={20}
-            />
-          </CloseIconContainer>
-        </HeaderRight>
-      </HeaderContents>
-      <div style={{ padding: `0` }}>
-        <StyledSeparator />
-      </div>
-    </>
-  ),
-);
-
-type ProductUpdatesModalProps = {
+interface ProductUpdatesModalProps {
   isOpen?: boolean;
   onClose?: () => void;
   hideTrigger?: boolean;
-};
+}
 
 function ProductUpdatesModal(props: ProductUpdatesModalProps) {
-  const { newReleasesCount, releaseItems } = useSelector(
-    (state: AppState) => state.ui.releases,
-  );
+  const { releaseItems } = useSelector((state: AppState) => state.ui.releases);
+  const isAirgappedInstance = isAirgapped();
   const dispatch = useDispatch();
-  const onOpening = useCallback(async () => {
-    setIsOpen(true);
-    dispatch(resetReleasesCount());
-    await ReleasesAPI.markAsRead();
-  }, []);
-
-  const onClose = useCallback(() => {
-    props.onClose && props.onClose();
-    setIsOpen(false);
-  }, []);
-
-  const Layers = useContext(LayersContext);
   const [isOpen, setIsOpen] = useState(!!props.isOpen);
 
+  useEffect(() => {
+    if (
+      props.hideTrigger &&
+      releaseItems.length === 0 &&
+      !isAirgappedInstance
+    ) {
+      dispatch({
+        type: ReduxActionTypes.FETCH_RELEASES,
+      });
+    }
+  }, [isAirgappedInstance]);
+
+  useEffect(() => {
+    if (!props.isOpen) return;
+
+    setIsOpen(true);
+    dispatch(resetReleasesCount());
+    ReleasesAPI.markAsRead();
+  }, [props.isOpen]);
+
+  const handleOnOpenChange = (open: boolean) => {
+    if (!open) {
+      props.onClose && props.onClose();
+      setIsOpen(false);
+    }
+  };
+
   return Array.isArray(releaseItems) && releaseItems.length > 0 ? (
-    <Dialog
-      canEscapeKeyClose
-      canOutsideClickClose
-      getHeader={() => <Header onClose={onClose} />}
-      isOpen={isOpen}
-      maxHeight={"80vh"}
-      onClose={onClose}
-      onOpening={onOpening}
-      showHeaderUnderline
-      trigger={
-        props.hideTrigger ? null : (
-          <UpdatesButton newReleasesCount={newReleasesCount} />
-        )
-      }
-      triggerZIndex={Layers.productUpdates}
-      width={"580px"}
-    >
-      {releaseItems.map((release: Release, index: number) => (
-        <ReleaseComponent key={index} release={release} />
-      ))}
-    </Dialog>
+    <Modal onOpenChange={handleOnOpenChange} open={isOpen}>
+      <ModalContent style={{ width: "640px" }}>
+        <ModalHeader>Product updates</ModalHeader>
+        <ModalBody>
+          <Container>
+            {releaseItems.map((release: Release, index: number) => (
+              <ReleaseComponent key={index} release={release} />
+            ))}
+          </Container>
+        </ModalBody>
+      </ModalContent>
+    </Modal>
   ) : null;
 }
 

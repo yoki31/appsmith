@@ -1,44 +1,39 @@
-import React, { useRef, MutableRefObject, useCallback, useEffect } from "react";
+import React, { useRef, useCallback, useEffect } from "react";
 import styled from "styled-components";
-import Divider from "components/editorComponents/Divider";
-import {
-  useFilteredEntities,
-  useWidgets,
-  useActions,
-  useFilteredDatasources,
-  useJSCollections,
-} from "./hooks";
-import Search from "./ExplorerSearch";
-import ExplorerPageGroup from "./Pages/PageGroup";
-import { NonIdealState, Classes, IPanelProps } from "@blueprintjs/core";
-import WidgetSidebar from "../WidgetSidebar";
-import { BUILDER_PAGE_URL } from "constants/routes";
-import history from "utils/history";
-import JSDependencies from "./JSDependencies";
-import PerformanceTracker, {
-  PerformanceTransactionName,
-} from "utils/PerformanceTracker";
+import { NonIdealState, Classes } from "@blueprintjs/core";
 import { useDispatch, useSelector } from "react-redux";
-import { getPlugins } from "selectors/entitiesSelector";
-import ScrollIndicator from "components/ads/ScrollIndicator";
-import { ReactComponent as NoEntityFoundSvg } from "assets/svg/no_entities_found.svg";
+
 import { Colors } from "constants/Colors";
+
 import { getIsFirstTimeUserOnboardingEnabled } from "selectors/onboardingSelectors";
 import { toggleInOnboardingWidgetSelection } from "actions/onboardingActions";
 
 import { forceOpenWidgetPanel } from "actions/widgetSidebarActions";
+import Files from "./Files";
+import ExplorerWidgetGroup from "./Widgets/WidgetGroup";
+import { builderURL } from "ee/RouteBuilder";
+import history from "utils/history";
+import {
+  getCurrentBasePageId,
+  getCurrentPageId,
+  getPagePermissions,
+} from "selectors/editorSelectors";
+import { fetchWorkspace } from "ee/actions/workspaceActions";
+import { getCurrentWorkspaceId } from "ee/selectors/selectedWorkspaceSelectors";
+import { importSvg } from "@appsmith/ads-old";
+import AnalyticsUtil from "ee/utils/AnalyticsUtil";
+import { EntityExplorerWrapper } from "./Common/EntityExplorerWrapper";
 import { getCurrentApplicationId } from "selectors/editorSelectors";
+import { FilesContextProvider } from "./Files/FilesContextProvider";
+import { getHasCreateActionPermission } from "ee/utils/BusinessFeatures/permissionPageHelpers";
+import { useFeatureFlag } from "utils/hooks/useFeatureFlag";
+import { FEATURE_FLAG } from "ee/entities/FeatureFlag";
+import { ActionParentEntityType } from "ee/entities/Engine/actionHelpers";
+import { getShowWorkflowFeature } from "ee/selectors/workflowSelectors";
 
-const Wrapper = styled.div`
-  height: 100%;
-  overflow-y: auto;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-  &::-webkit-scrollbar {
-    width: 0px;
-    -webkit-appearance: none;
-  }
-`;
+const NoEntityFoundSvg = importSvg(
+  async () => import("assets/svg/no_entities_found.svg"),
+);
 
 const NoResult = styled(NonIdealState)`
   &.${Classes.NON_IDEAL_STATE} {
@@ -66,75 +61,60 @@ const NoResult = styled(NonIdealState)`
   }
 `;
 
-const StyledDivider = styled(Divider)`
-  border-bottom-color: rgba(255, 255, 255, 0.1);
-`;
-function EntityExplorer(props: IPanelProps) {
-  const applicationId = useSelector(getCurrentApplicationId);
-
-  const searchInputRef: MutableRefObject<HTMLInputElement | null> = useRef(
-    null,
-  );
-  PerformanceTracker.startTracking(PerformanceTransactionName.ENTITY_EXPLORER);
-  useEffect(() => {
-    PerformanceTracker.stopTracking();
-  });
-  const explorerRef = useRef<HTMLDivElement | null>(null);
-  const { clearSearch, searchKeyword } = useFilteredEntities(searchInputRef);
-  const datasources = useFilteredDatasources(searchKeyword);
-
-  const plugins = useSelector(getPlugins);
-
-  const widgets = useWidgets(searchKeyword);
-  const actions = useActions(searchKeyword);
-  const jsActions = useJSCollections(searchKeyword);
+function EntityExplorer({ isActive }: { isActive: boolean }) {
   const dispatch = useDispatch();
+  const explorerRef = useRef<HTMLDivElement | null>(null);
   const isFirstTimeUserOnboardingEnabled = useSelector(
     getIsFirstTimeUserOnboardingEnabled,
   );
+  const noResults = false;
+  const basePageId = useSelector(getCurrentBasePageId);
+  const pageId = useSelector(getCurrentPageId);
+  const showWidgetsSidebar = useCallback(() => {
+    AnalyticsUtil.logEvent("EXPLORER_WIDGET_CLICK");
+    history.push(builderURL({ basePageId }));
+    dispatch(forceOpenWidgetPanel(true));
 
-  let noResults = false;
-  if (searchKeyword) {
-    const noWidgets = Object.values(widgets).filter(Boolean).length === 0;
-    const noJSActions =
-      Object.values(jsActions).filter(
-        (jsActions) => jsActions && jsActions.length > 0,
-      ).length === 0;
-    const noActions =
-      Object.values(actions).filter((actions) => actions && actions.length > 0)
-        .length === 0;
-    const noDatasource =
-      Object.values(datasources).filter(
-        (datasources) => datasources && datasources.length > 0,
-      ).length === 0;
-    noResults = noWidgets && noActions && noDatasource && noJSActions;
-  }
-  const { openPanel } = props;
-  const showWidgetsSidebar = useCallback(
-    (pageId: string) => {
-      history.push(BUILDER_PAGE_URL({ applicationId, pageId }));
-      openPanel({ component: WidgetSidebar });
-      dispatch(forceOpenWidgetPanel(true));
-      if (isFirstTimeUserOnboardingEnabled) {
-        dispatch(toggleInOnboardingWidgetSelection(true));
-      }
-    },
-    [openPanel, applicationId, isFirstTimeUserOnboardingEnabled],
+    if (isFirstTimeUserOnboardingEnabled) {
+      dispatch(toggleInOnboardingWidgetSelection(true));
+    }
+  }, [isFirstTimeUserOnboardingEnabled, basePageId]);
+
+  const currentWorkspaceId = useSelector(getCurrentWorkspaceId);
+
+  useEffect(() => {
+    dispatch(fetchWorkspace(currentWorkspaceId));
+  }, [currentWorkspaceId]);
+
+  const applicationId = useSelector(getCurrentApplicationId);
+
+  const pagePermissions = useSelector(getPagePermissions);
+
+  const isFeatureEnabled = useFeatureFlag(FEATURE_FLAG.license_gac_enabled);
+
+  const canCreateActions = getHasCreateActionPermission(
+    isFeatureEnabled,
+    pagePermissions,
   );
 
+  const showWorkflows = useSelector(getShowWorkflowFeature);
+
   return (
-    <Wrapper ref={explorerRef}>
-      <Search clear={clearSearch} isHidden ref={searchInputRef} />
-      <ExplorerPageGroup
-        actions={actions}
-        datasources={datasources}
-        jsActions={jsActions}
-        plugins={plugins}
-        searchKeyword={searchKeyword}
-        showWidgetsSidebar={showWidgetsSidebar}
+    <EntityExplorerWrapper explorerRef={explorerRef} isActive={isActive}>
+      <ExplorerWidgetGroup
+        addWidgetsFn={showWidgetsSidebar}
+        searchKeyword=""
         step={0}
-        widgets={widgets}
       />
+      <FilesContextProvider
+        canCreateActions={canCreateActions}
+        editorId={applicationId}
+        parentEntityId={pageId}
+        parentEntityType={ActionParentEntityType.PAGE}
+        showWorkflows={showWorkflows}
+      >
+        <Files />
+      </FilesContextProvider>
       {noResults && (
         <NoResult
           className={Classes.DARK}
@@ -143,10 +123,7 @@ function EntityExplorer(props: IPanelProps) {
           title="No entities found"
         />
       )}
-      <StyledDivider />
-      <JSDependencies />
-      <ScrollIndicator containerRef={explorerRef} />
-    </Wrapper>
+    </EntityExplorerWrapper>
   );
 }
 

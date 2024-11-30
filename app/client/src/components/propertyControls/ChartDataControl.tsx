@@ -1,28 +1,30 @@
 import React from "react";
 import { get, isString } from "lodash";
-import BaseControl, { ControlProps } from "./BaseControl";
-import { ControlWrapper, StyledPropertyPaneButton } from "./StyledControls";
-import styled from "constants/DefaultTheme";
-import { FormIcons } from "icons/FormIcons";
-import { AnyStyledComponent } from "styled-components";
-import CodeEditor, {
-  CodeEditorExpected,
-} from "components/editorComponents/CodeEditor";
+import styled from "styled-components";
+import type { ControlProps } from "./BaseControl";
+import BaseControl from "./BaseControl";
+import { ControlWrapper } from "./StyledControls";
+import type { CodeEditorExpected } from "components/editorComponents/CodeEditor";
+import type { EditorTheme } from "components/editorComponents/CodeEditor/EditorConfig";
 import {
   EditorModes,
   EditorSize,
-  EditorTheme,
   TabBehaviour,
 } from "components/editorComponents/CodeEditor/EditorConfig";
-import { Size, Category } from "components/ads/Button";
-import { AllChartData, ChartData } from "widgets/ChartWidget/constants";
+import { Button } from "@appsmith/ads";
+import type { AllChartData, ChartData } from "widgets/ChartWidget/constants";
 import { generateReactKey } from "utils/generators";
-import { AutocompleteDataType } from "utils/autocomplete/TernServer";
+import { AutocompleteDataType } from "utils/autocomplete/AutocompleteDataType";
+import LazyCodeEditor from "components/editorComponents/LazyCodeEditor";
+import ColorPickerComponent from "./ColorPickerComponentV2";
+import { bindingHintHelper } from "components/editorComponents/CodeEditor/hintHelpers";
+import { slashCommandHintHelper } from "components/editorComponents/CodeEditor/commandsHelper";
 
 const Wrapper = styled.div`
-  background-color: ${(props) =>
-    props.theme.colors.propertyPane.dropdownSelectBg};
+  background-color: var(--ads-v2-color-bg-subtle);
   padding: 0 8px;
+  margin-bottom: 5px;
+  border-radius: var(--ads-v2-border-radius);
 `;
 
 const StyledOptionControlWrapper = styled(ControlWrapper)`
@@ -30,6 +32,10 @@ const StyledOptionControlWrapper = styled(ControlWrapper)`
   justify-content: flex-start;
   padding: 0;
   width: 100%;
+
+  > div {
+    width: 100%;
+  }
 `;
 
 const StyledDynamicInput = styled.div`
@@ -48,17 +54,11 @@ const StyledDynamicInput = styled.div`
   }
 `;
 
-const StyledDeleteIcon = styled(FormIcons.DELETE_ICON as AnyStyledComponent)`
+const StyledDeleteButton = styled(Button)`
   padding: 0;
   position: relative;
   margin-left: 15px;
   cursor: pointer;
-
-  &&& svg {
-    path {
-      fill: ${(props) => props.theme.colors.propertyPane.jsIconBg};
-    }
-  }
 `;
 
 const ActionHolder = styled.div`
@@ -80,7 +80,7 @@ const Box = styled.div`
   height: 16px;
 `;
 
-type RenderComponentProps = {
+interface RenderComponentProps {
   index: string;
   item: ChartData;
   length: number;
@@ -89,10 +89,14 @@ type RenderComponentProps = {
   updateOption: (index: string, key: string, value: string) => void;
   evaluated: {
     seriesName: string;
+    // TODO: Fix this the next time the file is edited
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     data: Array<{ x: string; y: string }> | any;
+    color: string;
   };
   theme: EditorTheme;
-};
+  isPieChart?: boolean;
+}
 
 const expectedSeriesName: CodeEditorExpected = {
   type: "string",
@@ -100,7 +104,7 @@ const expectedSeriesName: CodeEditorExpected = {
   autocompleteDataType: AutocompleteDataType.STRING,
 };
 const expectedSeriesData: CodeEditorExpected = {
-  type: "Array<{ x: string, y: string | number }>",
+  type: "Array<{ x: string, y: number Required }>",
   example: [
     {
       x: "Mon",
@@ -116,6 +120,7 @@ function DataControlComponent(props: RenderComponentProps) {
     deleteOption,
     evaluated,
     index,
+    isPieChart,
     item,
     length,
     updateOption,
@@ -124,63 +129,98 @@ function DataControlComponent(props: RenderComponentProps) {
   return (
     <StyledOptionControlWrapper orientation={"VERTICAL"}>
       <ActionHolder>
-        <StyledLabel>Series Title</StyledLabel>
+        <StyledLabel>Series title</StyledLabel>
         {length > 1 && (
-          <StyledDeleteIcon
-            height={20}
+          <StyledDeleteButton
+            isIconButton
+            kind="tertiary"
             onClick={() => {
               deleteOption(index);
             }}
-            width={20}
+            size="md"
+            startIcon="delete-bin-line"
           />
         )}
       </ActionHolder>
       <StyledOptionControlWrapper orientation={"HORIZONTAL"}>
-        <CodeEditor
+        <LazyCodeEditor
+          AIAssisted
           dataTreePath={`${dataTreePath}.seriesName`}
           evaluatedValue={evaluated?.seriesName}
           expected={expectedSeriesName}
+          hinting={[bindingHintHelper, slashCommandHintHelper]}
           input={{
             value: item.seriesName,
             onChange: (
               event: React.ChangeEvent<HTMLTextAreaElement> | string,
             ) => {
               let value: string = event as string;
+
               if (typeof event !== "string") {
                 value = event.target.value;
               }
+
               updateOption(index, "seriesName", value);
             },
           }}
           mode={EditorModes.TEXT_WITH_BINDING}
           placeholder="Series Name"
+          positionCursorInsideBinding
           size={EditorSize.EXTENDED}
           tabBehaviour={TabBehaviour.INPUT}
           theme={props.theme}
         />
       </StyledOptionControlWrapper>
-      <StyledLabel>Series Data</StyledLabel>
+      {!isPieChart && (
+        <>
+          <StyledLabel>Series color</StyledLabel>
+          <StyledOptionControlWrapper orientation={"HORIZONTAL"}>
+            <ColorPickerComponent
+              changeColor={(
+                event: React.ChangeEvent<HTMLTextAreaElement> | string,
+              ) => {
+                let value: string = event as string;
+
+                if (typeof event !== "string") {
+                  value = event.target.value;
+                }
+
+                updateOption(index, "color", value);
+              }}
+              color={item.color || ""}
+              placeholderText="enter color hexcode"
+              showApplicationColors
+            />
+          </StyledOptionControlWrapper>
+        </>
+      )}
+      <StyledLabel>Series data</StyledLabel>
       <StyledDynamicInput
         className={"t--property-control-chart-series-data-control"}
       >
-        <CodeEditor
+        <LazyCodeEditor
+          AIAssisted
           dataTreePath={`${dataTreePath}.data`}
           evaluatedValue={evaluated?.data}
           expected={expectedSeriesData}
+          hinting={[bindingHintHelper, slashCommandHintHelper]}
           input={{
             value: item.data,
             onChange: (
               event: React.ChangeEvent<HTMLTextAreaElement> | string,
             ) => {
               let value: string = event as string;
+
               if (typeof event !== "string") {
                 value = event.target.value;
               }
+
               updateOption(index, "data", value);
             },
           }}
           mode={EditorModes.JSON_WITH_BINDING}
           placeholder=""
+          positionCursorInsideBinding
           size={EditorSize.EXTENDED}
           tabBehaviour={TabBehaviour.INPUT}
           theme={props.theme}
@@ -216,6 +256,7 @@ class ChartDataControl extends BaseControl<ControlProps> {
           deleteOption={this.deleteOption}
           evaluated={get(evaluatedValue, `${firstKey}`)}
           index={firstKey}
+          isPieChart
           item={data}
           length={1}
           theme={this.props.theme}
@@ -225,7 +266,7 @@ class ChartDataControl extends BaseControl<ControlProps> {
     }
 
     return (
-      <>
+      <div className="flex flex-col gap-1">
         <Wrapper>
           {Object.keys(chartData).map((key: string) => {
             const data = get(chartData, `${key}`);
@@ -246,16 +287,16 @@ class ChartDataControl extends BaseControl<ControlProps> {
           })}
         </Wrapper>
 
-        <StyledPropertyPaneButton
-          category={Category.tertiary}
-          icon="plus"
+        <Button
+          className="self-end"
+          kind="tertiary"
           onClick={this.addOption}
-          size={Size.medium}
-          tag="button"
-          text="Add Series"
-          type="button"
-        />
-      </>
+          size="sm"
+          startIcon="plus"
+        >
+          Add series
+        </Button>
+      </div>
     );
   }
 

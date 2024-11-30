@@ -1,109 +1,129 @@
-import React, { memo, useCallback, useEffect } from "react";
-import store, { useSelector } from "store";
-import WidgetFactory from "utils/WidgetFactory";
-import PropertyPane from "pages/Editor/PropertyPane";
-import ArtBoard from "pages/common/ArtBoard";
 import log from "loglevel";
+import React, { useCallback } from "react";
+import styled from "styled-components";
 import * as Sentry from "@sentry/react";
-import { DSLWidget } from "widgets/constants";
-
-import CanvasMultiPointerArena, {
-  POINTERS_CANVAS_ID,
-} from "../common/CanvasMultiPointerArena";
-import { throttle } from "lodash";
-import { RenderModes } from "constants/WidgetConstants";
-import { isMultiplayerEnabledForUser as isMultiplayerEnabledForUserSelector } from "selectors/appCollabSelectors";
-import { useDispatch } from "react-redux";
-import { initPageLevelSocketConnection } from "actions/websocketActions";
-import { collabShareUserPointerEvent } from "actions/appCollabActions";
-import { getIsPageLevelSocketConnected } from "../../selectors/websocketSelectors";
+import { useDispatch, useSelector } from "react-redux";
+import type { CanvasWidgetStructure } from "WidgetProvider/constants";
+import useWidgetFocus from "utils/hooks/useWidgetFocus";
+import { combinedPreviewModeSelector } from "selectors/editorSelectors";
+import { getSelectedAppTheme } from "selectors/appThemingSelectors";
+import { getViewportClassName } from "layoutSystems/autolayout/utils/AutoLayoutUtils";
+import {
+  ThemeProvider as WDSThemeProvider,
+  useTheme,
+} from "@appsmith/wds-theming";
+import { getIsAppSettingsPaneWithNavigationTabOpen } from "selectors/appSettingsPaneSelectors";
+import { CANVAS_ART_BOARD } from "constants/componentClassNameConstants";
+import { renderAppsmithCanvas } from "layoutSystems/CanvasFactory";
+import type { WidgetProps } from "widgets/BaseWidget";
+import { getAppThemeSettings } from "ee/selectors/applicationSelectors";
+import CodeModeTooltip from "pages/Editor/WidgetsEditor/components/CodeModeTooltip";
+import { getIsAnvilLayout } from "layoutSystems/anvil/integrations/selectors";
+import { focusWidget } from "actions/widgetActions";
 
 interface CanvasProps {
-  dsl: DSLWidget;
-  pageId: string;
+  widgetsStructure: CanvasWidgetStructure;
+  canvasWidth: number;
+  enableMainCanvasResizer?: boolean;
 }
 
-type PointerEventDataType = {
-  data: { x: number; y: number };
-  user: any;
-};
+const StyledWDSThemeProvider = styled(WDSThemeProvider)`
+  min-height: 100%;
+  display: flex;
+`;
 
-const getPointerData = (
-  e: any,
-  pageId: string,
-  isWebsocketConnected: boolean,
-) => {
-  if (store.getState().ui.appCollab.editors.length < 2 || !isWebsocketConnected)
-    return;
-  const selectionCanvas: any = document.getElementById(POINTERS_CANVAS_ID);
-  const rect = selectionCanvas.getBoundingClientRect();
+const Wrapper = styled.section<{
+  background: string;
+  width: number;
+  $enableMainCanvasResizer: boolean;
+}>`
+  flex: 1;
+  background: ${({ background }) => background};
+  width: ${({ $enableMainCanvasResizer, width }) =>
+    $enableMainCanvasResizer ? `100%` : `${width}px`};
+`;
+const Canvas = (props: CanvasProps) => {
+  const { canvasWidth } = props;
+  const isPreviewMode = useSelector(combinedPreviewModeSelector);
+  const isAppSettingsPaneWithNavigationTabOpen = useSelector(
+    getIsAppSettingsPaneWithNavigationTabOpen,
+  );
+  const selectedTheme = useSelector(getSelectedAppTheme);
+  const isAnvilLayout = useSelector(getIsAnvilLayout);
 
-  const x = e.clientX - rect.left;
-  const y = e.clientY - rect.top;
-  return {
-    data: { x, y },
-    pageId,
-  };
-};
+  const themeSetting = useSelector(getAppThemeSettings);
+  const wdsThemeProps = {
+    borderRadius: themeSetting.borderRadius,
+    seedColor: themeSetting.accentColor,
+    colorMode: themeSetting.colorMode.toLowerCase(),
+    userSizing: themeSetting.sizing,
+    userDensity: themeSetting.density,
+  } as Parameters<typeof useTheme>[0];
+  // in case of non-WDS theme, we will pass an empty object to useTheme hook
+  // so that fixedLayout theme does not break because of calculations done in useTheme
+  const { theme } = useTheme(isAnvilLayout ? wdsThemeProps : {});
 
-const useShareMousePointerEvent = () => {
   const dispatch = useDispatch();
-  const isWebsocketConnected = useSelector(getIsPageLevelSocketConnected);
-  useEffect(() => {
-    if (!isWebsocketConnected) {
-      dispatch(initPageLevelSocketConnection());
-    }
-  }, [isWebsocketConnected]);
+  const unfocusAllWidgets = useCallback(() => {
+    dispatch(focusWidget());
+  }, [dispatch]);
 
-  return (pointerData: PointerEventDataType) =>
-    dispatch(collabShareUserPointerEvent(pointerData));
-};
+  /**
+   * background for canvas
+   */
+  let backgroundForCanvas: string;
 
-// TODO(abhinav): get the render mode from context
-const Canvas = memo((props: CanvasProps) => {
-  const { pageId } = props;
-  const shareMousePointer = useShareMousePointerEvent();
-  const isWebsocketConnected = useSelector(getIsPageLevelSocketConnected);
-  const isMultiplayerEnabledForUser = useSelector(
-    isMultiplayerEnabledForUserSelector,
-  );
-  const delayedShareMousePointer = useCallback(
-    throttle((data) => shareMousePointer(data), 50, {
-      trailing: false,
-    }),
-    [shareMousePointer, pageId],
-  );
+  if (isPreviewMode || isAppSettingsPaneWithNavigationTabOpen) {
+    backgroundForCanvas = "initial";
+  } else {
+    backgroundForCanvas = selectedTheme.properties.colors.backgroundColor;
+  }
+
+  const focusRef = useWidgetFocus();
+
+  const marginHorizontalClass = props.enableMainCanvasResizer
+    ? `mx-0`
+    : `mx-auto`;
+  const paddingBottomClass = props.enableMainCanvasResizer ? "" : "pb-52";
+
+  const renderChildren = () => {
+    return (
+      <CodeModeTooltip>
+        <Wrapper
+          $enableMainCanvasResizer={!!props.enableMainCanvasResizer}
+          background={isAnvilLayout ? "" : backgroundForCanvas}
+          className={`relative t--canvas-artboard ${paddingBottomClass} ${marginHorizontalClass} ${getViewportClassName(
+            canvasWidth,
+          )}`}
+          data-testid={"t--canvas-artboard"}
+          id={CANVAS_ART_BOARD}
+          onMouseLeave={unfocusAllWidgets}
+          ref={isAnvilLayout ? undefined : focusRef}
+          width={canvasWidth}
+        >
+          {props.widgetsStructure.widgetId &&
+            renderAppsmithCanvas(props.widgetsStructure as WidgetProps)}
+        </Wrapper>
+      </CodeModeTooltip>
+    );
+  };
 
   try {
-    return (
-      <>
-        <PropertyPane />
-        <ArtBoard
-          className="t--canvas-artboard"
-          data-testid="t--canvas-artboard"
-          id="art-board"
-          onMouseMove={(e) => {
-            if (!isMultiplayerEnabledForUser) return;
-            const data = getPointerData(e, pageId, isWebsocketConnected);
-            !!data && delayedShareMousePointer(data);
-          }}
-          width={props.dsl.rightColumn}
-        >
-          {props.dsl.widgetId &&
-            WidgetFactory.createWidget(props.dsl, RenderModes.CANVAS)}
-          {isMultiplayerEnabledForUser && (
-            <CanvasMultiPointerArena pageId={pageId} />
-          )}
-        </ArtBoard>
-      </>
-    );
+    if (isAnvilLayout) {
+      return (
+        <StyledWDSThemeProvider theme={theme}>
+          {renderChildren()}
+        </StyledWDSThemeProvider>
+      );
+    }
+
+    return renderChildren();
   } catch (error) {
     log.error("Error rendering DSL", error);
     Sentry.captureException(error);
+
     return null;
   }
-});
-
-Canvas.displayName = "Canvas";
+};
 
 export default Canvas;

@@ -1,41 +1,34 @@
 import React from "react";
-import BaseControl, { ControlProps } from "./BaseControl";
-import { StyledSwitch } from "./StyledControls";
-import { ControlType } from "constants/PropertyControlConstants";
-import FormLabel from "components/editorComponents/FormLabel";
-import { Field, WrappedFieldProps } from "redux-form";
+import type { ControlProps } from "./BaseControl";
+import BaseControl from "./BaseControl";
+import { Switch } from "@appsmith/ads";
+import type { ControlType } from "constants/PropertyControlConstants";
+import type { WrappedFieldProps } from "redux-form";
+import { Field } from "redux-form";
 import styled from "styled-components";
 
-type Props = WrappedFieldProps & {
+type SwitchFieldProps = WrappedFieldProps & {
   label: string;
   isRequired: boolean;
   info: string;
+  disabled: boolean;
 };
-
-const StyledFormLabel = styled(FormLabel)`
-  margin-bottom: 0px;
-`;
 
 const SwitchWrapped = styled.div`
   flex-direction: row;
   display: flex;
   align-items: center;
-  .bp3-control {
-    margin-bottom: 0px;
-  }
+  justify-content: end;
+  position: relative;
   max-width: 60vw;
 `;
 
-const Info = styled.div`
-  font-size: 12px;
-  opacity: 0.7;
-  margin-top: 8px;
-  max-width: 60vw;
-`;
-
-export class SwitchField extends React.Component<Props, any> {
+// TODO: Fix this the next time the file is edited
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export class SwitchField extends React.Component<SwitchFieldProps, any> {
   get value() {
     const { input } = this.props;
+
     if (typeof input.value !== "string") return !!input.value;
     else {
       if (input.value.toLocaleLowerCase() === "false") return false;
@@ -44,33 +37,29 @@ export class SwitchField extends React.Component<Props, any> {
   }
 
   render() {
-    const { info, input, isRequired, label } = this.props;
-
     return (
-      <div>
-        <SwitchWrapped data-cy={this.props.input.name}>
-          <StyledFormLabel>
-            {label} {isRequired && "*"}
-          </StyledFormLabel>
-          <StyledSwitch
-            checked={this.value}
-            large
-            onChange={(value) => input.onChange(value)}
-          />
-        </SwitchWrapped>
-        {info && <Info>{info}</Info>}
-      </div>
+      <SwitchWrapped data-testid={this.props.input.name}>
+        {/* TODO: refactor so that the label of the field props is also passed down and a part of Switch.*/}
+        <Switch
+          className="switch-control"
+          isDisabled={this.props.disabled}
+          isSelected={this.value}
+          name={this.props.input.name}
+          onChange={(isSelected) => this.props.input.onChange(isSelected)}
+        />
+      </SwitchWrapped>
     );
   }
 }
 
 class SwitchControl extends BaseControl<SwitchControlProps> {
   render() {
-    const { configProperty, info, isRequired, label } = this.props;
+    const { configProperty, disabled, info, isRequired, label } = this.props;
 
     return (
       <Field
         component={SwitchField}
+        disabled={disabled}
         info={info}
         isRequired={isRequired}
         label={label}

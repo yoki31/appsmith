@@ -1,173 +1,87 @@
-import React, { memo, useMemo, useCallback } from "react";
+import React, { memo, useMemo, useCallback, useEffect, useRef } from "react";
 import styled from "styled-components";
-import Icon, { IconSize } from "components/ads/Icon";
-import Dropdown, {
-  DefaultDropDownValueNodeProps,
-  DropdownOption,
-} from "components/ads/Dropdown";
-import Tooltip from "components/ads/Tooltip";
-import { AppState } from "reducers";
+import type { AppState } from "ee/reducers";
 import { useDispatch, useSelector } from "react-redux";
 import { getDataTree } from "selectors/dataTreeSelectors";
-import { isAction, isWidget } from "workers/evaluationUtils";
-import Text, { TextType } from "components/ads/Text";
-import { Classes } from "components/ads/common";
+import { isAction, isWidget } from "ee/workers/Evaluation/evaluationUtils";
 import { useEntityLink } from "components/editorComponents/Debugger/hooks/debuggerHooks";
 import { useGetEntityInfo } from "components/editorComponents/Debugger/hooks/useGetEntityInfo";
 import {
-  DEBUGGER_TAB_KEYS,
   doesEntityHaveErrors,
   getDependenciesFromInverseDependencies,
 } from "components/editorComponents/Debugger/helpers";
 import { getFilteredErrors } from "selectors/debuggerSelectors";
-import { ENTITY_TYPE, Log } from "entities/AppsmithConsole";
+import type { Log } from "entities/AppsmithConsole";
+import { ENTITY_TYPE } from "ee/entities/AppsmithConsole/utils";
 import { DebugButton } from "components/editorComponents/Debugger/DebugCTA";
-import { setCurrentTab, showDebugger } from "actions/debuggerActions";
-import { getTypographyByKey } from "constants/DefaultTheme";
-import AnalyticsUtil from "utils/AnalyticsUtil";
-import { Colors } from "constants/Colors";
+import { showDebugger } from "actions/debuggerActions";
+import AnalyticsUtil from "ee/utils/AnalyticsUtil";
+import type { InteractionAnalyticsEventDetail } from "utils/AppsmithUtils";
+import {
+  interactionAnalyticsEvent,
+  INTERACTION_ANALYTICS_EVENT,
+} from "utils/AppsmithUtils";
+import equal from "fast-deep-equal";
+import { mapValues, pick } from "lodash";
+import { createSelector } from "reselect";
+import type { TooltipPlacement } from "@appsmith/ads";
+import {
+  Button,
+  Menu,
+  MenuContent,
+  MenuTrigger,
+  MenuItem,
+  MenuSeparator,
+  Text,
+  Tooltip,
+} from "@appsmith/ads";
 
-const CONNECTION_WIDTH = 113;
-const CONNECTION_HEIGHT = 28;
+interface DropdownOption {
+  label?: string;
+  value?: string;
+  id?: string;
+}
 
 const TopLayer = styled.div`
   display: flex;
   flex: 1;
   justify-content: space-between;
-  background-color: ${Colors.GREY_1};
-
-  .connection-dropdown {
-    box-shadow: none;
-    border: none;
-    background-color: ${Colors.GREY_1};
-  }
-  .error {
-    border: 1px solid
-      ${(props) => props.theme.colors.propertyPane.connections.error};
-    border-bottom: none;
-  }
-`;
-
-const SelectedNodeWrapper = styled.div<{
-  entityCount: number;
-  hasError: boolean;
-}>`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: ${(props) =>
-    props.hasError
-      ? props.theme.colors.propertyPane.connections.error
-      : props.theme.colors.propertyPane.connections.connectionsCount};
-  ${(props) => getTypographyByKey(props, "p3")}
-  width: 113px;
-  opacity: ${(props) => (!!props.entityCount ? 1 : 0.5)};
-
-  & > *:nth-child(2) {
-    padding: 0 4px;
-  }
-
-  .${Classes.ICON} {
-    margin-top: 1px;
-
-    ${(props) =>
-      props.hasError &&
-      `
-    svg {
-      path {
-        fill: ${props.theme.colors.propertyPane.connections.error}
-      }
-    }
-    `}
-  }
+  padding: 0 1rem;
 `;
 
 const OptionWrapper = styled.div<{ hasError: boolean; fillIconColor: boolean }>`
   display: flex;
+  flex-direction: column;
+  /* align-items: center; */
   width: 100%;
   overflow: hidden;
-
-  .debug {
-    height: ${CONNECTION_HEIGHT}px;
-    margin-top: 0px;
-    display: none;
-  }
-
-  ${(props) =>
-    props.fillIconColor &&
-    `&:not(:hover) {
-    svg {
-      path {
-        fill: #6a86ce;
-      }
-    }
-  }`}
-
-  &:hover {
-    .debug {
-      display: flex;
-    }
-
-    background-color: ${(props) =>
-      props.hasError && props.theme.colors.propertyPane.connections.optionBg}};
-
-    &&& svg {
-      rect {
-        fill: ${(props) => props.theme.colors.textOnDarkBG};
-      }
-    }
-  }
 `;
 
 const OptionContentWrapper = styled.div<{
   hasError: boolean;
+  isSelected: boolean;
 }>`
-  padding: ${(props) => props.theme.spaces[2] + 1}px
-    ${(props) => props.theme.spaces[5]}px;
-  cursor: pointer;
   display: flex;
   align-items: center;
-  line-height: 8px;
   flex: 1;
   min-width: 0;
-
-  span:first-child {
-    font-size: 10px;
-    font-weight: normal;
-  }
-
-  .${Classes.TEXT} {
-    margin-left: 6px;
-    letter-spacing: 0px;
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-    color: ${(props) =>
-      props.hasError
-        ? props.theme.colors.propertyPane.connections.error
-        : props.theme.colors.propertyPane.label};
-  }
-
-  .${Classes.ICON} {
-    margin-right: ${(props) => props.theme.spaces[5]}px;
-  }
-
-  &:hover {
-    background-color: ${(props) =>
-      !props.hasError && props.theme.colors.dropdown.hovered.bg};
-  }
+  gap: 10px;
 `;
 
-type PropertyPaneConnectionsProps = {
+interface PropertyPaneConnectionsProps {
   widgetName: string;
-};
+  widgetType: string;
+}
 
-type TriggerNodeProps = DefaultDropDownValueNodeProps & {
+interface TriggerNodeProps {
   entityCount: number;
   iconAlignment: "LEFT" | "RIGHT";
   connectionType: "INCOMING" | "OUTGOING";
   hasError: boolean;
-};
+  justifyContent: string;
+  tooltipPosition?: TooltipPlacement;
+  disabled?: boolean;
+}
 
 const doConnectionsHaveErrors = (
   options: DropdownOption[],
@@ -178,37 +92,50 @@ const doConnectionsHaveErrors = (
   );
 };
 
+const getDataTreeWithOnlyIds = createSelector(getDataTree, (tree) =>
+  mapValues(tree, (x) => pick(x, ["ENTITY_TYPE", "widgetId", "actionId"])),
+);
+
 const useDependencyList = (name: string) => {
-  const dataTree = useSelector(getDataTree);
-  const deps = useSelector((state: AppState) => state.evaluations.dependencies);
+  const dataTree = useSelector(getDataTreeWithOnlyIds, equal);
+  const inverseDependencyMap = useSelector(
+    (state: AppState) => state.evaluations.dependencies.inverseDependencyMap,
+    equal,
+  );
 
-  const getEntityId = useCallback((name) => {
-    const entity = dataTree[name];
+  const getEntityId = useCallback(
+    (name) => {
+      const entity = dataTree[name];
 
-    if (isWidget(entity)) {
-      return entity.widgetId;
-    } else if (isAction(entity)) {
-      return entity.actionId;
-    }
-  }, []);
+      if (isWidget(entity)) {
+        return entity.widgetId;
+      } else if (isAction(entity)) {
+        return entity.actionId;
+      }
+    },
+    [dataTree],
+  );
 
   const entityDependencies = useMemo(() => {
-    return getDependenciesFromInverseDependencies(
-      deps.inverseDependencyMap,
-      name,
-    );
-  }, [name, deps.inverseDependencyMap]);
+    return getDependenciesFromInverseDependencies(inverseDependencyMap, name);
+  }, [name, inverseDependencyMap]);
 
-  const dependencyOptions =
-    entityDependencies?.directDependencies.map((e) => ({
-      label: e,
-      value: getEntityId(e),
-    })) ?? [];
-  const inverseDependencyOptions =
-    entityDependencies?.inverseDependencies.map((e) => ({
-      label: e,
-      value: getEntityId(e),
-    })) ?? [];
+  const dependencyOptions = useMemo(
+    () =>
+      entityDependencies?.directDependencies.map((e) => ({
+        label: e,
+        value: getEntityId(e) ?? e,
+      })) ?? [],
+    [entityDependencies?.directDependencies, getEntityId],
+  );
+  const inverseDependencyOptions = useMemo(
+    () =>
+      entityDependencies?.inverseDependencies.map((e) => ({
+        label: e,
+        value: getEntityId(e),
+      })) ?? [],
+    [entityDependencies?.inverseDependencies, getEntityId],
+  );
 
   return {
     dependencyOptions,
@@ -216,6 +143,8 @@ const useDependencyList = (name: string) => {
   };
 };
 
+// TODO: Fix this the next time the file is edited
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function OptionNode(props: any) {
   const getEntityInfo = useGetEntityInfo(props.option.label);
   const entityInfo = getEntityInfo();
@@ -226,10 +155,9 @@ function OptionNode(props: any) {
     if (entityInfo?.hasError) {
       if (entityInfo?.type === ENTITY_TYPE.WIDGET) {
         dispatch(showDebugger(true));
-      } else {
-        dispatch(setCurrentTab(DEBUGGER_TAB_KEYS.ERROR_TAB));
       }
     }
+
     navigateToEntity(props.option.label);
     AnalyticsUtil.logEvent("ASSOCIATED_ENTITY_CLICK", {
       source: "PROPERTY_PANE",
@@ -237,77 +165,121 @@ function OptionNode(props: any) {
     });
   };
 
+  const handleKeyDown = (e: KeyboardEvent) => {
+    if (!props.isSelectedNode && !props.isHighlighted) return;
+
+    if (
+      (props.isSelectedNode || props.isHighlighted) &&
+      (e.key === " " || e.key === "Enter")
+    )
+      onClick();
+  };
+
+  useEffect(() => {
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [props.isSelectedNode, props.isHighlighted]);
+
   return (
-    <OptionWrapper
-      fillIconColor={!entityInfo?.datasourceName}
-      hasError={!!entityInfo?.hasError}
-    >
-      <OptionContentWrapper hasError={!!entityInfo?.hasError} onClick={onClick}>
-        <span>{entityInfo?.icon}</span>
-        <Text type={TextType.H6}>
-          {props.option.label}{" "}
-          {entityInfo?.datasourceName && (
-            <span>from {entityInfo?.datasourceName}</span>
-          )}
-        </Text>
-      </OptionContentWrapper>
-      {!!entityInfo?.hasError && (
-        <DebugButton className="debug" onClick={onClick} />
-      )}
-    </OptionWrapper>
+    <MenuItem>
+      <OptionWrapper
+        className={`t--dropdown-option`}
+        fillIconColor={!entityInfo?.datasourceName}
+        hasError={!!entityInfo?.hasError}
+      >
+        <OptionContentWrapper
+          className={`${props.isHighlighted ? "highlighted" : ""}`}
+          hasError={!!entityInfo?.hasError}
+          isSelected={props.isSelectedNode}
+          onClick={onClick}
+        >
+          {entityInfo?.icon}
+
+          <Text>
+            {props.option.label}
+            {entityInfo?.datasourceName &&
+              ` from ${entityInfo?.datasourceName}`}
+          </Text>
+        </OptionContentWrapper>
+        {!!entityInfo?.hasError && (
+          <DebugButton className="debug ml-6" onClick={onClick} />
+        )}
+      </OptionWrapper>
+    </MenuItem>
   );
 }
 
-const TriggerNode = memo((props: TriggerNodeProps) => {
+const TriggerNode = (props: TriggerNodeProps) => {
   const ENTITY = props.entityCount > 1 ? "entities" : "entity";
   const tooltipText = !!props.entityCount
     ? `See ${props.connectionType.toLowerCase()} connections`
     : `No ${props.connectionType.toLowerCase()} connections`;
-  const iconColor = props.hasError ? "#f22b2b" : "";
 
   const onClick = () => {
     AnalyticsUtil.logEvent("ASSOCIATED_ENTITY_DROPDOWN_CLICK");
   };
 
   return (
-    <SelectedNodeWrapper
-      className={props.hasError ? "t--connection-error" : "t--connection"}
-      entityCount={props.entityCount}
-      hasError={props.hasError}
-      onClick={onClick}
+    <Tooltip
+      content={tooltipText}
+      isDisabled={props.disabled}
+      placement={props.tooltipPosition}
     >
-      {props.iconAlignment === "LEFT" && (
-        <Icon
-          fillColor={iconColor}
-          keepColors={!props.hasError}
-          name="trending-flat"
-          size={IconSize.MEDIUM}
-        />
-      )}
-      <span>
-        <Tooltip content={tooltipText} disabled={props.isOpen}>
-          {props.entityCount ? `${props.entityCount} ${ENTITY}` : "No Entity"}
-        </Tooltip>
-      </span>
-      {props.iconAlignment === "RIGHT" && (
-        <Icon
-          fillColor={iconColor}
-          keepColors={!props.hasError}
-          name="trending-flat"
-          size={IconSize.MEDIUM}
-        />
-      )}
-      <Icon keepColors name="expand-more" size={IconSize.XS} />
-    </SelectedNodeWrapper>
+      <Button
+        className={props.hasError ? "t--connection-error" : "t--connection"}
+        endIcon={props.iconAlignment === "RIGHT" ? "right-arrow" : ""}
+        isDisabled={props.disabled}
+        kind={props.hasError ? "error" : "tertiary"}
+        onClick={onClick}
+        size="sm"
+        startIcon={props.iconAlignment === "LEFT" ? "right-arrow" : ""}
+      >
+        {props.entityCount ? `${props.entityCount} ${ENTITY}` : "No entity"}
+      </Button>
+    </Tooltip>
   );
-});
+};
 
 TriggerNode.displayName = "TriggerNode";
 
 function PropertyPaneConnections(props: PropertyPaneConnectionsProps) {
   const dependencies = useDependencyList(props.widgetName);
-  const { navigateToEntity } = useEntityLink();
+  // const { navigateToEntity } = useEntityLink();
   const debuggerErrors = useSelector(getFilteredErrors);
+  const topLayerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    topLayerRef.current?.addEventListener(
+      INTERACTION_ANALYTICS_EVENT,
+      handleKbdEvent,
+    );
+
+    return () => {
+      topLayerRef.current?.removeEventListener(
+        INTERACTION_ANALYTICS_EVENT,
+        handleKbdEvent,
+      );
+    };
+  }, []);
+
+  const handleKbdEvent = (e: Event) => {
+    const event = e as CustomEvent<InteractionAnalyticsEventDetail>;
+
+    if (!event.detail?.propertyName) {
+      e.stopPropagation();
+      topLayerRef.current?.dispatchEvent(
+        interactionAnalyticsEvent({
+          key: event.detail.key,
+          propertyType: "PROPERTY_PANE_CONNECTION",
+          propertyName: "propertyPaneConnections",
+          widgetType: props.widgetType,
+        }),
+      );
+    }
+  };
 
   const errorIncomingConnections = useMemo(() => {
     return doConnectionsHaveErrors(
@@ -324,59 +296,52 @@ function PropertyPaneConnections(props: PropertyPaneConnectionsProps) {
   }, [dependencies.inverseDependencyOptions, debuggerErrors]);
 
   return (
-    <TopLayer>
-      <Dropdown
-        SelectedValueNode={(selectedValueProps) => (
-          <TriggerNode
-            iconAlignment={"LEFT"}
-            {...selectedValueProps}
-            connectionType="INCOMING"
-            entityCount={dependencies.dependencyOptions.length}
-            hasError={errorIncomingConnections}
-          />
-        )}
-        className={`connection-dropdown ${
-          errorIncomingConnections ? "error" : ""
-        }`}
-        disabled={!dependencies.dependencyOptions.length}
-        headerLabel="Incoming connections"
-        height={`${CONNECTION_HEIGHT}px`}
-        options={dependencies.dependencyOptions}
-        renderOption={(optionProps) => {
-          return <OptionNode option={optionProps.option} />;
-        }}
-        selected={{ label: "", value: "" }}
-        showDropIcon={false}
-        showLabelOnly
-        width={`${CONNECTION_WIDTH}px`}
-      />
-      {/* <PopperDragHandle /> */}
-      <Dropdown
-        SelectedValueNode={(selectedValueProps) => (
-          <TriggerNode
-            iconAlignment={"RIGHT"}
-            {...selectedValueProps}
-            connectionType="OUTGOING"
-            entityCount={dependencies.inverseDependencyOptions.length}
-            hasError={errorOutgoingConnections}
-          />
-        )}
-        className={`connection-dropdown ${
-          errorOutgoingConnections ? "error" : ""
-        }`}
-        disabled={!dependencies.inverseDependencyOptions.length}
-        headerLabel="Outgoing connections"
-        height={`${CONNECTION_HEIGHT}px`}
-        onSelect={navigateToEntity}
-        options={dependencies.inverseDependencyOptions}
-        renderOption={(optionProps) => {
-          return <OptionNode option={optionProps.option} />;
-        }}
-        selected={{ label: "", value: "" }}
-        showDropIcon={false}
-        showLabelOnly
-        width={`${CONNECTION_WIDTH}px`}
-      />
+    <TopLayer ref={topLayerRef}>
+      <Menu>
+        <MenuTrigger disabled={!dependencies.dependencyOptions.length}>
+          <div>
+            <TriggerNode
+              connectionType="INCOMING"
+              disabled={!dependencies.dependencyOptions.length}
+              entityCount={dependencies.dependencyOptions.length}
+              hasError={errorIncomingConnections}
+              iconAlignment={"LEFT"}
+              justifyContent={"flex-start"}
+              tooltipPosition="bottomLeft"
+            />
+          </div>
+        </MenuTrigger>
+        <MenuContent align="start" style={{ width: "250px" }}>
+          <MenuItem className="menuitem-nohover">Incoming connections</MenuItem>
+          <MenuSeparator />
+          {dependencies.dependencyOptions.map((option, key) => (
+            <OptionNode key={key} option={option} />
+          ))}
+        </MenuContent>
+      </Menu>
+
+      <Menu>
+        <MenuTrigger disabled={!dependencies.inverseDependencyOptions.length}>
+          <div>
+            <TriggerNode
+              connectionType="OUTGOING"
+              disabled={!dependencies.inverseDependencyOptions.length}
+              entityCount={dependencies.inverseDependencyOptions.length}
+              hasError={errorOutgoingConnections}
+              iconAlignment={"RIGHT"}
+              justifyContent={"flex-end"}
+              tooltipPosition="bottomRight"
+            />
+          </div>
+        </MenuTrigger>
+        <MenuContent align="end" style={{ width: "250px" }}>
+          <MenuItem className="menuitem-nohover">Outgoing connections</MenuItem>
+          <MenuSeparator />
+          {dependencies.inverseDependencyOptions.map((option, key) => (
+            <OptionNode key={key} option={option} />
+          ))}
+        </MenuContent>
+      </Menu>
     </TopLayer>
   );
 }

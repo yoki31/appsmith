@@ -13,13 +13,9 @@
             "children": []
           },
           "layoutOnLoadActions": [],
-          "widgetNames": [
-            "MainContainer"
-          ],
+          "widgetNames": ["MainContainer"],
           "allOnPageLoadActionNames": [],
-          "allOnPageLoadActionEdges": [],
           "actionsUsedInDynamicBindings": [],
-          "deleted": false,
           "policies": []
         }
       ]
@@ -34,10 +30,7 @@
             "widgetName": "MainContainer",
             "children": []
           },
-          "widgetNames": [
-            "MainContainer"
-          ],
-          "deleted": false,
+          "widgetNames": ["MainContainer"],
           "policies": []
         }
       ]
@@ -46,15 +39,11 @@
   "actionCollectionWithAction": {
     "id": "testCollectionId",
     "applicationId": "testApplicationId",
-    "organizationId": "testOrganizationId",
+    "workspaceId": "testWorkspaceId",
     "unpublishedCollection": {
       "name": "testCollection",
       "pageId": "testPageId",
       "pluginId": "testPluginId",
-      "actionIds": [
-        "testActionId1",
-        "testActionId2"
-      ],
       "actions": [
         {
           "id": "testActionId1"
@@ -67,26 +56,16 @@
     "publishedCollection": {
       "name": "testCollection",
       "pageId": "testPageId",
-      "pluginId": "testPluginId",
-      "actionIds": [
-        "testActionId1"
-      ]
+      "pluginId": "testPluginId"
     }
   },
   "actionCollectionDTOWithModifiedActions": {
     "id": "testCollectionId",
     "applicationId": "testApplicationId",
-    "organizationId": "testOrganizationId",
+    "workspaceId": "testWorkspaceId",
     "name": "testCollection",
     "pageId": "testPageId",
     "pluginId": "testPluginId",
-    "actionIds": [
-      "testActionId1",
-      "testActionId3"
-    ],
-    "archivedActionIds": [
-      "testActionId2"
-    ],
     "actions": [
       {
         "id": "testActionId1"
@@ -94,31 +73,18 @@
       {
         "id": "testActionId3"
       }
-    ],
-    "archivedActions": [
-      {
-        "id": "testActionId2"
-      }
     ]
   },
   "actionCollectionAfterModifiedActions": {
     "id": "testCollectionId",
     "applicationId": "testApplicationId",
-    "organizationId": "testOrganizationId",
+    "workspaceId": "testWorkspaceId",
     "unpublishedCollection": {
       "id": "testCollectionId",
-      "applicationId": "testApplicationId",
-      "organizationId": "testOrganizationId",
+      "workspaceId": "testWorkspaceId",
       "name": "testCollection",
       "pageId": "testPageId",
       "pluginId": "testPluginId",
-      "actionIds": [
-        "testActionId1",
-        "testActionId3"
-      ],
-      "archivedActionIds": [
-        "testActionId2"
-      ],
       "actions": [
         {
           "id": "testActionId1"
@@ -126,20 +92,12 @@
         {
           "id": "testActionId3"
         }
-      ],
-      "archivedActions": [
-        {
-          "id": "testActionId2"
-        }
       ]
     },
     "publishedCollection": {
       "name": "testCollection",
       "pageId": "testPageId",
-      "pluginId": "testPluginId",
-      "actionIds": [
-        "testActionId1"
-      ]
+      "pluginId": "testPluginId"
     }
   }
 }

@@ -1,98 +1,79 @@
 import React from "react";
 
 import styled from "styled-components";
-import { ReactComponent as CloudyIcon } from "assets/icons/ads/cloudy-line.svg";
-import { ReactComponent as RightArrow } from "assets/icons/ads/arrow-right-line.svg";
-
-// import AnalyticsUtil from "utils/AnalyticsUtil";
-import { getApplicationViewerPageURL } from "constants/routes";
-import { useSelector } from "store";
+import { useSelector } from "react-redux";
 import {
-  getCurrentApplicationId,
-  getCurrentPageId,
+  getApplicationLastDeployedAt,
+  getCurrentBasePageId,
 } from "selectors/editorSelectors";
 import {
-  LATEST_DP_TITLE,
-  LATEST_DP_SUBTITLE,
   createMessage,
-} from "constants/messages";
-import Text, { TextType, Case } from "components/ads/Text";
-import { Colors } from "constants/Colors";
+  LATEST_DP_SUBTITLE,
+  LATEST_DP_TITLE,
+} from "ee/constants/messages";
+import SuccessTick from "pages/common/SuccessTick";
+import { howMuchTimeBeforeText } from "utils/helpers";
+import AnalyticsUtil from "ee/utils/AnalyticsUtil";
+import { viewerURL } from "ee/RouteBuilder";
+import { Link, Text } from "@appsmith/ads";
+import { importSvg } from "@appsmith/ads-old";
+
+const CloudyIcon = importSvg(
+  async () => import("assets/icons/ads/cloudy-line.svg"),
+);
 
 const Container = styled.div`
   display: flex;
   flex: 1;
   flex-direction: row;
-  position: absolute;
+  gap: ${(props) => props.theme.spaces[6]}px;
 
-  
-  /* bottom: ${(props) => `${props.theme.spaces[8]}px`}; */
-  bottom: 30px;
-  width: calc(100% - 30px);
- 
-`;
-
-const ButtonWrapper = styled.div`
-  display: flex;
-  flex-direction: row;
-  padding-top: 2px;
-  cursor: pointer;
-`;
-
-const IconWrapper = styled.div`
-  margin-left: 2px;
-  justify-content: center;
-  align-items: center;
-  display: flex;
-  svg {
-    path {
-      fill: ${Colors.GREY_9};
-    }
+  .cloud-icon {
+    stroke: var(--ads-v2-color-fg);
   }
 `;
 
-const ContentWrapper = styled.div`
-  margin-left: ${(props) => props.theme.spaces[6]}px;
-`;
-
-const CloudIconWrapper = styled.div`
-  display: flex;
-  justify-content: center;
-  align-items: center;
-`;
-
-export default function DeployPreview() {
-  const applicationId = useSelector(getCurrentApplicationId);
-  const pageId = useSelector(getCurrentPageId);
+export default function DeployPreview(props: { showSuccess: boolean }) {
+  const basePageId = useSelector(getCurrentBasePageId);
+  const lastDeployedAt = useSelector(getApplicationLastDeployedAt);
 
   const showDeployPreview = () => {
-    const path = getApplicationViewerPageURL({ applicationId, pageId });
+    AnalyticsUtil.logEvent("GS_LAST_DEPLOYED_PREVIEW_LINK_CLICK", {
+      source: "GIT_DEPLOY_MODAL",
+    });
+    const path = viewerURL({
+      basePageId,
+    });
+
     window.open(path, "_blank");
   };
 
-  return (
-    <Container>
-      <CloudIconWrapper>
-        <CloudyIcon />
-      </CloudIconWrapper>
-      <ContentWrapper>
-        <ButtonWrapper onClick={showDeployPreview}>
-          <Text
-            case={Case.UPPERCASE}
-            color={Colors.GREY_9}
-            type={TextType.P1}
-            weight="600"
-          >
-            {createMessage(LATEST_DP_TITLE)}
-          </Text>
-          <IconWrapper>
-            <RightArrow width={20} />
-          </IconWrapper>
-        </ButtonWrapper>
-        <Text color={Colors.GREY_6} type={TextType.P3}>
-          {createMessage(LATEST_DP_SUBTITLE)}
+  const lastDeployedAtMsg = lastDeployedAt
+    ? `${createMessage(LATEST_DP_SUBTITLE)} ${howMuchTimeBeforeText(
+        lastDeployedAt,
+        {
+          lessThanAMinute: true,
+        },
+      )} ago`
+    : "";
+
+  return lastDeployedAt ? (
+    <Container className="t--git-deploy-preview">
+      <div>
+        {props.showSuccess ? (
+          <SuccessTick height="30px" width="30px" />
+        ) : (
+          <CloudyIcon className="cloud-icon" />
+        )}
+      </div>
+      <div>
+        <Link endIcon="right-arrow" onClick={showDeployPreview}>
+          {createMessage(LATEST_DP_TITLE)}
+        </Link>
+        <Text color="var(--ads-v2-color-fg-muted)" kind="body-s">
+          {lastDeployedAtMsg}
         </Text>
-      </ContentWrapper>
+      </div>
     </Container>
-  );
+  ) : null;
 }

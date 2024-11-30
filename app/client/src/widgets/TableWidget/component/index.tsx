@@ -1,15 +1,15 @@
 import React, { useEffect, useMemo } from "react";
 import Table from "./Table";
-import {
-  ColumnTypes,
+import type {
   CompactMode,
   ReactTableColumnProps,
   ReactTableFilter,
 } from "./Constants";
-import { Row } from "react-table";
+import { ColumnTypes } from "./Constants";
+import type { Row } from "react-table";
 
-import { EventType } from "constants/AppsmithActionConstants/ActionConstants";
-import { isEqual } from "lodash";
+import type { EventType } from "constants/AppsmithActionConstants/ActionConstants";
+import equal from "fast-deep-equal/es6";
 
 export interface ColumnMenuOptionProps {
   content: string | JSX.Element;
@@ -50,7 +50,7 @@ interface ReactTableComponentProps {
   onRowClick: (rowData: Record<string, unknown>, rowIndex: number) => void;
   onCommandClick: (dynamicTrigger: string, onComplete: () => void) => void;
   selectAllRow: (pageData: Row<Record<string, unknown>>[]) => void;
-  unSelectAllRow: (pageData: Row<Record<string, unknown>>[]) => void;
+  unSelectAllRow: () => void;
   updatePageNo: (pageNo: number, event?: EventType) => void;
   sortTableColumn: (column: string, asc: boolean) => void;
   nextPageClick: () => void;
@@ -65,6 +65,8 @@ interface ReactTableComponentProps {
   columnSizeMap?: { [key: string]: number };
   handleResizeColumn: (columnSizeMap: { [key: string]: number }) => void;
   handleReorderColumn: (columnOrder: string[]) => void;
+  // TODO: Fix this the next time the file is edited
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   searchTableData: (searchKey: any) => void;
   filters?: ReactTableFilter[];
   applyFilter: (filters: ReactTableFilter[]) => void;
@@ -75,6 +77,10 @@ interface ReactTableComponentProps {
   isVisibleDownload?: boolean;
   isVisiblePagination?: boolean;
   delimiter: string;
+  isSortable?: boolean;
+  accentColor: string;
+  borderRadius: string;
+  boxShadow?: string;
 }
 
 function ReactTableComponent(props: ReactTableComponentProps) {
@@ -91,6 +97,7 @@ function ReactTableComponent(props: ReactTableComponentProps) {
     handleResizeColumn,
     height,
     isLoading,
+    isSortable,
     isVisibleDownload,
     isVisibleFilters,
     isVisiblePagination,
@@ -121,6 +128,7 @@ function ReactTableComponent(props: ReactTableComponentProps) {
   const { columnOrder, hiddenColumns } = useMemo(() => {
     const order: string[] = [];
     const hidden: string[] = [];
+
     columns.forEach((item) => {
       if (item.isHidden) {
         hidden.push(item.accessor);
@@ -128,7 +136,11 @@ function ReactTableComponent(props: ReactTableComponentProps) {
         order.push(item.accessor);
       }
     });
-    return { columnOrder: order, hiddenColumns: hidden };
+
+    return {
+      columnOrder: order,
+      hiddenColumns: hidden,
+    };
   }, [columns]);
 
   useEffect(() => {
@@ -136,10 +148,18 @@ function ReactTableComponent(props: ReactTableComponentProps) {
     const headers = Array.prototype.slice.call(
       document.querySelectorAll(`#table${widgetId} .draggable-header`),
     );
+
     headers.forEach((header, i) => {
       header.setAttribute("draggable", true);
 
       header.ondragstart = (e: React.DragEvent<HTMLDivElement>) => {
+        // check if table column is resizing
+        const isResizing = !!document.querySelectorAll(".resizer.isResizing")
+          .length;
+
+        // disable draging if resizing
+        if (isResizing) return;
+
         header.style =
           "background: #efefef; border-radius: 4px; z-index: 100; width: 100%; text-overflow: none; overflow: none;";
         e.stopPropagation();
@@ -166,6 +186,7 @@ function ReactTableComponent(props: ReactTableComponentProps) {
               "th header-reorder highlight-right";
           }
         }
+
         e.preventDefault();
       };
 
@@ -178,6 +199,7 @@ function ReactTableComponent(props: ReactTableComponentProps) {
               "th header-reorder highlight-right";
           }
         }
+
         e.preventDefault();
       };
 
@@ -189,6 +211,7 @@ function ReactTableComponent(props: ReactTableComponentProps) {
       header.ondrop = (e: React.DragEvent<HTMLDivElement>) => {
         header.style = "";
         header.parentElement.className = "th header-reorder";
+
         if (i !== dragged && dragged !== -1) {
           e.preventDefault();
           const newColumnOrder = [...columnOrder];
@@ -199,6 +222,7 @@ function ReactTableComponent(props: ReactTableComponentProps) {
           if (movedColumnName && movedColumnName.length === 1) {
             newColumnOrder.splice(i, 0, movedColumnName[0]);
           }
+
           handleReorderColumn([...newColumnOrder, ...hiddenColumns]);
         } else {
           dragged = -1;
@@ -213,6 +237,7 @@ function ReactTableComponent(props: ReactTableComponentProps) {
     } else {
       const column = columns[columnIndex];
       const columnType = column.metaProperties?.type || ColumnTypes.TEXT;
+
       if (
         columnType !== ColumnTypes.IMAGE &&
         columnType !== ColumnTypes.VIDEO
@@ -236,13 +261,16 @@ function ReactTableComponent(props: ReactTableComponentProps) {
     if (isSelect) {
       selectAllRow(pageData);
     } else {
-      unSelectAllRow(pageData);
+      unSelectAllRow();
     }
   };
 
   return (
     <Table
+      accentColor={props.accentColor}
       applyFilter={applyFilter}
+      borderRadius={props.borderRadius}
+      boxShadow={props.boxShadow}
       columnSizeMap={columnSizeMap}
       columns={columns}
       compactMode={compactMode}
@@ -259,6 +287,7 @@ function ReactTableComponent(props: ReactTableComponentProps) {
       handleResizeColumn={handleResizeColumn}
       height={height}
       isLoading={isLoading}
+      isSortable={isSortable}
       isVisibleDownload={isVisibleDownload}
       isVisibleFilters={isVisibleFilters}
       isVisiblePagination={isVisiblePagination}
@@ -293,6 +322,7 @@ export default React.memo(ReactTableComponent, (prev, next) => {
     prev.delimiter === next.delimiter &&
     prev.disableDrag === next.disableDrag &&
     prev.editMode === next.editMode &&
+    prev.isSortable === next.isSortable &&
     prev.filters === next.filters &&
     prev.handleReorderColumn === next.handleReorderColumn &&
     prev.handleResizeColumn === next.handleResizeColumn &&
@@ -319,10 +349,15 @@ export default React.memo(ReactTableComponent, (prev, next) => {
     prev.widgetId === next.widgetId &&
     prev.widgetName === next.widgetName &&
     prev.width === next.width &&
-    isEqual(prev.columnSizeMap, next.columnSizeMap) &&
-    isEqual(prev.tableData, next.tableData) &&
+    equal(prev.columnSizeMap, next.columnSizeMap) &&
+    equal(prev.tableData, next.tableData) &&
+    prev.borderRadius === next.borderRadius &&
+    prev.boxShadow === next.boxShadow &&
+    prev.accentColor === next.accentColor &&
     // Using JSON stringify becuase isEqual doesnt work with functions,
     // and we are not changing the columns manually.
     JSON.stringify(prev.columns) === JSON.stringify(next.columns)
   );
 });
+
+ReactTableComponent.displayName = "ReactTableComponent";

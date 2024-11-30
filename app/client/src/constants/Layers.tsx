@@ -51,12 +51,24 @@ export const Layers = {
   productUpdates: Indices.Layer7,
   portals: Indices.Layer9,
   header: Indices.Layer9,
+  signpostingOverlay: Indices.Layer9,
   snipeableZone: Indices.Layer10,
-  appComments: Indices.Layer7,
   max: Indices.LayerMax,
   sideStickyBar: Indices.Layer7,
   evaluationPopper: Indices.Layer3,
   concurrentEditorWarning: Indices.Layer2,
+  manualUpgrade: Indices.Layer10,
+
+  autoHeightWithLimitsOverlay: Indices.Layer3,
+
+  // Should be higher than header and portal layer
+  guidedTour: Indices.Layer10,
+};
+
+export const tailwindLayers = {
+  propertyPane: "z-[3]",
+  entityExplorer: "z-[3]",
+  resizer: "z-[4]",
 };
 
 export const LayersContext = React.createContext(Layers);

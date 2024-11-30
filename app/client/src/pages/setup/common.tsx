@@ -1,35 +1,30 @@
 import React from "react";
-import Dropdown from "components/ads/Dropdown";
-import StyledFormGroup from "components/ads/formFields/FormGroup";
-import { FormTextFieldProps } from "components/ads/formFields/TextField";
-import { WrappedFieldInputProps, WrappedFieldMetaProps } from "redux-form";
+import { FormGroup as StyledFormGroup } from "@appsmith/ads-old";
+import type { FormTextFieldProps } from "components/utils/ReduxFormTextField";
+import type { WrappedFieldInputProps, WrappedFieldMetaProps } from "redux-form";
 import styled from "styled-components";
-import { OptionType } from "./constants";
-
-export const FormHeaderWrapper = styled.div`
-  position: relative;
-`;
+import type { OptionType } from "./constants";
+import { Select, Option } from "@appsmith/ads";
 
 export const FormHeaderLabel = styled.h5`
   width: 100%;
   font-size: 20px;
-  margin: 8px 0 16px;
   font-weight: 500;
+  color: var(--ads-v2-color-fg-emphasis);
 `;
 
 export const FormHeaderIndex = styled.h5`
   font-size: 20px;
   font-weight: 500;
-  position: absolute;
-  left: -33px;
-  top: -33px;
 `;
 
 export const FormBodyWrapper = styled.div`
   padding: ${(prop) => prop.theme.spaces[10]}px 0px;
 `;
 
-export const FormHeaderSubtext = styled.p``;
+export const FormHeaderSubtext = styled.p`
+  color: var(--ads-v2-color-fg);
+`;
 
 export const ControlWrapper = styled.div`
   margin: ${(prop) => prop.theme.spaces[6]}px 0px;
@@ -45,12 +40,10 @@ export const ButtonWrapper = styled.div`
 `;
 
 export const AllowToggleWrapper = styled.div`
-  display: flex;
+  display: block;
 `;
 
-export const AllowToggle = styled.div`
-  flex-basis: 68px;
-`;
+export const AllowToggle = styled.div``;
 
 export const AllowToggleLabel = styled.p`
   margin-bottom: 0px;
@@ -66,49 +59,68 @@ export const StyledLink = styled.a`
 `;
 
 const DROPDOWN_CLASSNAME = "setup-dropdown";
+
 export const DropdownWrapper = styled(StyledFormGroup)`
-  && {
-    margin-bottom: 33px;
-  }
   && .cs-text {
     width: 100%;
   }
 
-  .${DROPDOWN_CLASSNAME} {
-    .ads-dropdown-options-wrapper {
-      padding: 0;
-      border: 1px solid rgba(0, 0, 0, 8%);
-    }
+  && > .bp3-label {
+    color: var(--ads-v2-color-fg);
+    font-weight: normal;
+    margin-bottom: 0.5rem;
+  }
+
+  .dropdown-errorMsg {
+    font-size: 12px;
+    color: var(--ads-v2-color-fg-error);
   }
 `;
 
-export function withDropdown(options: OptionType[], width: string) {
+export const Center = styled.div`
+  height: 100vh;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: absolute;
+`;
+
+export function withDropdown(options: OptionType[]) {
   return function DropdownField(
-    ComponentProps: FormTextFieldProps & {
+    componentProps: FormTextFieldProps & {
       meta: Partial<WrappedFieldMetaProps>;
       input: Partial<WrappedFieldInputProps>;
     },
   ) {
     function onSelect(value?: string) {
-      ComponentProps.input.onChange && ComponentProps.input.onChange(value);
-      ComponentProps.input.onBlur && ComponentProps.input.onBlur(value);
+      componentProps.input.onChange && componentProps.input.onChange(value);
+      componentProps.input.onBlur && componentProps.input.onBlur(value);
     }
 
-    const selected =
-      options.find((option) => option.value == ComponentProps.input.value) ||
-      {};
+    const selected = options.find(
+      (option) => option.value == componentProps.input.value,
+    ) || { label: componentProps.placeholder };
+    const hasError = componentProps.meta.invalid && componentProps.meta.touched;
 
     return (
-      <Dropdown
-        className={DROPDOWN_CLASSNAME}
-        dontUsePortal
-        fillOptions
-        onSelect={onSelect}
-        options={options}
-        selected={selected}
-        showLabelOnly
-        width={width}
-      />
+      <>
+        <Select
+          className={DROPDOWN_CLASSNAME}
+          defaultValue={selected}
+          isValid={!hasError}
+          onSelect={onSelect}
+        >
+          {options.map((role, index) => (
+            <Option key={index} value={role.value}>
+              {role.label}
+            </Option>
+          ))}
+        </Select>
+        {hasError && (
+          <div className="dropdown-errorMsg">{componentProps.meta.error}</div>
+        )}
+      </>
     );
   };
 }

@@ -13,9 +13,10 @@ import com.appsmith.external.models.Endpoint;
 import com.appsmith.external.models.RequestParamDTO;
 import com.appsmith.external.plugins.BasePlugin;
 import com.appsmith.external.plugins.PluginExecutor;
+import com.external.plugins.exceptions.DynamoErrorMessages;
+import com.external.plugins.exceptions.DynamoPluginError;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang.BooleanUtils;
 import org.pf4j.Extension;
 import org.pf4j.PluginWrapper;
 import org.springframework.util.CollectionUtils;
@@ -56,6 +57,7 @@ import java.util.stream.Collectors;
 import static com.appsmith.external.constants.ActionConstants.ACTION_CONFIGURATION_BODY;
 import static com.appsmith.external.constants.ActionConstants.ACTION_CONFIGURATION_PATH;
 
+@Slf4j
 public class DynamoPlugin extends BasePlugin {
 
     private static final String DYNAMO_TYPE_STRING_LABEL = "S";
@@ -76,37 +78,33 @@ public class DynamoPlugin extends BasePlugin {
     /**
      * Dynamo plugin receives the query as json of the following format:
      * {
-     *     "action": "GetItem",
-     *     "parameters": {...}  // Depends on the action above.
+     * "action": "GetItem",
+     * "parameters": {...}  // Depends on the action above.
      * }
-     *
+     * <p>
      * DynamoDB actions and parameters reference:
      * https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Operations_Amazon_DynamoDB.html
      */
-
-    @Slf4j
     @Extension
     public static class DynamoPluginExecutor implements PluginExecutor<DynamoDbClient> {
 
-        private final Scheduler scheduler = Schedulers.elastic();
+        private final Scheduler scheduler = Schedulers.boundedElastic();
 
         public Object extractValue(Object rawItem) {
+            log.debug(Thread.currentThread().getName() + ": extractValue() called for Dynamo plugin.");
 
-            if(!(rawItem instanceof List)
-                    && !(rawItem instanceof Map)) {
+            if (!(rawItem instanceof List) && !(rawItem instanceof Map)) {
                 return rawItem;
             }
 
             if (rawItem instanceof List) {
                 return ((List<Object>) rawItem)
-                        .stream()
-                        .map(item -> extractValue(item))
-                        .collect(Collectors.toList());
-            }
-            else { /* map type */
+                        .stream().map(item -> extractValue(item)).collect(Collectors.toList());
+            } else {
+                /* map type */
                 Map<String, Object> extractedValueMap = new HashMap<>();
                 Map<String, Object> rawItemAsMap = (Map<String, Object>) rawItem;
-                for (Map.Entry<String, Object> entry: rawItemAsMap.entrySet()) {
+                for (Map.Entry<String, Object> entry : rawItemAsMap.entrySet()) {
                     switch (entry.getKey()) {
                         case DYNAMO_TYPE_NUMBER_LABEL:
                         case DYNAMO_TYPE_STRING_LABEL:
@@ -121,7 +119,7 @@ public class DynamoPlugin extends BasePlugin {
                         case DYNAMO_TYPE_STRING_SET_LABEL:
                         case DYNAMO_TYPE_NUMBER_SET_LABEL:
                         case DYNAMO_TYPE_BINARY_SET_LABEL:
-                            if (entry.getValue() != null && ((List<Object>)entry.getValue()).size() > 0) {
+                            if (entry.getValue() != null && ((List<Object>) entry.getValue()).size() > 0) {
                                 return entry.getValue();
                             }
 
@@ -132,8 +130,7 @@ public class DynamoPlugin extends BasePlugin {
                              */
                             List<Object> rawValueAsList = (List<Object>) entry.getValue();
                             if (rawValueAsList.size() > 0) {
-                                return rawValueAsList
-                                        .stream()
+                                return rawValueAsList.stream()
                                         .map(listItem -> extractValue(listItem))
                                         .collect(Collectors.toList());
                             }
@@ -145,9 +142,7 @@ public class DynamoPlugin extends BasePlugin {
                              */
                             Map<String, Object> rawValueAsMap = (Map<String, Object>) entry.getValue();
                             if (rawValueAsMap.size() > 0) {
-                                return rawValueAsMap
-                                        .entrySet()
-                                        .stream()
+                                return rawValueAsMap.entrySet().stream()
                                         .map(item -> Map.entry(item.getKey(), extractValue(item.getValue())))
                                         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
                             }
@@ -166,99 +161,114 @@ public class DynamoPlugin extends BasePlugin {
          * - Transform response for easy consumption. For details please visit
          *   https://github.com/appsmithorg/appsmith/issues/3010
          */
-        public Object getTransformedResponse(Map<String, Object> rawResponse,
-                                             String action) throws AppsmithPluginException {
-
+        public Object getTransformedResponse(Map<String, Object> rawResponse, String action)
+                throws AppsmithPluginException {
+            log.debug(Thread.currentThread().getName() + ": getTransformedResponse() called for Dynamo plugin.");
             Map<String, Object> transformedResponse = new HashMap<>();
-            for (Map.Entry<String, Object> responseEntry: rawResponse.entrySet()) {
-                    Object rawItems = responseEntry.getValue();
-                    if (rawItems != null) {
-                        /*
-                         * - Insert transformed values into extractedResponse list.
-                         */
-                        transformedResponse.put(responseEntry.getKey(), extractValue(rawItems));
-                    }
-                    else {
-                        transformedResponse.put(responseEntry.getKey(), null);
-                    }
+            for (Map.Entry<String, Object> responseEntry : rawResponse.entrySet()) {
+                Object rawItems = responseEntry.getValue();
+                if (rawItems != null) {
+                    /*
+                     * - Insert transformed values into extractedResponse list.
+                     */
+                    transformedResponse.put(responseEntry.getKey(), extractValue(rawItems));
+                } else {
+                    transformedResponse.put(responseEntry.getKey(), null);
+                }
             }
 
             return transformedResponse;
         }
 
         @Override
-        public Mono<ActionExecutionResult> execute(DynamoDbClient ddb,
-                                                   DatasourceConfiguration datasourceConfiguration,
-                                                   ActionConfiguration actionConfiguration) {
-
+        public Mono<ActionExecutionResult> execute(
+                DynamoDbClient ddb,
+                DatasourceConfiguration datasourceConfiguration,
+                ActionConfiguration actionConfiguration) {
+            log.debug(Thread.currentThread().getName() + ": execute() called for Dynamo plugin.");
             final Map<String, Object> requestData = new HashMap<>();
             final String body = actionConfiguration.getBody();
             List<RequestParamDTO> requestParams = new ArrayList<>();
 
             return Mono.fromCallable(() -> {
-                ActionExecutionResult result = new ActionExecutionResult();
+                        log.debug(Thread.currentThread().getName()
+                                + ": creating action execution result from DynamoDB plugin.");
+                        ActionExecutionResult result = new ActionExecutionResult();
 
-                final String action = actionConfiguration.getPath();
-                if (StringUtils.isEmpty(action)) {
-                    throw new AppsmithPluginException(
-                            AppsmithPluginError.PLUGIN_EXECUTE_ARGUMENT_ERROR,
-                            "Missing action name (like `ListTables`, `GetItem` etc.)."
-                    );
-                }
-                requestData.put("action", action);
-                requestParams.add(new RequestParamDTO(ACTION_CONFIGURATION_PATH, action, null, null, null));
-                requestParams.add(new RequestParamDTO(ACTION_CONFIGURATION_BODY,  body, null, null, null));
+                        final String action = actionConfiguration.getPath();
+                        if (!StringUtils.hasLength(action)) {
+                            throw new AppsmithPluginException(
+                                    AppsmithPluginError.PLUGIN_EXECUTE_ARGUMENT_ERROR,
+                                    DynamoErrorMessages.MISSING_ACTION_NAME_ERROR_MSG);
+                        }
+                        requestData.put("action", action);
+                        requestParams.add(new RequestParamDTO(ACTION_CONFIGURATION_PATH, action, null, null, null));
+                        requestParams.add(new RequestParamDTO(ACTION_CONFIGURATION_BODY, body, null, null, null));
 
-                Map<String, Object> parameters = null;
-                try {
-                    if (!StringUtils.isEmpty(body)) {
-                        parameters = objectMapper.readValue(body, HashMap.class);
-                    }
-                } catch (IOException e) {
-                    final String message = "Error parsing the JSON body: " + e.getMessage();
-                    log.warn(message, e);
-                    throw new AppsmithPluginException(AppsmithPluginError.PLUGIN_EXECUTE_ARGUMENT_ERROR, message);
-                }
-                requestData.put("parameters", parameters);
+                        Map<String, Object> parameters = null;
+                        try {
+                            if (StringUtils.hasLength(body)) {
+                                parameters = objectMapper.readValue(body, HashMap.class);
+                            }
+                        } catch (IOException e) {
+                            final String message = "Error parsing the JSON body: " + e.getMessage();
+                            log.warn(message, e);
+                            throw new AppsmithPluginException(
+                                    AppsmithPluginError.PLUGIN_JSON_PARSE_ERROR, body, e.getMessage());
+                        }
+                        requestData.put("parameters", parameters);
 
-                final Class<?> requestClass;
-                try {
-                    requestClass = Class.forName("software.amazon.awssdk.services.dynamodb.model." + action + "Request");
-                } catch (ClassNotFoundException e) {
-                    throw new AppsmithPluginException(
-                            AppsmithPluginError.PLUGIN_ERROR,
-                            "Unknown action: `" + action + "`. Note that action names are case-sensitive."
-                    );
-                }
+                        final Class<?> requestClass;
+                        try {
+                            requestClass = Class.forName(
+                                    "software.amazon.awssdk.services.dynamodb.model." + action + "Request");
+                        } catch (ClassNotFoundException e) {
+                            throw new AppsmithPluginException(
+                                    DynamoPluginError.UNKNOWN_ACTION_NAME,
+                                    String.format(DynamoErrorMessages.UNKNOWN_ACTION_NAME_ERROR_MSG, action),
+                                    e.getMessage());
+                        }
 
-                try {
-                    final Method actionExecuteMethod = DynamoDbClient.class.getMethod(
-                            // Convert `ListTables` to `listTables`, which is the name of the method to execute this action.
-                            toLowerCamelCase(action),
-                            requestClass
-                    );
-                    final Object sdkValue = plainToSdk(parameters, requestClass);
-                    final DynamoDbResponse response = (DynamoDbResponse) actionExecuteMethod.invoke(ddb, sdkValue);
-                    Object rawResponse = sdkToPlain(response);
-                    Object transformedResponse = getTransformedResponse((Map<String, Object>)rawResponse, action);
-                    result.setBody(transformedResponse);
-                } catch (AppsmithPluginException | InvocationTargetException | IllegalAccessException | NoSuchMethodException | ClassNotFoundException e) {
-                    final String message = "Error executing the DynamoDB Action: " + (e.getCause() == null ? e : e.getCause()).getMessage();
-                    log.warn(message, e);
-                    throw new AppsmithPluginException(AppsmithPluginError.PLUGIN_ERROR, message);
-                }
+                        try {
+                            final Method actionExecuteMethod = DynamoDbClient.class.getMethod(
+                                    // Convert `ListTables` to `listTables`, which is the name of the method to execute
+                                    // this action.
+                                    toLowerCamelCase(action), requestClass);
+                            final Object sdkValue = plainToSdk(parameters, requestClass);
+                            final DynamoDbResponse response =
+                                    (DynamoDbResponse) actionExecuteMethod.invoke(ddb, sdkValue);
+                            Object rawResponse = sdkToPlain(response);
+                            Object transformedResponse =
+                                    getTransformedResponse((Map<String, Object>) rawResponse, action);
+                            result.setBody(transformedResponse);
+                        } catch (InvocationTargetException
+                                | IllegalAccessException
+                                | NoSuchMethodException
+                                | ClassNotFoundException e) {
+                            final String errorMessage = (e.getCause() == null ? e : e.getCause()).getMessage();
+                            log.warn("Error executing the DynamoDB Action: {}", errorMessage, e);
+                            throw new AppsmithPluginException(
+                                    DynamoPluginError.QUERY_EXECUTION_FAILED,
+                                    DynamoErrorMessages.QUERY_EXECUTION_FAILED_ERROR_MSG,
+                                    errorMessage);
+                        }
 
-                result.setIsExecutionSuccess(true);
-                System.out.println(Thread.currentThread().getName() + ": In the DynamoPlugin, got action execution result");
-                return result;
-            })
-                    .onErrorResume(error  -> {
+                        result.setIsExecutionSuccess(true);
+                        return result;
+                    })
+                    .onErrorResume(error -> {
                         ActionExecutionResult result = new ActionExecutionResult();
                         result.setIsExecutionSuccess(false);
+                        if (!(error instanceof AppsmithPluginException)) {
+                            error = new AppsmithPluginException(
+                                    DynamoPluginError.QUERY_EXECUTION_FAILED,
+                                    DynamoErrorMessages.QUERY_EXECUTION_FAILED_ERROR_MSG,
+                                    error.getMessage());
+                        }
                         result.setErrorInfo(error);
                         return Mono.just(result);
                     })
-                    // Now set the request in the result to be returned back to the server
+                    // Now set the request in the result to be returned to the server
                     .map(actionExecutionResult -> {
                         ActionExecutionRequest actionExecutionRequest = new ActionExecutionRequest();
                         actionExecutionRequest.setProperties(requestData);
@@ -272,31 +282,32 @@ public class DynamoPlugin extends BasePlugin {
 
         @Override
         public Mono<DynamoDbClient> datasourceCreate(DatasourceConfiguration datasourceConfiguration) {
-
+            log.debug(Thread.currentThread().getName() + ": datasourceCreate() called for Dynamo plugin.");
             return Mono.fromCallable(() -> {
-                final DynamoDbClientBuilder builder = DynamoDbClient.builder();
+                        log.debug(Thread.currentThread().getName() + ": creating dynamodbclient from DynamoDB plugin.");
+                        final DynamoDbClientBuilder builder = DynamoDbClient.builder();
 
-                if (!CollectionUtils.isEmpty(datasourceConfiguration.getEndpoints())) {
-                    final Endpoint endpoint = datasourceConfiguration.getEndpoints().get(0);
-                    builder.endpointOverride(URI.create("http://" + endpoint.getHost() + ":" + endpoint.getPort()));
-                }
+                        if (!CollectionUtils.isEmpty(datasourceConfiguration.getEndpoints())) {
+                            final Endpoint endpoint =
+                                    datasourceConfiguration.getEndpoints().get(0);
+                            builder.endpointOverride(
+                                    URI.create("http://" + endpoint.getHost() + ":" + endpoint.getPort()));
+                        }
 
-                final DBAuth authentication = (DBAuth) datasourceConfiguration.getAuthentication();
-                if (authentication == null || StringUtils.isEmpty(authentication.getDatabaseName())) {
-                    throw new AppsmithPluginException(
-                            AppsmithPluginError.PLUGIN_DATASOURCE_ARGUMENT_ERROR,
-                            "Missing region in datasource."
-                    );
-                }
+                        final DBAuth authentication = (DBAuth) datasourceConfiguration.getAuthentication();
+                        if (authentication == null || !StringUtils.hasLength(authentication.getDatabaseName())) {
+                            throw new AppsmithPluginException(
+                                    AppsmithPluginError.PLUGIN_DATASOURCE_ARGUMENT_ERROR,
+                                    DynamoErrorMessages.MISSING_REGION_ERROR_MSG);
+                        }
 
-                builder.region(Region.of(authentication.getDatabaseName()));
+                        builder.region(Region.of(authentication.getDatabaseName()));
 
-                builder.credentialsProvider(StaticCredentialsProvider.create(
-                        AwsBasicCredentials.create(authentication.getUsername(), authentication.getPassword())
-                ));
+                        builder.credentialsProvider(StaticCredentialsProvider.create(AwsBasicCredentials.create(
+                                authentication.getUsername(), authentication.getPassword())));
 
-                return builder.build();
-            })
+                        return builder.build();
+                    })
                     .subscribeOn(scheduler);
         }
 
@@ -309,14 +320,15 @@ public class DynamoPlugin extends BasePlugin {
 
         @Override
         public Set<String> validateDatasource(@NonNull DatasourceConfiguration datasourceConfiguration) {
+            log.debug(Thread.currentThread().getName() + ": validateDatasource() called for Dynamo plugin.");
             Set<String> invalids = new HashSet<>();
 
             final DBAuth authentication = (DBAuth) datasourceConfiguration.getAuthentication();
             if (authentication == null) {
-                invalids.add("Missing AWS Access Key ID and Secret Access Key.");
+                invalids.add("Missing AWS access key ID and Secret Access Key.");
             } else {
                 if (StringUtils.isEmpty(authentication.getUsername())) {
-                    invalids.add("Missing AWS Access Key ID.");
+                    invalids.add("Missing AWS access key ID.");
                 }
 
                 if (StringUtils.isEmpty(authentication.getPassword())) {
@@ -332,56 +344,42 @@ public class DynamoPlugin extends BasePlugin {
         }
 
         @Override
-        public Mono<DatasourceTestResult> testDatasource(DatasourceConfiguration datasourceConfiguration) {
-            return datasourceCreate(datasourceConfiguration)
-                    .map(client -> {
-
-                        /*
-                         * - Creating a connection with false credentials does not throw an error. Hence,
-                         *   calling listTables() method to check validity.
-                         */
-                        client.listTables();
-
-                        try {
-                            client.close();
-                        } catch (Exception e) {
-                            System.out.println("Error closing Dynamodb connection that was made for testing." + e);
-                            return false;
-                        }
-
-                        return true;
-                    })
-                    .defaultIfEmpty(false)
-                    .map(isValid -> BooleanUtils.isTrue(isValid)
-                            ? new DatasourceTestResult()
-                            : new DatasourceTestResult("Invalid Access Key / Secret Key / Region")
-                    )
-                    .onErrorResume(error -> Mono.just(new DatasourceTestResult(error.getMessage())))
-                    .subscribeOn(scheduler);
+        public Mono<DatasourceTestResult> testDatasource(DynamoDbClient connection) {
+            log.debug(Thread.currentThread().getName() + ": testDatasource() called for Dynamo plugin.");
+            return Mono.fromCallable(() -> {
+                /*
+                 * - Creating a connection with false credentials does not throw an error. Hence,
+                 *   calling listTables() method to check validity.
+                 */
+                connection.listTables();
+                return new DatasourceTestResult();
+            });
         }
 
         @Override
-        public Mono<DatasourceStructure> getStructure(DynamoDbClient ddb, DatasourceConfiguration datasourceConfiguration) {
+        public Mono<DatasourceStructure> getStructure(
+                DynamoDbClient ddb, DatasourceConfiguration datasourceConfiguration) {
+            log.debug(Thread.currentThread().getName() + ": getStructure() called for Dynamo plugin.");
             return Mono.fromCallable(() -> {
-                final ListTablesResponse listTablesResponse = ddb.listTables();
+                        log.debug(Thread.currentThread().getName()
+                                + ": creating datasourceStructure from DynamoDB plugin.");
+                        final ListTablesResponse listTablesResponse = ddb.listTables();
 
-                List<DatasourceStructure.Table> tables = new ArrayList<>();
-                for (final String tableName : listTablesResponse.tableNames()) {
-                    tables.add(new DatasourceStructure.Table(
-                            DatasourceStructure.TableType.TABLE,
-                            null,
-                            tableName,
-                            Collections.emptyList(),
-                            Collections.emptyList(),
-                            Collections.emptyList()
-                    ));
-                }
+                        List<DatasourceStructure.Table> tables = new ArrayList<>();
+                        for (final String tableName : listTablesResponse.tableNames()) {
+                            tables.add(new DatasourceStructure.Table(
+                                    DatasourceStructure.TableType.TABLE,
+                                    null,
+                                    tableName,
+                                    Collections.emptyList(),
+                                    Collections.emptyList(),
+                                    Collections.emptyList()));
+                        }
 
-                return new DatasourceStructure(tables);
-
-            }).subscribeOn(scheduler);
+                        return new DatasourceStructure(tables);
+                    })
+                    .subscribeOn(scheduler);
         }
-
     }
 
     private static String toLowerCamelCase(String action) {
@@ -391,18 +389,19 @@ public class DynamoPlugin extends BasePlugin {
     /**
      * Given a map that conforms to what a valid DynamoDB request should look like, this function will convert into
      * a DynamoDBRequest object from AWS SDK. This is done using Java's reflection API.
+     *
      * @param mapping Mapping object representing the request details.
-     * @param type Request type that should be created. Eg., ListTablesRequest.class, PutItemRequest.class etc.
-     * @param <T> Type param of the request class.
+     * @param type    Request type that should be created. Eg., ListTablesRequest.class, PutItemRequest.class etc.
+     * @param <T>     Type param of the request class.
      * @return An object of the request class, containing details of the request from the mapping.
-     * @throws IllegalAccessException Thrown if any of the SDK methods' contracts change.
+     * @throws IllegalAccessException    Thrown if any of the SDK methods' contracts change.
      * @throws InvocationTargetException Thrown if any of the SDK methods' contracts change.
-     * @throws NoSuchMethodException Thrown if any of the SDK methods' contracts change.
-     * @throws ClassNotFoundException Thrown if any of the builder class could not be found corresponding to the action class.
+     * @throws NoSuchMethodException     Thrown if any of the SDK methods' contracts change.
+     * @throws ClassNotFoundException    Thrown if any of the builder class could not be found corresponding to the action class.
      */
     public static <T> T plainToSdk(Map<String, Object> mapping, Class<T> type)
-            throws IllegalAccessException, InvocationTargetException, NoSuchMethodException,
-            AppsmithPluginException, ClassNotFoundException {
+            throws IllegalAccessException, InvocationTargetException, NoSuchMethodException, AppsmithPluginException,
+                    ClassNotFoundException {
 
         final Class<?> builderType = Class.forName(type.getName() + "$Builder");
 
@@ -420,13 +419,13 @@ public class DynamoPlugin extends BasePlugin {
                     final Method setterMethod = findMethod(builderType, method -> {
                         final Class<?>[] parameterTypes = method.getParameterTypes();
                         return method.getName().equals(setterName)
-                                && (SdkBytes.class.isAssignableFrom(parameterTypes[0]) || String.class.isAssignableFrom(parameterTypes[0]));
+                                && (SdkBytes.class.isAssignableFrom(parameterTypes[0])
+                                        || String.class.isAssignableFrom(parameterTypes[0]));
                     });
                     if (setterMethod == null) {
                         throw new AppsmithPluginException(
                                 AppsmithPluginError.PLUGIN_EXECUTE_ARGUMENT_ERROR,
-                                "Invalid attribute/value by name " + entry.getKey()
-                        );
+                                String.format(DynamoErrorMessages.INVALID_ATTRIBUTE_ERROR_MSG, entry.getKey()));
                     }
                     if (SdkBytes.class.isAssignableFrom(setterMethod.getParameterTypes()[0])) {
                         value = SdkBytes.fromUtf8String((String) value);
@@ -444,7 +443,8 @@ public class DynamoPlugin extends BasePlugin {
                 } else if (value instanceof Map) {
                     // For maps, we go recursive, applying this transformation to each value, and replacing with the
                     // result in the map. Generic types in the setter method's signature are used to convert the values.
-                    final Method setterMethod = findMethod(builderType, m -> m.getName().equals(setterName));
+                    final Method setterMethod =
+                            findMethod(builderType, m -> m.getName().equals(setterName));
                     final Type parameterType = setterMethod.getGenericParameterTypes()[0];
                     if (parameterType instanceof ParameterizedType) {
                         final ParameterizedType valueType = (ParameterizedType) parameterType;
@@ -452,13 +452,15 @@ public class DynamoPlugin extends BasePlugin {
                         for (final Map.Entry<String, Object> innerEntry : ((Map<String, Object>) value).entrySet()) {
                             Object innerValue = innerEntry.getValue();
                             if (innerValue instanceof Map) {
-                                innerValue = plainToSdk((Map) innerValue, (Class<?>) valueType.getActualTypeArguments()[1]);
+                                innerValue = plainToSdk(
+                                        (Map) innerValue, (Class<?>) valueType.getActualTypeArguments()[1]);
                             }
                             transformedMap.put(innerEntry.getKey(), innerValue);
                         }
                         value = transformedMap;
                         if (!Map.class.isAssignableFrom((Class<?>) valueType.getRawType())) {
-                            // Some setters don't take a plain map. For example, some require an `AttributeValue` instance
+                            // Some setters don't take a plain map. For example, some require an `AttributeValue`
+                            // instance
                             // for objects that are just maps in JSON. So, we make that conversion here.
                             value = plainToSdk((Map) value, (Class<T>) valueType.getRawType());
                         }
@@ -471,17 +473,23 @@ public class DynamoPlugin extends BasePlugin {
                     // For linear collections, the process is similar to that of maps.
                     final Collection<Object> valueAsCollection = (Collection) value;
                     // Find method by name and exclude the varargs version of the method.
-                    final Method setterMethod = findMethod(builderType, m -> m.getName().equals(setterName) && !m.getParameterTypes()[0].getName().startsWith("[L"));
-                    Type valueType = ((ParameterizedType) setterMethod.getGenericParameterTypes()[0]).getActualTypeArguments()[0];
+                    final Method setterMethod = findMethod(
+                            builderType,
+                            m -> m.getName().equals(setterName)
+                                    && !m.getParameterTypes()[0].getName().startsWith("[L"));
+                    Type valueType = ((ParameterizedType) setterMethod.getGenericParameterTypes()[0])
+                            .getActualTypeArguments()[0];
                     if (valueType instanceof WildcardType) {
-                        // This occurs when the method's parameter is typed as `Collection<? extends Map<...>>`. Example op: `BatchGetItem`.
+                        // This occurs when the method's parameter is typed as `Collection<? extends Map<...>>`. Example
+                        // op: `BatchGetItem`.
                         valueType = ((WildcardType) valueType).getUpperBounds()[0];
                     }
                     final Collection<Object> reTypedList = new ArrayList<>();
                     for (final Object innerValue : valueAsCollection) {
                         if (innerValue instanceof Map) {
                             reTypedList.add(plainToSdk((Map) innerValue, valueType));
-                        } else if (innerValue instanceof String && SdkBytes.class.isAssignableFrom((Class<?>) valueType)) {
+                        } else if (innerValue instanceof String
+                                && SdkBytes.class.isAssignableFrom((Class<?>) valueType)) {
                             reTypedList.add(SdkBytes.fromUtf8String((String) innerValue));
                         } else {
                             reTypedList.add(innerValue);
@@ -491,10 +499,10 @@ public class DynamoPlugin extends BasePlugin {
 
                 } else {
                     throw new AppsmithPluginException(
-                            AppsmithPluginError.PLUGIN_ERROR,
-                            "Unknown value type while deserializing:" + value.getClass().getName()
-                    );
-
+                            AppsmithPluginError.PLUGIN_EXECUTE_ARGUMENT_ERROR,
+                            String.format(
+                                    DynamoErrorMessages.UNKNOWN_TYPE_DURING_DESERIALIZATION_ERROR_MSG,
+                                    value.getClass().getName()));
                 }
             }
         }
@@ -504,7 +512,7 @@ public class DynamoPlugin extends BasePlugin {
 
     public static Object plainToSdk(Map<String, Object> mapping, Type type)
             throws InvocationTargetException, NoSuchMethodException, ClassNotFoundException, AppsmithPluginException,
-            IllegalAccessException {
+                    IllegalAccessException {
 
         if (mapping == null) {
             return null;
@@ -519,15 +527,16 @@ public class DynamoPlugin extends BasePlugin {
         if (Map.class.equals(ptype.getRawType())) {
             final Map<String, Object> convertedMap = new HashMap<>();
             for (final Map.Entry<String, Object> entry : mapping.entrySet()) {
-                convertedMap.put(entry.getKey(), plainToSdk((Map) entry.getValue(), (Class<?>) ptype.getActualTypeArguments()[1]));
+                convertedMap.put(entry.getKey(), plainToSdk((Map) entry.getValue(), (Class<?>)
+                        ptype.getActualTypeArguments()[1]));
             }
             return convertedMap;
         }
 
         throw new AppsmithPluginException(
-                AppsmithPluginError.PLUGIN_ERROR,
-                "Unknown type to convert to SDK style " + type.getTypeName()
-        );
+                AppsmithPluginError.PLUGIN_EXECUTE_ARGUMENT_ERROR,
+                String.format(
+                        DynamoErrorMessages.UNKNOWN_TYPE_FOUND_TO_CONVERT_TO_SDK_STYLE_ERROR_MSG, type.getTypeName()));
     }
 
     private static Method findMethod(Class<?> builderType, Predicate<Method> predicate) {
@@ -539,6 +548,7 @@ public class DynamoPlugin extends BasePlugin {
 
     /**
      * Computes the name of the setter method in AWS SDK that will set the value of the field given by the argument.
+     *
      * @param key Name of the field for which to compute the setter method's name.
      * @return Name of the setter method that will set the value of the given `key` field.
      */
@@ -601,5 +611,4 @@ public class DynamoPlugin extends BasePlugin {
         }
         return true;
     }
-
 }

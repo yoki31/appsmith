@@ -1,121 +1,115 @@
-import React, { MutableRefObject, useRef } from "react";
-import { get } from "lodash";
-import Dropdown, { DropdownOption } from "components/ads/Dropdown";
-import TextInput from "components/ads/TextInput";
-import styled, { useTheme } from "styled-components";
-import Icon, { IconSize } from "components/ads/Icon";
+import type { MutableRefObject } from "react";
+import React, { useRef } from "react";
+import type { DropdownOption } from "@appsmith/ads-old";
+import styled from "styled-components";
 import { useDispatch } from "react-redux";
 
 import { clearLogs } from "actions/debuggerActions";
-import { Classes } from "components/ads/common";
-import TooltipComponent from "components/ads/Tooltip";
-import { Position } from "@blueprintjs/core";
-import { CLEAR_LOG_TOOLTIP, createMessage } from "constants/messages";
-import { TOOLTIP_HOVER_ON_DELAY } from "constants/AppConstants";
-import { Classes as BlueprintClasses } from "@blueprintjs/core";
+import { CLEAR_LOG_TOOLTIP, createMessage } from "ee/constants/messages";
+import {
+  Button,
+  Icon,
+  Option,
+  SearchInput,
+  Select,
+  Tooltip,
+  Text,
+} from "@appsmith/ads";
 
 const Wrapper = styled.div`
   flex-direction: row;
   display: flex;
-  justify-content: flex-start;
-  margin-left: 30px;
-  padding: 5px 0;
-  & > div {
-    width: 160px;
-    margin: 0 16px;
-  }
-
-  .debugger-search {
-    height: 28px;
-    width: 160px;
-    padding-right: 25px;
-  }
-
+  justify-content: start;
+  align-items: center;
+  gap: 8px;
+  padding: var(--ads-v2-spaces-4);
   .debugger-filter {
-    border: none;
-    box-shadow: none;
-    width: 110px;
+    width: 220px;
+  }
+
+  .debugger-filter .rc-select-selector {
     height: 28px;
-    margin-top: ${(props) => props.theme.spaces[1]}px;
   }
 
   .input-container {
-    position: relative;
-    display: flex;
-    align-items: center;
-    .${Classes.ICON} {
-      position: absolute;
-      right: 9px;
-    }
-  }
-
-  .${BlueprintClasses.POPOVER_WRAPPER} {
-    display: flex;
-    align-items: center;
+    max-width: 560px;
+    min-width: 220px;
+    flex-grow: 1;
   }
 `;
 
-type FilterHeaderProps = {
+const OptionLabel = styled(Text)`
+  margin-top: 2px;
+`;
+
+interface FilterHeaderProps {
   options: DropdownOption[];
   selected: DropdownOption;
   onChange: (value: string) => void;
   onSelect: (value?: string) => void;
   defaultValue: string;
+  value: string;
   searchQuery: string;
-};
+}
 
 function FilterHeader(props: FilterHeaderProps) {
   const dispatch = useDispatch();
   const searchRef: MutableRefObject<HTMLInputElement | null> = useRef(null);
-  const theme = useTheme();
+
   return (
     <Wrapper>
-      <TooltipComponent
+      <Tooltip
+        className="debugger-clear-logs"
         content={createMessage(CLEAR_LOG_TOOLTIP)}
-        hoverOpenDelay={TOOLTIP_HOVER_ON_DELAY}
-        position={Position.BOTTOM}
+        placement="bottom"
       >
-        <Icon
-          name="cancel"
+        <Button
+          className="t--debugger-clear-logs"
+          isIconButton
+          kind="tertiary"
           onClick={() => dispatch(clearLogs())}
-          size={IconSize.XL}
+          size="sm"
+          startIcon="cancel"
         />
-      </TooltipComponent>
+      </Tooltip>
       <div className="input-container">
-        <TextInput
+        <SearchInput
           className="debugger-search"
-          cypressSelector="t--debugger-search"
-          defaultValue={props.defaultValue}
-          height="28px"
+          data-testid="t--debugger-search"
           onChange={props.onChange}
           placeholder="Filter"
           ref={searchRef}
-          width="160px"
+          value={props.value}
         />
-        {props.searchQuery && (
-          <Icon
-            fillColor={get(theme, "colors.debugger.jsonIcon")}
-            hoverFillColor={get(theme, "colors.debugger.message")}
-            name="close-circle"
-            onClick={() => {
-              if (searchRef.current) {
-                props.onChange("");
-                searchRef.current.value = "";
-              }
-            }}
-            size={IconSize.XXL}
-          />
-        )}
       </div>
-      <Dropdown
+      <Select
         className="debugger-filter"
+        data-testid="t--log-filter"
         onSelect={props.onSelect}
-        optionWidth="115px"
-        options={props.options}
-        selected={props.selected}
-        showLabelOnly
-        width="115px"
-      />
+        size="sm"
+        value={{
+          key: props.selected.value,
+          label: (
+            <OptionLabel kind="body-s" renderAs="p">
+              {props.selected.label}
+            </OptionLabel>
+          ),
+        }}
+      >
+        {props.options.map((option) => (
+          <Option
+            aria-label={option.label}
+            data-testid={`t--log-filter-${option.label}`}
+            key={option.value}
+            value={option.value}
+          >
+            {option.icon && (
+              <Icon color={option?.iconColor} name={option.icon} />
+            )}
+            {option.label}
+          </Option>
+        ))}
+      </Select>
     </Wrapper>
   );
 }

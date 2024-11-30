@@ -1,31 +1,43 @@
 import { isBoolean, isObject } from "lodash";
-import { CellLayoutProperties, ColumnProperties } from "../component/Constants";
+import type {
+  CellLayoutProperties,
+  ColumnProperties,
+} from "../component/Constants";
 
 export const getPropertyValue = (
+  // TODO: Fix this the next time the file is edited
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   value: any,
   index: number,
   preserveCase = false,
 ) => {
   if (value && isObject(value) && !Array.isArray(value)) {
     return value;
-  }
-  if (value && Array.isArray(value) && value[index]) {
-    return preserveCase
-      ? value[index].toString()
-      : value[index].toString().toUpperCase();
+  } else if (value && Array.isArray(value)) {
+    if (value[index]) {
+      return preserveCase
+        ? value[index].toString()
+        : value[index].toString().toUpperCase();
+    } else {
+      return value[index];
+    }
   } else if (value) {
     return preserveCase ? value.toString() : value.toString().toUpperCase();
   } else {
     return value;
   }
 };
+// TODO: Fix this the next time the file is edited
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const getBooleanPropertyValue = (value: any, index: number) => {
   if (isBoolean(value)) {
     return value;
   }
+
   if (Array.isArray(value) && isBoolean(value[index])) {
     return value[index];
   }
+
   return !!value;
 };
 
@@ -48,10 +60,6 @@ export const getCellProperties = (
         rowIndex,
       ),
       buttonColor: getPropertyValue(columnProperties.buttonColor, rowIndex),
-      buttonLabelColor: getPropertyValue(
-        columnProperties.buttonLabelColor,
-        rowIndex,
-      ),
       buttonLabel: getPropertyValue(
         columnProperties.buttonLabel,
         rowIndex,
@@ -74,11 +82,6 @@ export const getCellProperties = (
         true,
       ),
       boxShadow: getPropertyValue(columnProperties.boxShadow, rowIndex, true),
-      boxShadowColor: getPropertyValue(
-        columnProperties.boxShadowColor,
-        rowIndex,
-        true,
-      ),
       iconButtonStyle: getPropertyValue(
         columnProperties.iconButtonStyle,
         rowIndex,
@@ -114,5 +117,6 @@ export const getCellProperties = (
       ),
     } as CellLayoutProperties;
   }
+
   return {} as CellLayoutProperties;
 };

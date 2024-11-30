@@ -1,10 +1,5 @@
-import React, {
-  useRef,
-  useEffect,
-  MutableRefObject,
-  forwardRef,
-  Ref,
-} from "react";
+import type { MutableRefObject, Ref } from "react";
+import React, { useRef, useEffect, forwardRef } from "react";
 import styled from "styled-components";
 import Prism from "prismjs";
 import themes from "./themes";
@@ -21,10 +16,17 @@ Prism.languages["appsmith-binding"] = {
 };
 
 const StyledCode = styled.div<{ skin: Skin }>`
-  position: relative;
   ${(props) => (props.skin === Skin.DARK ? themes.DARK : themes.LIGHT)};
   padding: 0 0px;
 
+  code.language-appsmith-binding {
+    color: ${(props) => props.theme.colors.bindingText};
+  }
+  .token.punctuation {
+    color: hsl(222, 70%, 77%);
+  }
+  .token.property {
+    color: hsl(30, 77%, 40%);
   }
 `;
 
@@ -34,14 +36,14 @@ export enum SYNTAX_HIGHLIGHTING_SUPPORTED_LANGUAGES {
   APPSMITH = "language-appsmith-binding", // Please note that we're using the CSS class name required by prismjs.
 }
 
-type HighlightedCodeProps = {
+interface HighlightedCodeProps {
   codeText: string;
   language?: SYNTAX_HIGHLIGHTING_SUPPORTED_LANGUAGES;
   skin: Skin;
   multiline?: boolean;
   onClick?: () => void;
   className?: string;
-};
+}
 /* eslint-disable react/display-name */
 export const HighlightedCode = forwardRef(
   (props: HighlightedCodeProps, ref: Ref<HTMLDivElement>) => {

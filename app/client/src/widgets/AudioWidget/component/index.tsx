@@ -1,10 +1,13 @@
 import ReactPlayer from "react-player";
-import React, { Ref } from "react";
+import type { Ref } from "react";
+import React from "react";
 import styled from "styled-components";
-import { createMessage, ENTER_AUDIO_URL } from "constants/messages";
+
+import { createMessage, ENTER_AUDIO_URL } from "ee/constants/messages";
+
 export interface AudioComponentProps {
   url?: string;
-  autoplay?: boolean;
+  playing?: boolean;
   controls?: boolean;
   onStart?: () => void;
   onPlay?: () => void;
@@ -25,11 +28,8 @@ const ErrorContainer = styled.div`
   height: 100%;
 `;
 
-const Error = styled.span``;
-
 export default function AudioComponent(props: AudioComponentProps) {
   const {
-    autoplay,
     controls,
     onEnded,
     onError,
@@ -40,10 +40,20 @@ export default function AudioComponent(props: AudioComponentProps) {
     onSeek,
     onStart,
     player,
+    playing,
     url,
   } = props;
+
   return url ? (
     <ReactPlayer
+      config={{
+        file: {
+          attributes: {
+            controlsList:
+              "nofullscreen nodownload noremoteplayback noplaybackrate",
+          },
+        },
+      }}
       controls={controls || true}
       height="100%"
       onEnded={onEnded}
@@ -55,14 +65,14 @@ export default function AudioComponent(props: AudioComponentProps) {
       onSeek={onSeek}
       onStart={onStart}
       pip={false}
-      playing={autoplay}
+      playing={playing}
       ref={player}
       url={url}
       width="100%"
     />
   ) : (
     <ErrorContainer>
-      <Error>{createMessage(ENTER_AUDIO_URL)}</Error>
+      <span>{createMessage(ENTER_AUDIO_URL)}</span>
     </ErrorContainer>
   );
 }

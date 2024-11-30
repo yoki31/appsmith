@@ -1,86 +1,71 @@
 import { useCallback } from "react";
-import { WidgetType } from "constants/WidgetConstants";
+import type { WidgetType } from "constants/WidgetConstants";
 import { useParams } from "react-router";
-import { ExplorerURLParams } from "../helpers";
-import { flashElementsById } from "utils/helpers";
-import { useDispatch, useSelector } from "react-redux";
-import {
-  forceOpenPropertyPane,
-  showModal,
-  closeAllModals,
-} from "actions/widgetActions";
+import type { ExplorerURLParams } from "ee/pages/Editor/Explorer/helpers";
+import { useDispatch } from "react-redux";
 import { useWidgetSelection } from "utils/hooks/useWidgetSelection";
-import { navigateToCanvas } from "./utils";
-import { getCurrentPageWidgets } from "selectors/entitiesSelector";
-import WidgetFactory from "utils/WidgetFactory";
-import { getCurrentApplicationId } from "selectors/editorSelectors";
-
-const WidgetTypes = WidgetFactory.widgetTypes;
+import { getCurrentPageWidgets } from "ee/selectors/entitiesSelector";
+import store from "store";
+import type { NavigationMethod } from "utils/history";
+import { SelectionRequestType } from "sagas/WidgetSelectUtils";
 
 export const useNavigateToWidget = () => {
   const params = useParams<ExplorerURLParams>();
-  const allWidgets = useSelector(getCurrentPageWidgets);
+
   const dispatch = useDispatch();
-  const {
-    selectWidget,
-    shiftSelectWidgetEntityExplorer,
-  } = useWidgetSelection();
-  const applicationId = useSelector(getCurrentApplicationId);
-  const multiSelectWidgets = (widgetId: string, pageId: string) => {
-    navigateToCanvas({ pageId, widgetId, applicationId });
-    flashElementsById(widgetId);
-    selectWidget(widgetId, true);
+  const { selectWidget } = useWidgetSelection();
+  const multiSelectWidgets = (widgetId: string) => {
+    selectWidget(SelectionRequestType.PushPop, [widgetId]);
   };
 
   const selectSingleWidget = (
     widgetId: string,
     widgetType: WidgetType,
-    pageId: string,
-    parentModalId?: string,
+    navigationMethod?: NavigationMethod,
   ) => {
-    if (widgetType === WidgetTypes.MODAL_WIDGET) {
-      dispatch(showModal(widgetId));
-      return;
-    }
-    if (parentModalId) dispatch(showModal(parentModalId));
-    else dispatch(closeAllModals());
-    selectWidget(widgetId, false);
-    navigateToCanvas({ pageId, widgetId, applicationId });
-
-    // Navigating to a widget from query pane seems to make the property pane
-    // appear below the entity explorer hence adding a timeout here
-    setTimeout(() => {
-      if (params.pageId === pageId) {
-        flashElementsById(widgetId);
-      }
-      dispatch(forceOpenPropertyPane(widgetId));
-    }, 0);
+    selectWidget(SelectionRequestType.One, [widgetId], navigationMethod);
   };
 
   const navigateToWidget = useCallback(
     (
       widgetId: string,
       widgetType: WidgetType,
-      pageId: string,
+      basePageId: string,
+      navigationMethod: NavigationMethod,
       isWidgetSelected?: boolean,
-      parentModalId?: string,
       isMultiSelect?: boolean,
       isShiftSelect?: boolean,
-      widgetsInStep?: string[],
+      /** Don't use unsafeSelect unless absolutely necessary.
+       * This will skip all checks
+       * and navigate to the widget directly and may cause ux issues */
+      unsafeSelect?: boolean,
     ) => {
+      if (unsafeSelect) {
+        selectWidget(
+          SelectionRequestType.UnsafeSelect,
+          [widgetId],
+          navigationMethod,
+          basePageId,
+        );
+
+        return;
+      }
+
+      const allWidgets = getCurrentPageWidgets(store.getState());
+
       // restrict multi-select across pages
       if (widgetId && (isMultiSelect || isShiftSelect) && !allWidgets[widgetId])
         return;
 
       if (isShiftSelect) {
-        shiftSelectWidgetEntityExplorer(widgetId, widgetsInStep || []);
+        selectWidget(SelectionRequestType.ShiftSelect, [widgetId]);
       } else if (isMultiSelect) {
-        multiSelectWidgets(widgetId, pageId);
+        multiSelectWidgets(widgetId);
       } else {
-        selectSingleWidget(widgetId, widgetType, pageId, parentModalId);
+        selectSingleWidget(widgetId, widgetType, navigationMethod);
       }
     },
-    [dispatch, params, selectWidget, allWidgets],
+    [dispatch, params, selectWidget],
   );
 
   return { navigateToWidget };

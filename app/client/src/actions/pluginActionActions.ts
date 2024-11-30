@@ -1,16 +1,35 @@
-import { ActionResponse, PaginationField } from "api/ActionAPI";
+import type { ActionResponse, PaginationField } from "api/ActionAPI";
 import {
-  EvaluationReduxAction,
-  ReduxAction,
+  type AnyReduxAction,
+  type EvaluationReduxAction,
+  type ReduxAction,
   ReduxActionErrorTypes,
   ReduxActionTypes,
-  ReduxActionWithoutPayload,
-} from "constants/ReduxActionConstants";
-import { Action } from "entities/Action";
+} from "ee/constants/ReduxActionConstants";
+import type { JSUpdate } from "utils/JSPaneUtils";
+import type {
+  Action,
+  ActionViewMode,
+  SlashCommandPayload,
+} from "entities/Action";
+import { ActionExecutionContext } from "entities/Action";
 import { batchAction } from "actions/batchActions";
-import { ExecuteErrorPayload } from "constants/AppsmithActionConstants/ActionConstants";
+import type { ExecuteErrorPayload } from "constants/AppsmithActionConstants/ActionConstants";
+import type { ModalInfo } from "reducers/uiReducers/modalActionReducer";
+import type { OtlpSpan } from "UITelemetry/generateTraces";
+import type { ApiResponse } from "api/ApiResponses";
+import type { JSCollection } from "entities/JSCollection";
+import type { ErrorActionPayload } from "sagas/ErrorSagas";
+import type { EventLocation } from "ee/utils/analyticsUtilTypes";
+import type { GenerateDestinationIdInfoReturnType } from "ee/sagas/helpers";
 
 export const createActionRequest = (payload: Partial<Action>) => {
+  return {
+    type: ReduxActionTypes.CREATE_ACTION_REQUEST,
+    payload,
+  };
+};
+export const createActionInit = (payload: Partial<Action>) => {
   return {
     type: ReduxActionTypes.CREATE_ACTION_INIT,
     payload,
@@ -24,51 +43,62 @@ export const createActionSuccess = (payload: Action) => {
   };
 };
 
-export type FetchActionsPayload = {
+export interface FetchActionsPayload {
   applicationId: string;
-};
+  publishedActions?: ApiResponse<ActionViewMode[]>;
+  publishedActionCollections?: ApiResponse<JSCollection[]>;
+  unpublishedActionCollections?: ApiResponse<JSCollection[]>;
+  unpublishedActions?: ApiResponse<Action[]>;
+}
 
 export const fetchActions = (
-  { applicationId }: { applicationId: string },
-  postEvalActions: Array<ReduxAction<unknown> | ReduxActionWithoutPayload>,
+  {
+    applicationId,
+    unpublishedActions,
+  }: { applicationId: string; unpublishedActions?: ApiResponse<Action[]> },
+  postEvalActions: Array<AnyReduxAction>,
 ): EvaluationReduxAction<unknown> => {
   return {
     type: ReduxActionTypes.FETCH_ACTIONS_INIT,
-    payload: { applicationId },
+    payload: { applicationId, unpublishedActions },
     postEvalActions,
   };
 };
 
 export const fetchActionsForView = ({
   applicationId,
+  publishedActions,
 }: {
   applicationId: string;
+  publishedActions?: ApiResponse<ActionViewMode[]>;
 }): ReduxAction<FetchActionsPayload> => {
   return {
     type: ReduxActionTypes.FETCH_ACTIONS_VIEW_MODE_INIT,
-    payload: { applicationId },
+    payload: { applicationId, publishedActions },
   };
 };
 
 export const fetchActionsForPage = (
   pageId: string,
-  postEvalActions: Array<ReduxAction<unknown> | ReduxActionWithoutPayload> = [],
 ): EvaluationReduxAction<unknown> => {
   return {
     type: ReduxActionTypes.FETCH_ACTIONS_FOR_PAGE_INIT,
     payload: { pageId },
-    postEvalActions,
   };
 };
 
 export const fetchActionsForPageSuccess = (
   actions: Action[],
-  postEvalActions?: Array<ReduxAction<unknown> | ReduxActionWithoutPayload>,
 ): EvaluationReduxAction<unknown> => {
   return {
     type: ReduxActionTypes.FETCH_ACTIONS_FOR_PAGE_SUCCESS,
     payload: actions,
-    postEvalActions,
+  };
+};
+
+export const fetchActionsForPageError = () => {
+  return {
+    type: ReduxActionErrorTypes.FETCH_ACTIONS_FOR_PAGE_ERROR,
   };
 };
 
@@ -78,32 +108,47 @@ export const runActionViaShortcut = () => {
   };
 };
 
-export const runAction = (id: string, paginationField?: PaginationField) => {
+export const runAction = (
+  id: string,
+  paginationField?: PaginationField,
+  skipOpeningDebugger = false,
+  action = undefined,
+  actionExecutionContext = ActionExecutionContext.SELF,
+) => {
   return {
     type: ReduxActionTypes.RUN_ACTION_REQUEST,
     payload: {
       id,
       paginationField,
+      skipOpeningDebugger,
+      action,
+      actionExecutionContext,
     },
   };
 };
 
-export const showRunActionConfirmModal = (show: boolean) => {
+export const softRefreshActions = () => {
   return {
-    type: ReduxActionTypes.SHOW_RUN_ACTION_CONFIRM_MODAL,
-    payload: show,
+    type: ReduxActionTypes.PLUGIN_SOFT_REFRESH,
   };
 };
 
-export const cancelRunActionConfirmModal = () => {
+export const showActionConfirmationModal = (payload: ModalInfo) => {
   return {
-    type: ReduxActionTypes.CANCEL_RUN_ACTION_CONFIRM_MODAL,
+    type: ReduxActionTypes.SHOW_ACTION_MODAL,
+    payload,
   };
 };
 
-export const acceptRunActionConfirmModal = () => {
+export const cancelActionConfirmationModal = (payload: string) => {
   return {
-    type: ReduxActionTypes.ACCEPT_RUN_ACTION_CONFIRM_MODAL,
+    type: ReduxActionTypes.CANCEL_ACTION_MODAL + `_FOR_${payload.trim()}`,
+  };
+};
+
+export const acceptActionConfirmationModal = (payload: string) => {
+  return {
+    type: ReduxActionTypes.CONFIRM_ACTION_MODAL + `_FOR_${payload.trim()}`,
   };
 };
 
@@ -167,10 +212,12 @@ export const moveActionSuccess = (payload: Action) => {
   };
 };
 
-export const moveActionError = (payload: {
-  id: string;
-  originalPageId: string;
-}) => {
+export const moveActionError = (
+  payload: {
+    id: string;
+    originalPageId: string;
+  } & ErrorActionPayload,
+) => {
   return {
     type: ReduxActionErrorTypes.MOVE_ACTION_ERROR,
     payload,
@@ -179,7 +226,7 @@ export const moveActionError = (payload: {
 
 export const copyActionRequest = (payload: {
   id: string;
-  destinationPageId: string;
+  destinationEntityId: string;
   name: string;
 }) => {
   return {
@@ -195,10 +242,12 @@ export const copyActionSuccess = (payload: Action) => {
   };
 };
 
-export const copyActionError = (payload: {
-  id: string;
-  destinationPageId: string;
-}) => {
+export const copyActionError = (
+  payload: {
+    id: string;
+    destinationEntityIdInfo: GenerateDestinationIdInfoReturnType;
+  } & ErrorActionPayload,
+) => {
   return {
     type: ReduxActionErrorTypes.COPY_ACTION_ERROR,
     payload,
@@ -210,12 +259,25 @@ export const executePluginActionRequest = (payload: { id: string }) => ({
   payload: payload,
 });
 
-export const executePluginActionSuccess = (payload: {
+export interface ExecutePluginActionSuccessPayload {
   id: string;
+  baseId: string;
   response: ActionResponse;
   isPageLoad?: boolean;
-}) => ({
+  isActionCreatedInApp: boolean;
+}
+
+export const executePluginActionSuccess = (
+  payload: ExecutePluginActionSuccessPayload,
+) => ({
   type: ReduxActionTypes.EXECUTE_PLUGIN_ACTION_SUCCESS,
+  payload: payload,
+});
+
+export const setActionResponseDisplayFormat = (
+  payload: UpdateActionPropertyActionPayload,
+) => ({
+  type: ReduxActionTypes.SET_ACTION_RESPONSE_DISPLAY_FORMAT,
   payload: payload,
 });
 
@@ -233,34 +295,59 @@ export const saveActionName = (payload: { id: string; name: string }) => ({
   payload: payload,
 });
 
-export type SetActionPropertyPayload = {
+export interface SetActionPropertyPayload {
   actionId: string;
   propertyName: string;
+  // TODO: Fix this the next time the file is edited
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   value: any;
-};
+  skipSave?: boolean;
+}
 
-export const setActionProperty = (payload: SetActionPropertyPayload) => ({
+export const setActionProperty = (
+  payload: SetActionPropertyPayload,
+  postEvalActions?: Array<AnyReduxAction>,
+) => ({
   type: ReduxActionTypes.SET_ACTION_PROPERTY,
   payload,
+  postEvalActions,
 });
 
-export type UpdateActionPropertyActionPayload = {
+export interface UpdateActionPropertyActionPayload {
   id: string;
   field: string;
+  // TODO: Fix this the next time the file is edited
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   value: any;
-};
+}
 
 export const updateActionProperty = (
   payload: UpdateActionPropertyActionPayload,
+  postEvalActions?: Array<AnyReduxAction>,
 ) => {
   return batchAction({
     type: ReduxActionTypes.UPDATE_ACTION_PROPERTY,
     payload,
+    postEvalActions,
   });
 };
 
-export const executePageLoadActions = (): ReduxActionWithoutPayload => ({
-  type: ReduxActionTypes.EXECUTE_PAGE_LOAD_ACTIONS,
+export const executePageLoadActions = (
+  actionExecutionContext?: ActionExecutionContext,
+) => {
+  return {
+    type: ReduxActionTypes.EXECUTE_PAGE_LOAD_ACTIONS,
+    payload: {
+      actionExecutionContext,
+    },
+  };
+};
+
+export const executeJSUpdates = (
+  payload: Record<string, JSUpdate>,
+): ReduxAction<unknown> => ({
+  type: ReduxActionTypes.EXECUTE_JS_UPDATES,
+  payload,
 });
 
 export const setActionsToExecuteOnPageLoad = (
@@ -276,10 +363,24 @@ export const setActionsToExecuteOnPageLoad = (
   };
 };
 
+export const setJSActionsToExecuteOnPageLoad = (
+  actions: Array<{
+    executeOnLoad: boolean;
+    id: string;
+    name: string;
+    collectionId?: string;
+  }>,
+) => {
+  return {
+    type: ReduxActionTypes.SET_JS_ACTION_TO_EXECUTE_ON_PAGELOAD,
+    payload: actions,
+  };
+};
+
 export const bindDataOnCanvas = (payload: {
   queryId: string;
   applicationId: string;
-  pageId: string;
+  basePageId: string;
 }) => {
   return {
     type: ReduxActionTypes.BIND_DATA_ON_CANVAS,
@@ -287,13 +388,77 @@ export const bindDataOnCanvas = (payload: {
   };
 };
 
-export default {
-  createAction: createActionRequest,
-  fetchActions,
-  runAction: runAction,
-  deleteAction,
-  deleteActionSuccess,
-  updateAction,
-  updateActionSuccess,
-  bindDataOnCanvas,
+type actionDataPayload = {
+  entityName: string;
+  dataPath: string;
+  data: unknown;
+  dataPathRef?: string;
+}[];
+
+export interface updateActionDataPayloadType {
+  actionDataPayload: actionDataPayload;
+  parentSpan?: OtlpSpan;
+}
+export const updateActionData = (
+  payload: actionDataPayload,
+  parentSpan?: OtlpSpan,
+): {
+  type: string;
+  payload: updateActionDataPayloadType;
+} => {
+  return {
+    type: ReduxActionTypes.UPDATE_ACTION_DATA,
+    payload: {
+      actionDataPayload: payload,
+      parentSpan,
+    },
+  };
 };
+
+export const closeQueryActionTab = (payload: {
+  id: string;
+  parentId: string;
+}) => {
+  return {
+    type: ReduxActionTypes.CLOSE_QUERY_ACTION_TAB,
+    payload,
+  };
+};
+export const closeQueryActionTabSuccess = (payload: {
+  id: string;
+  parentId: string;
+}) => {
+  return {
+    type: ReduxActionTypes.CLOSE_QUERY_ACTION_TAB_SUCCESS,
+    payload,
+  };
+};
+
+export const createNewApiAction = (
+  pageId: string,
+  from: EventLocation,
+  apiType?: string,
+): ReduxAction<{ pageId: string; from: EventLocation; apiType?: string }> => ({
+  type: ReduxActionTypes.CREATE_NEW_API_ACTION,
+  payload: { pageId, from, apiType },
+});
+
+export const createNewQueryAction = (
+  pageId: string,
+  from: EventLocation,
+  datasourceId: string,
+  queryDefaultTableName?: string,
+): ReduxAction<{
+  pageId: string;
+  from: EventLocation;
+  datasourceId: string;
+  queryDefaultTableName?: string;
+}> => ({
+  type: ReduxActionTypes.CREATE_NEW_QUERY_ACTION,
+  payload: { pageId, from, datasourceId, queryDefaultTableName },
+});
+
+export const executeCommandAction = (payload: SlashCommandPayload) => ({
+  type: ReduxActionTypes.EXECUTE_COMMAND,
+  payload: payload,
+});

@@ -1,54 +1,26 @@
-import { get } from "lodash";
+import equal from "fast-deep-equal/es6";
+import type { ReactNode } from "react";
+import React, { useCallback } from "react";
+import { useSelector } from "react-redux";
+import { getIsPropertyPaneVisible } from "selectors/propertyPaneSelectors";
 import {
-  getCurrentWidgetId,
-  getIsPropertyPaneVisible,
-} from "selectors/propertyPaneSelectors";
-import { getIsTableFilterPaneVisible } from "selectors/tableFilterSelectors";
-import { MAIN_CONTAINER_WIDGET_ID } from "constants/WidgetConstants";
-import { useSelector } from "store";
-import { AppState } from "reducers";
-import { CanvasWidgetsReduxState } from "reducers/entityReducers/canvasWidgetsReducer";
-import { APP_MODE } from "entities/App";
-import { getAppMode } from "selectors/applicationSelectors";
-import { getWidgets } from "sagas/selectors";
-import { useWidgetSelection } from "./useWidgetSelection";
-import React, { ReactNode, useCallback } from "react";
+  getFocusedParentToOpen,
+  isWidgetFocused,
+  isResizingOrDragging,
+  isWidgetSelected,
+  shouldWidgetIgnoreClicksSelector,
+} from "selectors/widgetSelectors";
+import styled from "styled-components";
 import { stopEventPropagation } from "utils/AppsmithUtils";
-import { useShowPropertyPane } from "./dragResizeHooks";
+import { useWidgetSelection } from "./useWidgetSelection";
+import { SelectionRequestType } from "sagas/WidgetSelectUtils";
+import { NavigationMethod } from "../history";
+import { getLayoutSystemType } from "selectors/layoutSystemSelectors";
 
-/**
- *
- * @param widgetId
- * @param widgets
- * @returns
- */
-export function getParentToOpenIfAny(
-  widgetId: string | undefined,
-  widgets: CanvasWidgetsReduxState,
-) {
-  if (widgetId) {
-    let widget = get(widgets, widgetId, undefined);
-
-    // While this widget has a openParentPropertyPane equql to true
-    while (widget?.openParentPropertyPane) {
-      // Get parent widget props
-      const parent = get(widgets, `${widget.parentId}`, undefined);
-
-      // If parent has openParentPropertyPane = false, return the currnet parent
-      if (!parent?.openParentPropertyPane) {
-        return parent;
-      }
-
-      if (parent?.parentId && parent.parentId !== MAIN_CONTAINER_WIDGET_ID) {
-        widget = get(widgets, `${widget.parentId}`, undefined);
-
-        continue;
-      }
-    }
-  }
-
-  return;
-}
+const ContentWrapper = styled.div`
+  width: 100%;
+  height: 100%;
+`;
 
 export function ClickContentToOpenPropPane({
   children,
@@ -59,98 +31,80 @@ export function ClickContentToOpenPropPane({
 }) {
   const { focusWidget } = useWidgetSelection();
 
-  const clickToSelectWidget = useClickToSelectWidget();
-  const clickToSelectFn = useCallback(
-    (e) => {
-      clickToSelectWidget(e, widgetId);
-    },
-    [widgetId, clickToSelectWidget],
-  );
-  const focusedWidget = useSelector(
-    (state: AppState) => state.ui.widgetDragResize.focusedWidget,
-  );
+  const clickToSelectWidget = useClickToSelectWidget(widgetId);
 
-  const isResizing = useSelector(
-    (state: AppState) => state.ui.widgetDragResize.isResizing,
-  );
-  const isDragging = useSelector(
-    (state: AppState) => state.ui.widgetDragResize.isDragging,
-  );
-  const isResizingOrDragging = !!isResizing || !!isDragging;
+  const isCurrentWidgetFocused = useSelector(isWidgetFocused(widgetId));
+  const resizingOrDragging = useSelector(isResizingOrDragging);
+  // TODO: Fix this the next time the file is edited
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleMouseOver = (e: any) => {
     focusWidget &&
-      !isResizingOrDragging &&
-      focusedWidget !== widgetId &&
+      !resizingOrDragging &&
+      !isCurrentWidgetFocused &&
       focusWidget(widgetId);
     e.stopPropagation();
   };
 
   return (
-    <div
+    <ContentWrapper
       onClick={stopEventPropagation}
-      onClickCapture={clickToSelectFn}
+      onMouseDownCapture={clickToSelectWidget}
       onMouseOver={handleMouseOver}
-      style={{
-        width: "100%",
-        height: "100%",
-      }}
     >
       {children}
-    </div>
+    </ContentWrapper>
   );
 }
 
-export const useClickToSelectWidget = () => {
+export const useClickToSelectWidget = (widgetId: string) => {
   const { focusWidget, selectWidget } = useWidgetSelection();
-  const showPropertyPane = useShowPropertyPane();
   const isPropPaneVisible = useSelector(getIsPropertyPaneVisible);
-  const isTableFilterPaneVisible = useSelector(getIsTableFilterPaneVisible);
-  const widgets: CanvasWidgetsReduxState = useSelector(getWidgets);
-  const selectedWidgetId = useSelector(getCurrentWidgetId);
-  const focusedWidgetId = useSelector(
-    (state: AppState) => state.ui.widgetDragResize.focusedWidget,
+  const isSelected = useSelector(isWidgetSelected(widgetId));
+  const parentWidgetToOpen = useSelector(getFocusedParentToOpen, equal);
+  const shouldIgnoreClicks = useSelector(
+    shouldWidgetIgnoreClicksSelector(widgetId),
   );
-  // This state tells us whether a `ResizableComponent` is resizing
-  const isResizing = useSelector(
-    (state: AppState) => state.ui.widgetDragResize.isResizing,
-  );
-  const appMode = useSelector(getAppMode);
+  const layoutSystemType = useSelector(getLayoutSystemType);
 
-  // This state tells us whether a `DraggableComponent` is dragging
-  const isDragging = useSelector(
-    (state: AppState) => state.ui.widgetDragResize.isDragging,
-  );
+  const clickToSelectWidget = useCallback(
+    // TODO: Fix this the next time the file is edited
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (e: any) => {
+      // Ignore click captures
+      // 1. If the component is resizing or dragging because it is handled internally in draggable component.
+      // 2. If table filter property pane is open.
+      if (shouldIgnoreClicks) return;
 
-  const parentWidgetToOpen = getParentToOpenIfAny(focusedWidgetId, widgets);
-  const clickToSelectWidget = (e: any, targetWidgetId: string) => {
-    // ignore click captures
-    // 1. if the component was resizing or dragging coz it is handled internally in draggable component
-    // 2. table filter property pane is open
-    if (
-      isResizing ||
-      isDragging ||
-      appMode !== APP_MODE.EDIT ||
-      targetWidgetId !== focusedWidgetId ||
-      isTableFilterPaneVisible
-    )
-      return;
-    if (
-      (!isPropPaneVisible && selectedWidgetId === focusedWidgetId) ||
-      selectedWidgetId !== focusedWidgetId
-    ) {
-      const isMultiSelect = e.metaKey || e.ctrlKey || e.shiftKey;
+      if ((!isPropPaneVisible && isSelected) || !isSelected) {
+        let type: SelectionRequestType = SelectionRequestType.One;
 
-      if (parentWidgetToOpen) {
-        selectWidget(parentWidgetToOpen.widgetId, isMultiSelect);
-      } else {
-        selectWidget(focusedWidgetId, isMultiSelect);
-        focusWidget(focusedWidgetId);
+        if (e.metaKey || e.ctrlKey || (layoutSystemType && e.shiftKey)) {
+          type = SelectionRequestType.PushPop;
+        } else if (e.shiftKey) {
+          type = SelectionRequestType.ShiftSelect;
+        }
+
+        if (parentWidgetToOpen) {
+          selectWidget(
+            type,
+            [parentWidgetToOpen.widgetId],
+            NavigationMethod.CanvasClick,
+          );
+        } else {
+          selectWidget(type, [widgetId], NavigationMethod.CanvasClick);
+          focusWidget(widgetId);
+        }
+
+        if (
+          type === SelectionRequestType.PushPop ||
+          type === SelectionRequestType.ShiftSelect
+        ) {
+          e.stopPropagation();
+        }
       }
-      showPropertyPane();
-      if (isMultiSelect) {
-        e.stopPropagation();
-      }
-    }
-  };
+    },
+    [shouldIgnoreClicks, isPropPaneVisible, isSelected, parentWidgetToOpen],
+  );
+
   return clickToSelectWidget;
 };

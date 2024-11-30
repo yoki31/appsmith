@@ -1,116 +1,97 @@
-import { Collapse, Position } from "@blueprintjs/core";
-import { get } from "lodash";
-import { Classes as BPPopover2Classes } from "@blueprintjs/popover2";
+import { Collapse } from "@blueprintjs/core";
 import { isString } from "lodash";
-import { Classes } from "components/ads/common";
-import Icon, { IconName, IconSize } from "components/ads/Icon";
-import { Log, Message, Severity, SourceEntity } from "entities/AppsmithConsole";
+import type { Log, Message, SourceEntity } from "entities/AppsmithConsole";
+import { LOG_CATEGORY, Severity } from "entities/AppsmithConsole";
+import type { PropsWithChildren } from "react";
 import React, { useState } from "react";
 import ReactJson from "react-json-view";
-import styled, { useTheme } from "styled-components";
-import EntityLink, { DebuggerLinkUI } from "./EntityLink";
-import { SeverityIcon } from "./helpers";
-import Text, { TextType } from "components/ads/Text";
-import { getTypographyByKey } from "constants/DefaultTheme";
-import TooltipComponent from "components/ads/Tooltip";
-import { createMessage, TROUBLESHOOT_ISSUE } from "constants/messages";
+import styled from "styled-components";
+import EntityLink from "./EntityLink";
+import { getLogIcon } from "./helpers";
+import { Classes, getTypographyByKey } from "@appsmith/ads-old";
 import ContextualMenu from "./ContextualMenu";
+import { Button, Icon } from "@appsmith/ads";
+import moment from "moment";
+import classNames from "classnames";
+import { DebuggerLinkUI } from "components/editorComponents/Debugger/DebuggerEntityLink";
 
 const Wrapper = styled.div<{ collapsed: boolean }>`
-  padding: 9px 30px;
   display: flex;
+  flex-direction: column;
+  padding: 8px 16px 8px 16px;
 
   &.${Severity.INFO} {
-    border-bottom: 1px solid
-      ${(props) => props.theme.colors.debugger.info.borderBottom};
+    border-bottom: 1px solid var(--ads-v2-color-border);
   }
 
   &.${Severity.ERROR} {
-    background-color: ${(props) =>
-      props.theme.colors.debugger.error.backgroundColor};
-    border-bottom: 1px solid
-      ${(props) => props.theme.colors.debugger.error.borderBottom};
-
-    .${Classes.ICON}.search-menu {
-      path {
-        fill: ${(props) => props.theme.colors.debugger.error.iconColor};
-      }
-      &:hover {
-        path {
-          fill: ${(props) => props.theme.colors.debugger.error.hoverIconColor};
-        }
-      }
-    }
-
-    .${BPPopover2Classes.POPOVER2_OPEN} {
-      .${Classes.ICON}.search-menu {
-        path {
-          fill: ${(props) => props.theme.colors.debugger.error.hoverIconColor};
-        }
-      }
-    }
+    background-color: var(--ads-v2-color-bg-error);
+    border-bottom: 1px solid var(--ads-v2-color-border);
   }
 
   &.${Severity.WARNING} {
-    background-color: ${(props) =>
-      props.theme.colors.debugger.warning.backgroundColor};
-    border-bottom: 1px solid
-      ${(props) => props.theme.colors.debugger.warning.borderBottom};
-    .${Classes.ICON}.search-menu {
-      path {
-        fill: ${(props) => props.theme.colors.debugger.warning.iconColor};
-      }
-      &:hover {
-        path {
-          fill: ${(props) =>
-            props.theme.colors.debugger.warning.hoverIconColor};
-        }
-      }
-    }
-
-    .${BPPopover2Classes.POPOVER2_OPEN} {
-      .${Classes.ICON}.search-menu {
-        path {
-          fill: ${(props) =>
-            props.theme.colors.debugger.warning.hoverIconColor};
-        }
-      }
-    }
-  }
-
-  .bp3-popover-target {
-    display: inline;
+    background-color: var(--ads-v2-color-bg-warning);
+    border-bottom: 1px solid var(--ads-v2-color-border);
   }
 
   .${Classes.ICON} {
     display: inline-block;
   }
 
+  .debugger-toggle {
+    ${(props) =>
+      props.collapsed
+        ? `transform: rotate(-90deg);`
+        : `transform: rotate(0deg); `};
+  }
   .debugger-time {
-    ${(props) => getTypographyByKey(props, "h6")}
-    line-height: 17px;
-    color: ${(props) => props.theme.colors.debugger.time};
-    margin-left: 10px;
+    ${getTypographyByKey("h6")}
+    letter-spacing: -0.24px;
+    margin-left: 4px;
+    margin-right: 4px;
+    color: var(--ads-v2-color-fg-muted);
+    width: max-content;
+  }
+  .debugger-occurences {
+    height: 16px;
+    width: 16px;
+    border-radius: 36px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--ads-v2-color-fg-emphasis);
+    &.${Severity.INFO} {
+      background-color: var(--ads-v2-color-bg-information);
+    }
+    margin-right: 4px;
+    &.${Severity.ERROR} {
+      background-color: var(--ads-v2-color-bg-error);
+    }
+    &.${Severity.WARNING} {
+      background-color: var(--ads-v2-color-bg-warning);
+    }
+    ${getTypographyByKey("u2")}
   }
   .debugger-description {
-    display: inline-block;
-    margin-left: 7px;
+    display: flex;
+    align-items: center;
     overflow-wrap: anywhere;
     word-break: break-word;
-    .debugger-toggle {
-      ${(props) => props.collapsed && `transform: rotate(-90deg);`}
-      margin-left: -5px;
-      margin-top: 
-    }
+    max-width: 60%;
 
     .debugger-label {
-      color: ${(props) => props.theme.colors.debugger.label};
-      margin-left: 5px;
-      ${(props) => getTypographyByKey(props, "p2")}
+      color: var(--ads-v2-color-fg-emphasis);
+      ${getTypographyByKey("p1")}
+      line-height: 14px;
+      font-size: 12px;
+      padding-right: 4px;
+      text-overflow: ellipsis;
+      overflow: hidden;
+      white-space: nowrap;
     }
     .debugger-entity {
-      color: ${(props) => props.theme.colors.debugger.entity};
-      ${(props) => getTypographyByKey(props, "h6")}
+      color: var(--ads-v2-color-fg-emphasis);
+      ${getTypographyByKey("h6")}
       margin-left: 6px;
 
       & > span {
@@ -118,51 +99,72 @@ const Wrapper = styled.div<{ collapsed: boolean }>`
 
         &:hover {
           text-decoration: underline;
-          text-decoration-color: ${(props) =>
-            props.theme.colors.debugger.entity};
+          text-decoration-color: var(--ads-v2-color-fg-emphasis);
         }
       }
     }
   }
   .debugger-timetaken {
-    color: ${(props) => props.theme.colors.debugger.entity};
+    color: var(--ads-v2-color-fg-emphasis);
     margin-left: 5px;
-    ${(props) => getTypographyByKey(props, "p2")}
+    ${getTypographyByKey("p2")}
     line-height: 19px;
   }
 
   .debugger-entity-link {
+    // TODO: unclear why this file and ErrorLogItem.tsx have different styles when they look so similar
     margin-left: auto;
-    ${(props) => getTypographyByKey(props, "p2")}
-    color: ${(props) => props.theme.colors.debugger.entityLink};
-    text-decoration-line: underline;
+    ${getTypographyByKey("btnMedium")};
+    color: var(--ads-v2-color-fg-emphasis);
     cursor: pointer;
+    width: max-content;
+    > span {
+      font-size: 12px;
+    }
   }
 `;
 
-const RowWrapper = styled.div`
+const ContextWrapper = styled.div`
+  height: 14px;
   display: flex;
   align-items: center;
 `;
 
 const JsonWrapper = styled.div`
-  padding-top: ${(props) => props.theme.spaces[1]}px;
+  padding: ${(props) => props.theme.spaces[1] - 1}px 0
+    ${(props) => props.theme.spaces[5]}px;
   svg {
-    color: ${(props) => props.theme.colors.debugger.jsonIcon} !important;
+    color: var(--ads-v2-color-fg-muted) !important;
     height: 12px !important;
     width: 12px !important;
     vertical-align: baseline !important;
   }
+  .object-key-val span,
+  .icon-container {
+    vertical-align: middle;
+  }
+  .brace-row {
+    vertical-align: bottom;
+  }
 `;
 
-const StyledCollapse = styled(Collapse)`
-  margin-top: 4px;
+type StyledCollapseProps = PropsWithChildren<{
+  category: LOG_CATEGORY;
+}>;
+
+const StyledCollapse = styled(Collapse)<StyledCollapseProps>`
+  margin-top: ${(props) =>
+    props.isOpen && props.category === LOG_CATEGORY.USER_GENERATED
+      ? " -30px"
+      : " 4px"};
+  margin-left: 133px;
 
   .debugger-message {
-    ${(props) => getTypographyByKey(props, "p2")}
-    color: ${(props) => props.theme.colors.debugger.message};
-    text-decoration-line: underline;
-    cursor: pointer;
+    ${getTypographyByKey("p2")}
+    line-height: 14px;
+    letter-spacing: -0.24px;
+    font-size: 12px;
+    color: var(--ads-v2-color-fg-emphasis);
   }
 
   .${Classes.ICON} {
@@ -170,45 +172,64 @@ const StyledCollapse = styled(Collapse)`
   }
 `;
 
-const StyledSearchIcon = styled(Icon)`
-  && {
-    margin-left: 10px;
-    vertical-align: middle;
-  }
+const MessageWrapper = styled.div`
+  line-height: 14px;
 `;
 
-const MessageWrapper = styled.div`
-  padding-top: ${(props) => props.theme.spaces[1]}px;
-`;
+const showToggleIcon = (e: Log) => {
+  let output = !!e.state || !!e.messages;
+
+  if (!output && e.logData && e.logData.length > 0) {
+    e.logData.forEach((item) => {
+      if (typeof item === "object") {
+        output = true;
+      }
+    });
+  }
+
+  return output;
+};
 
 export const getLogItemProps = (e: Log) => {
   return {
-    icon: SeverityIcon[e.severity] as IconName,
+    icon: getLogIcon(e) as string,
     timestamp: e.timestamp,
     source: e.source,
     label: e.text,
+    logData: e.logData,
+    category: e.category,
     timeTaken: e.timeTaken ? `${e.timeTaken}ms` : "",
     severity: e.severity,
     text: e.text,
     state: e.state,
     id: e.source ? e.source.id : undefined,
     messages: e.messages,
+    collapsible: showToggleIcon(e),
+    occurences: e.occurrenceCount || 1,
   };
 };
 
-type LogItemProps = {
-  icon: IconName;
+interface LogItemProps {
+  collapsible?: boolean;
+  icon: string;
   timestamp: string;
   label: string;
   timeTaken: string;
   severity: Severity;
   text: string;
+  category: LOG_CATEGORY;
+  // TODO: Fix this the next time the file is edited
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  logData?: any[];
+  // TODO: Fix this the next time the file is edited
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   state?: Record<string, any>;
   id?: string;
   source?: SourceEntity;
   expand?: boolean;
   messages?: Message[];
-};
+  occurences: number;
+}
 
 function LogItem(props: LogItemProps) {
   const [isOpen, setIsOpen] = useState(!!props.expand);
@@ -218,109 +239,160 @@ function LogItem(props: LogItemProps) {
     displayObjectSize: false,
     displayDataTypes: false,
     style: {
-      fontSize: "13px",
+      fontFamily: "var(--ads-v2-font-family)",
+      fontSize: "11px",
+      fontWeight: "400",
+      letterSpacing: "-0.195px",
+      lineHeight: "13px",
     },
     collapsed: 1,
   };
-  const showToggleIcon = props.state || props.messages;
-  // The error to sent to the contextual menu
-  const errorToSearch =
-    props.messages && props.messages.length
-      ? props.messages[0]
-      : { message: props.text };
 
   const messages = props.messages || [];
-  const theme = useTheme();
+  const { collapsible } = props;
+
   return (
     <Wrapper
-      className={props.severity}
+      className={`${props.severity} ${collapsible ? "cursor-pointer" : ""}`}
       collapsed={!isOpen}
       onClick={() => {
-        if (!isOpen) setIsOpen(true);
+        if (collapsible) setIsOpen(!isOpen);
       }}
     >
-      <Icon keepColors name={props.icon} size={IconSize.XL} />
-      <span className="debugger-time">{props.timestamp}</span>
-      <div className="debugger-description">
-        <RowWrapper>
-          {showToggleIcon && (
-            <Icon
-              className={`${Classes.ICON} debugger-toggle`}
-              fillColor={get(theme, "colors.debugger.jsonIcon")}
-              name={"downArrow"}
-              onClick={() => setIsOpen(!isOpen)}
-              size={IconSize.XXL}
-            />
-          )}
-          {props.source && (
-            <EntityLink
-              id={props.source.id}
-              name={props.source.name}
-              type={props.source.type}
-              uiComponent={DebuggerLinkUI.ENTITY_TYPE}
-            />
-          )}
-          <span className="debugger-label">{props.text}</span>
-          {props.timeTaken && (
-            <span className="debugger-timetaken">{props.timeTaken}</span>
-          )}
-          {props.severity !== Severity.INFO && (
-            <ContextualMenu entity={props.source} error={errorToSearch}>
-              <TooltipComponent
-                content={
-                  <Text style={{ color: "#ffffff" }} type={TextType.P3}>
-                    {createMessage(TROUBLESHOOT_ISSUE)}
-                  </Text>
-                }
-                minimal
-                position={Position.BOTTOM_LEFT}
-              >
-                <StyledSearchIcon
-                  className={`${Classes.ICON} search-menu`}
-                  name={"wand"}
-                  size={IconSize.MEDIUM}
-                />
-              </TooltipComponent>
-            </ContextualMenu>
-          )}
-        </RowWrapper>
+      <div className="flex items-center gap-1">
+        <Icon
+          color={
+            props.severity === Severity.ERROR
+              ? "var(--ads-v2-colors-response-error-icon-default-fg)"
+              : "inherit"
+          }
+          name={props.icon}
+          size="md"
+        />
+        <span className={`debugger-time ${props.severity}`}>
+          {moment(parseInt(props.timestamp)).format("HH:mm:ss")}
+        </span>
 
-        {showToggleIcon && (
-          <StyledCollapse isOpen={isOpen} keepChildrenMounted>
-            {messages.map((e) => {
-              return (
-                <MessageWrapper key={e.message}>
-                  <ContextualMenu entity={props.source} error={e}>
-                    <span className="debugger-message t--debugger-message">
-                      {isString(e.message)
-                        ? e.message
-                        : JSON.stringify(e.message)}
-                    </span>
-                  </ContextualMenu>
-                </MessageWrapper>
-              );
-            })}
-            {props.state && (
-              <JsonWrapper
-                className="t--debugger-log-state"
-                onClick={(e) => e.stopPropagation()}
+        <Button
+          className={classNames(
+            `${Classes.ICON} debugger-toggle`,
+            collapsible ? "visible" : "invisible",
+          )}
+          isDisabled={!collapsible}
+          isIconButton
+          kind="tertiary"
+          onClick={() => setIsOpen(!isOpen)}
+          size="sm"
+          startIcon={"expand-more"}
+        />
+        {!(
+          collapsible &&
+          isOpen &&
+          props.category === LOG_CATEGORY.USER_GENERATED
+        ) && (
+          <div className="debugger-description">
+            {props.occurences > 1 && (
+              <span
+                className={`t--debugger-log-message-occurence debugger-occurences ${props.severity}`}
               >
-                <ReactJson src={props.state} {...reactJsonProps} />
-              </JsonWrapper>
+                {props.occurences}
+              </span>
             )}
-          </StyledCollapse>
+            <span
+              className="debugger-label t--debugger-log-message cursor-text"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {props.text}
+            </span>
+
+            {props.timeTaken && (
+              <span className={`debugger-timetaken ${props.severity}`}>
+                {props.timeTaken}
+              </span>
+            )}
+            {props.category === LOG_CATEGORY.PLATFORM_GENERATED &&
+              props.severity === Severity.ERROR && (
+                <ContextWrapper onClick={(e) => e.stopPropagation()}>
+                  <ContextualMenu
+                    entity={props.source}
+                    error={{ message: { name: "", message: "" } }}
+                  >
+                    <Button
+                      className={`${Classes.ICON}`}
+                      isIconButton
+                      kind="tertiary"
+                      size="sm"
+                      startIcon={"question"}
+                    />
+                  </ContextualMenu>
+                </ContextWrapper>
+              )}
+          </div>
+        )}
+        {props.source && (
+          <EntityLink
+            id={props.source.id}
+            name={props.source.name}
+            propertyPath={props.source.propertyPath}
+            type={props.source.type}
+            uiComponent={DebuggerLinkUI.ENTITY_NAME}
+          />
         )}
       </div>
-      {props.source && (
-        <EntityLink
-          id={props.source.id}
-          name={props.source.name}
-          type={props.source.type}
-          uiComponent={DebuggerLinkUI.ENTITY_NAME}
-        />
+
+      {collapsible && isOpen && (
+        <StyledCollapse
+          category={props.category}
+          isOpen={isOpen}
+          keepChildrenMounted
+        >
+          {messages.map((e) => {
+            return (
+              <MessageWrapper
+                key={e.message.message}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <span className="debugger-message t--debugger-message">
+                  {isString(e.message) ? e.message : e.message.message}
+                </span>
+              </MessageWrapper>
+            );
+          })}
+          {props.state && (
+            <JsonWrapper
+              className="t--debugger-log-state"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <ReactJson src={props.state} {...reactJsonProps} />
+            </JsonWrapper>
+          )}
+          {props.logData &&
+            props.logData.length > 0 &&
+            // TODO: Fix this the next time the file is edited
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            props.logData.map((logDatum: any) => {
+              if (typeof logDatum === "object") {
+                return (
+                  <JsonWrapper
+                    className="t--debugger-console-log-data"
+                    key={Math.random()}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <ReactJson src={logDatum} {...reactJsonProps} />
+                  </JsonWrapper>
+                );
+              } else {
+                return (
+                  <span className="debugger-label" key={Math.random()}>
+                    {`${logDatum} `}
+                  </span>
+                );
+              }
+            })}
+        </StyledCollapse>
       )}
     </Wrapper>
   );
 }
 
-export default LogItem;
+export default React.memo(LogItem);

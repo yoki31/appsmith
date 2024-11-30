@@ -1,24 +1,31 @@
 package com.appsmith.server.configurations;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.appsmith.server.helpers.LoadShifter;
+import com.appsmith.util.JSONPrettyPrinter;
+import com.appsmith.util.SerializationUtils;
+import com.fasterxml.jackson.core.PrettyPrinter;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import jakarta.validation.Validation;
+import jakarta.validation.Validator;
+import jakarta.validation.ValidatorFactory;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Setter;
+import org.apache.commons.codec.digest.DigestUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.util.StringUtils;
 import reactor.core.scheduler.Scheduler;
-import reactor.core.scheduler.Schedulers;
 
-import javax.validation.Validation;
-import javax.validation.Validator;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -27,13 +34,10 @@ import java.util.Set;
 @Configuration
 public class CommonConfig {
 
-    private static final String ELASTIC_THREAD_POOL_NAME = "appsmith-elastic-pool";
+    public static final Integer LATEST_INSTANCE_SCHEMA_VERSION = 2;
 
-    @Value("${appsmith.instance.name:}")
-    private String instanceName;
-
-    @Value("${signup.disabled}")
-    private boolean isSignupDisabled;
+    @Setter(AccessLevel.NONE)
+    private boolean isSignupDisabled = false;
 
     @Setter(AccessLevel.NONE)
     private Set<String> adminEmails = Collections.emptySet();
@@ -60,32 +64,60 @@ public class CommonConfig {
     @Value("${disable.telemetry:true}")
     private boolean isTelemetryDisabled;
 
+    @Value("${appsmith.observability.tracing.detail.enabled:false}")
+    private boolean tracingDetail;
+
+    @Value("${appsmith.observability.metrics.detail.enabled:false}")
+    private boolean metricsDetail;
+
+    @Value("${appsmith.observability.metrics.interval.millis:60000}")
+    private int metricsIntervalMillis;
+
     private List<String> allowedDomains;
 
+    private String mongoDBVersion;
+
+    private static final String MIN_SUPPORTED_MONGODB_VERSION = "5.0.0";
+
+    private static String adminEmailDomainHash;
+
     @Bean
-    public Scheduler scheduler() {
-        return Schedulers.newElastic(ELASTIC_THREAD_POOL_NAME);
+    public Scheduler elasticScheduler() {
+        return LoadShifter.elasticScheduler;
     }
 
     @Bean
     public Validator validator() {
-        return Validation.buildDefaultValidatorFactory().getValidator();
+        try (ValidatorFactory validatorFactory = Validation.buildDefaultValidatorFactory()) {
+            return validatorFactory.getValidator();
+        }
+    }
+
+    @Bean
+    public PrettyPrinter prettyPrinter() {
+        return new JSONPrettyPrinter();
     }
 
     @Bean
     public ObjectMapper objectMapper() {
-        ObjectMapper objectMapper = new ObjectMapper();
-        objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-        objectMapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
-        return objectMapper;
+        return SerializationUtils.getDefaultObjectMapper(null);
+    }
+
+    @Bean
+    public Gson gsonInstance() {
+        GsonBuilder gsonBuilder = new GsonBuilder();
+        SerializationUtils.typeAdapterRegistration().customize(gsonBuilder);
+        return gsonBuilder.create();
     }
 
     public List<String> getOauthAllowedDomains() {
         if (allowedDomainsForOauth == null) {
-            allowedDomainsForOauth = StringUtils.hasText(allowedDomainsForOauthString)
-                    ? Arrays.asList(allowedDomainsForOauthString.trim().split("\\s*,[,\\s]*"))
-                    : new ArrayList<>();
-            allowedDomainsForOauth.addAll(getAllowedDomains());
+            final Set<String> domains = new HashSet<>();
+            if (StringUtils.hasText(allowedDomainsForOauthString)) {
+                domains.addAll(Arrays.asList(allowedDomainsForOauthString.trim().split("\\s*,[,\\s]*")));
+            }
+            domains.addAll(getAllowedDomains());
+            allowedDomainsForOauth = new ArrayList<>(domains);
         }
 
         return allowedDomainsForOauth;
@@ -106,4 +138,27 @@ public class CommonConfig {
         adminEmails = Set.of(value.trim().split("\\s*,\\s*"));
     }
 
+    @Autowired
+    public void setSignupDisabled(@Value("${signup.disabled}") String value) {
+        // If `true`, then disable signup. If anything else, including empty string, then signups will be enabled.
+        isSignupDisabled = "true".equalsIgnoreCase(value);
+    }
+
+    public Long getCurrentTimeInstantEpochMilli() {
+        return Instant.now().toEpochMilli();
+    }
+
+    public String getAdminEmailDomainHash() {
+        if (StringUtils.hasLength(adminEmailDomainHash)) {
+            return adminEmailDomainHash;
+        }
+        adminEmailDomainHash = this.adminEmails.stream()
+                .map(email -> email.split("@"))
+                .filter(emailParts -> emailParts.length == 2)
+                .findFirst()
+                .map(email -> email[1])
+                .map(DigestUtils::sha256Hex)
+                .orElse("");
+        return adminEmailDomainHash;
+    }
 }

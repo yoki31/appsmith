@@ -1,15 +1,26 @@
-import React, { RefObject, ReactNode, useEffect, useRef } from "react";
-import styled, { css } from "styled-components";
-import { ComponentProps } from "widgets/BaseComponent";
-import { TabsWidgetProps, TabContainerWidgetProps } from "../constants";
+import type { ReactNode } from "react";
+import React, { useRef, useState, useCallback } from "react";
+import styled from "styled-components";
+import type { MaybeElement } from "@blueprintjs/core";
+import type { IconName } from "@blueprintjs/icons";
+import type { ComponentProps } from "widgets/BaseComponent";
+import { Icon, IconSize } from "@design-system/widgets-old";
 import { generateClassName, getCanvasClassName } from "utils/generators";
-import ScrollIndicator from "components/ads/ScrollIndicator";
+import { Colors } from "constants/Colors";
+import PageTabs from "./PageTabs";
+import { scrollCSS } from "widgets/WidgetUtils";
 
 interface TabsComponentProps extends ComponentProps {
   children?: ReactNode;
   shouldScrollContents?: boolean;
   selectedTabWidgetId: string;
   shouldShowTabs: boolean;
+  borderRadius: string;
+  boxShadow?: string;
+  borderWidth?: number;
+  borderColor?: string;
+  accentColor?: string;
+  primaryColor: string;
   onTabChange: (tabId: string) => void;
   tabs: Array<{
     id: string;
@@ -17,152 +28,184 @@ interface TabsComponentProps extends ComponentProps {
     widgetId: string;
     isVisible?: boolean;
   }>;
+  width: number;
+  $noScroll: boolean;
 }
 
-type ChildrenWrapperProps = Pick<TabsComponentProps, "shouldShowTabs">;
-
-const TAB_CONTAINER_HEIGHT = "40px";
-const CHILDREN_WRAPPER_HEIGHT_WITH_TABS = `calc(100% - ${TAB_CONTAINER_HEIGHT})`;
-const CHILDREN_WRAPPER_HEIGHT_WITHOUT_TABS = "100%";
-
-const scrollContents = css`
-  overflow-y: auto;
-  position: absolute;
-`;
-
 const TabsContainerWrapper = styled.div<{
-  ref: RefObject<HTMLDivElement>;
+  borderRadius: string;
+  boxShadow?: string;
+  borderWidth?: number;
+  borderColor?: string;
+  backgroundColor?: string;
 }>`
+  position: relative;
   display: flex;
   flex-direction: column;
   height: 100%;
   width: 100%;
-  justify-content: center;
+  justify-content: flex-start;
   align-items: center;
-  box-shadow: 0px 0px 0px 1px #e7e7e7;
-  border-radius: 0;
+  border-radius: ${({ borderRadius }) => borderRadius};
+  box-shadow: ${({ boxShadow }) => `${boxShadow}`} !important;
+  border-width: ${(props) => props.borderWidth}px;
+  border-color: ${(props) => props.borderColor || "transparent"};
+  background-color: ${(props) =>
+    props.backgroundColor || "var(--wds-color-bg)"};
+  border-style: solid;
   overflow: hidden;
 `;
 
-const ChildrenWrapper = styled.div<ChildrenWrapperProps>`
-  height: ${({ shouldShowTabs }) =>
-    shouldShowTabs
-      ? CHILDREN_WRAPPER_HEIGHT_WITH_TABS
-      : CHILDREN_WRAPPER_HEIGHT_WITHOUT_TABS};
-  width: 100%;
-  position: relative;
-  background: ${(props) => props.theme.colors.builderBodyBG};
-`;
+export interface TabsContainerProps {
+  isScrollable: boolean;
+}
 
-const ScrollableCanvasWrapper = styled.div<
-  TabsWidgetProps<TabContainerWidgetProps> & {
-    ref: RefObject<HTMLDivElement>;
+const Container = styled.div`
+  width: 100%;
+  align-items: flex-end;
+  height: 40px;
+
+  & {
+    svg path,
+    svg:hover path {
+      fill: ${Colors.BLACK};
+      stroke: ${(props) => props.theme.colors.header.tabText};
+    }
   }
->`
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-  ${(props) => (props.shouldScrollContents ? scrollContents : "")}
+  border-bottom: 1px solid var(--wds-color-border-onaccent);
 `;
 
-const TabsContainer = styled.div`
-  width: 100%;
-  overflow-x: auto;
-  overflow-y: hidden;
-  background: ${(props) => props.theme.colors.builderBodyBG};
-  overflow: hidden;
-  && {
-    height: ${TAB_CONTAINER_HEIGHT};
-    width: 100%;
-    display: flex;
-    justify-content: flex-start;
-    align-items: flex-start;
-  }
-`;
-
-type TabProps = {
-  selected?: boolean;
-  onClick: (e: React.MouseEvent<HTMLDivElement>) => void;
-};
-
-const StyledTab = styled.div`
-  height: 32px;
-  background: ${(props) => props.theme.colors.builderBodyBG};
-  border-bottom: 1px solid ${(props) => props.theme.colors.bodyBG};
-  border-color: ${(props) => props.theme.colors.bodyBG};
-  width: 100%;
-`;
-
-const StyledText = styled.div<TabProps>`
-  white-space: nowrap;
-  background: ${(props) => props.theme.colors.builderBodyBG};
-  color: ${(props) => props.theme.colors.menuIconColorInactive};
-  font-size: ${(props) => props.theme.fontSizes[3]}px;
-  line-height: 32px;
-  height: 32px;
-  padding: 0 16px;
-  border-bottom: ${(props) => (props.selected ? "0" : "1px")} solid;
-  border-color: ${(props) => props.theme.colors.bodyBG};
+const ScrollBtnContainer = styled.div<{ visible: boolean }>`
   cursor: pointer;
-  box-shadow: ${(props) => (props.selected ? props.theme.shadows[0] : "")};
-  &:hover {
-    background: ${(props) =>
-      props.selected
-        ? props.theme.colors.textOnDarkBG
-        : props.theme.colors.hover};
+  display: flex;
+  position: absolute;
+  height: 30px;
+  padding: 0 10px;
+
+  & > span {
+    background: white;
+    position: relative;
+    z-index: 1;
   }
-  &:first-child {
-    box-shadow: ${(props) => (props.selected ? props.theme.shadows[1] : "")};
-  }
+
+  ${(props) =>
+    props.visible
+      ? `
+      visibility: visible;
+      opacity: 1;
+      z-index: 1;
+      transition: visibility 0s linear 0s, opacity 300ms;
+    `
+      : `
+    visibility: hidden;
+    opacity: 0;
+    transition: visibility 0s linear 300ms, opacity 300ms;
+    `}
+`;
+
+export interface ScrollNavControlProps {
+  onClick: () => void;
+  icon: IconName | MaybeElement;
+  disabled?: boolean;
+  className?: string;
+}
+
+const ScrollCanvas = styled.div<{ $shouldScrollContents: boolean }>`
+  overflow: hidden;
+  ${(props) => (props.$shouldScrollContents ? scrollCSS : ``)}
+  width: 100%;
 `;
 
 function TabsComponent(props: TabsComponentProps) {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { onTabChange, ...remainingProps } = props;
-  const tabContainerRef: RefObject<HTMLDivElement> = useRef<HTMLDivElement>(
-    null,
-  );
-  const tabsRef = useRef<HTMLDivElement>(null);
+  const { onTabChange, tabs } = props;
 
-  useEffect(() => {
-    if (!props.shouldScrollContents) {
-      tabContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+  const tabsRef = useRef<HTMLElement | null>(null);
+  const [tabsScrollable, setTabsScrollable] = useState(false);
+  const [shouldShowLeftArrow, setShouldShowLeftArrow] = useState(false);
+  const [shouldShowRightArrow, setShouldShowRightArrow] = useState(true);
+
+  const setShowScrollArrows = useCallback(() => {
+    if (tabsRef.current) {
+      const { offsetWidth, scrollLeft, scrollWidth } = tabsRef.current;
+
+      setShouldShowLeftArrow(scrollLeft > 0);
+      setShouldShowRightArrow(scrollLeft + offsetWidth < scrollWidth);
     }
-  }, [props.shouldScrollContents]);
+  }, [tabsRef.current, tabs]);
+
+  const measuredTabsRef = useCallback(
+    (node) => {
+      tabsRef.current = node;
+
+      if (node !== null) {
+        const { offsetWidth, scrollWidth } = node;
+
+        setTabsScrollable(scrollWidth > offsetWidth);
+        setShowScrollArrows();
+      }
+    },
+    [tabs],
+  );
+
+  const scroll = useCallback(
+    (isScrollingLeft) => {
+      const currentOffset = tabsRef.current?.scrollLeft || 0;
+
+      if (tabsRef.current) {
+        tabsRef.current.scrollLeft = isScrollingLeft
+          ? currentOffset - 50
+          : currentOffset + 50;
+        setShowScrollArrows();
+      }
+    },
+    [tabsRef.current],
+  );
 
   return (
-    <TabsContainerWrapper ref={tabContainerRef}>
-      {props.shouldShowTabs ? (
-        <TabsContainer ref={tabsRef}>
-          {props.tabs.map((tab, index) => (
-            <StyledText
-              className={`t--tab-${tab.label}`}
-              key={index}
-              onClick={(event: React.MouseEvent<HTMLDivElement>) => {
-                onTabChange(tab.widgetId);
-                event.stopPropagation();
-              }}
-              selected={props.selectedTabWidgetId === tab.widgetId}
-            >
-              {tab.label}
-            </StyledText>
-          ))}
-          <StyledTab />
-          <ScrollIndicator containerRef={tabContainerRef} mode="LIGHT" />
-        </TabsContainer>
-      ) : (
-        undefined
+    <TabsContainerWrapper
+      backgroundColor={props.backgroundColor}
+      borderColor={props.borderColor}
+      borderRadius={props.borderRadius}
+      borderWidth={props.borderWidth}
+      boxShadow={props.boxShadow}
+    >
+      {props.shouldShowTabs && (
+        <Container className="relative flex px-6 h-9">
+          <ScrollBtnContainer
+            className="left-0 cursor-pointer scroll-nav-left-button"
+            onClick={() => scroll(true)}
+            visible={shouldShowLeftArrow}
+          >
+            <Icon name="left-arrow-2" size={IconSize.MEDIUM} />
+          </ScrollBtnContainer>
+          <PageTabs
+            accentColor={props.accentColor}
+            backgroundColor={props.backgroundColor}
+            measuredTabsRef={measuredTabsRef}
+            selectedTabWidgetId={props.selectedTabWidgetId}
+            setShowScrollArrows={setShowScrollArrows}
+            tabChange={onTabChange}
+            tabs={tabs}
+            tabsScrollable={tabsScrollable}
+          />
+          <ScrollBtnContainer
+            className="right-0 cursor-pointer scroll-nav-right-button"
+            onClick={() => scroll(false)}
+            visible={shouldShowRightArrow}
+          >
+            <Icon name="right-arrow-2" size={IconSize.MEDIUM} />
+          </ScrollBtnContainer>
+        </Container>
       )}
-      <ChildrenWrapper shouldShowTabs={props.shouldShowTabs}>
-        <ScrollableCanvasWrapper
-          {...remainingProps}
-          className={`${
-            props.shouldScrollContents ? getCanvasClassName() : ""
-          } ${generateClassName(props.widgetId)}`}
-        >
-          {props.children}
-        </ScrollableCanvasWrapper>
-      </ChildrenWrapper>
+
+      <ScrollCanvas
+        $shouldScrollContents={!!props.shouldScrollContents && !props.$noScroll}
+        className={`${
+          props.shouldScrollContents ? getCanvasClassName() : ""
+        } ${generateClassName(props.widgetId)}`}
+      >
+        {props.children}
+      </ScrollCanvas>
     </TabsContainerWrapper>
   );
 }

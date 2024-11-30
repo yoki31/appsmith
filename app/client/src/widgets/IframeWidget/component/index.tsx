@@ -2,15 +2,21 @@ import React, { useEffect, useRef, useState } from "react";
 import styled from "styled-components";
 import { hexToRgba } from "widgets/WidgetUtils";
 
-import { ComponentProps } from "widgets/BaseComponent";
-import { AppState } from "reducers";
-import { useSelector } from "store";
-import { RenderMode, RenderModes } from "constants/WidgetConstants";
+import type { ComponentProps } from "widgets/BaseComponent";
+import { useSelector } from "react-redux";
+import { getWidgetPropsForPropertyPane } from "selectors/propertyPaneSelectors";
+import { getAppMode } from "ee/selectors/applicationSelectors";
+import { APP_MODE } from "entities/App";
+import type { RenderMode } from "constants/WidgetConstants";
+import { getAppsmithConfigs } from "ee/configs";
+import { combinedPreviewModeSelector } from "selectors/editorSelectors";
 
 interface IframeContainerProps {
   borderColor?: string;
   borderOpacity?: number;
   borderWidth?: number;
+  borderRadius: string;
+  boxShadow?: string;
 }
 
 export const IframeContainer = styled.div<IframeContainerProps>`
@@ -19,7 +25,7 @@ export const IframeContainer = styled.div<IframeContainerProps>`
   align-items: center;
   justify-content: center;
   height: 100%;
-  background-color: #ffffff;
+  width: 100%;
   font-weight: bold;
 
   iframe {
@@ -35,6 +41,8 @@ export const IframeContainer = styled.div<IframeContainerProps>`
       )};
     border-width: ${(props) =>
       props.borderWidth ? Number(props.borderWidth) : 0}px;
+    border-radius: ${({ borderRadius }) => borderRadius};
+    box-shadow: ${({ boxShadow }) => `${boxShadow}`} !important;
   }
 `;
 
@@ -46,15 +54,21 @@ const OverlayDiv = styled.div`
   height: 100%;
 `;
 
+const { disableIframeWidgetSandbox } = getAppsmithConfigs();
+
 export interface IframeComponentProps extends ComponentProps {
   renderMode: RenderMode;
   source: string;
+  srcDoc?: string;
   title?: string;
   onURLChanged: (url: string) => void;
+  onSrcDocChanged: (srcDoc?: string) => void;
   onMessageReceived: (message: MessageEvent) => void;
   borderColor?: string;
   borderOpacity?: number;
   borderWidth?: number;
+  borderRadius: string;
+  boxShadow?: string;
 }
 
 function IframeComponent(props: IframeComponentProps) {
@@ -63,57 +77,114 @@ function IframeComponent(props: IframeComponentProps) {
     borderOpacity,
     borderWidth,
     onMessageReceived,
+    onSrcDocChanged,
     onURLChanged,
-    renderMode,
     source,
+    srcDoc,
     title,
     widgetId,
+    widgetName,
   } = props;
 
-  const isFirstRender = useRef(true);
+  const frameRef = useRef<HTMLIFrameElement>(null);
+
+  const isFirstSrcURLRender = useRef(true);
+  const isFirstSrcDocRender = useRef(true);
 
   const [message, setMessage] = useState("");
 
   useEffect(() => {
+    const handler = (event: MessageEvent) => {
+      const iframeWindow =
+        frameRef.current?.contentWindow ||
+        frameRef.current?.contentDocument?.defaultView;
+
+      // Accept messages only from the current iframe
+      if (event.source !== iframeWindow) return;
+
+      onMessageReceived(event);
+    };
+
     // add a listener
-    window.addEventListener("message", onMessageReceived, false);
+    window.addEventListener("message", handler, false);
+
     // clean up
-    return () =>
-      window.removeEventListener("message", onMessageReceived, false);
+    return () => window.removeEventListener("message", handler, false);
   }, []);
 
   useEffect(() => {
-    if (isFirstRender.current) {
-      isFirstRender.current = false;
+    if (isFirstSrcURLRender.current) {
+      isFirstSrcURLRender.current = false;
+
       return;
     }
+
     onURLChanged(source);
-    if (!source) {
-      setMessage("Valid source url is required");
-    } else {
+
+    if (source || srcDoc) {
       setMessage("");
+    } else {
+      setMessage("Valid source URL is required");
     }
   }, [source]);
 
-  const isPropertyPaneVisible = useSelector(
-    (state: AppState) => state.ui.propertyPane.isVisible,
-  );
-  const selectedWidgetId = useSelector(
-    (state: AppState) => state.ui.propertyPane.widgetId,
-  );
+  useEffect(() => {
+    if (isFirstSrcDocRender.current) {
+      isFirstSrcDocRender.current = false;
+
+      return;
+    }
+
+    onSrcDocChanged(srcDoc);
+
+    if (srcDoc || source) {
+      setMessage("");
+    } else {
+      setMessage("At least either of source URL or srcDoc is required");
+    }
+  }, [srcDoc]);
+
+  const appMode = useSelector(getAppMode);
+  const isPreviewMode = useSelector(combinedPreviewModeSelector);
+  const selectedWidget = useSelector(getWidgetPropsForPropertyPane);
 
   return (
     <IframeContainer
       borderColor={borderColor}
       borderOpacity={borderOpacity}
+      borderRadius={props.borderRadius}
       borderWidth={borderWidth}
+      boxShadow={props.boxShadow}
     >
-      {renderMode === RenderModes.CANVAS &&
-        !(isPropertyPaneVisible && widgetId === selectedWidgetId) && (
-          <OverlayDiv />
-        )}
+      {appMode === APP_MODE.EDIT &&
+        !isPreviewMode &&
+        widgetId !== selectedWidget?.widgetId && <OverlayDiv />}
 
-      {message ? message : <iframe src={source} title={title} />}
+      {message ? (
+        message
+      ) : srcDoc ? (
+        <iframe
+          allow="camera; microphone"
+          id={`iframe-${widgetName}`}
+          ref={frameRef}
+          sandbox={
+            disableIframeWidgetSandbox
+              ? undefined
+              : "allow-forms allow-modals allow-orientation-lock allow-pointer-lock allow-popups allow-scripts allow-top-navigation-by-user-activation"
+          }
+          src={source}
+          srcDoc={srcDoc}
+          title={title}
+        />
+      ) : (
+        <iframe
+          allow="camera; microphone"
+          id={`iframe-${widgetName}`}
+          ref={frameRef}
+          src={source}
+          title={title}
+        />
+      )}
     </IframeContainer>
   );
 }

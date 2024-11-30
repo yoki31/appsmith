@@ -1,109 +1,129 @@
-import React from "react";
-import { Link, useLocation } from "react-router-dom";
-import { connect } from "react-redux";
+import React, { useEffect } from "react";
+import { useRouteMatch } from "react-router-dom";
+import { connect, useDispatch, useSelector } from "react-redux";
 import { getCurrentUser } from "selectors/usersSelectors";
-import styled, { css } from "styled-components";
+import styled from "styled-components";
 import StyledHeader from "components/designSystems/appsmith/StyledHeader";
-import { ReactComponent as AppsmithLogo } from "assets/svg/appsmith_logo_primary.svg";
-import { AppState } from "reducers";
-import { User, ANONYMOUS_USERNAME } from "constants/userConstants";
-import { AUTH_LOGIN_URL, APPLICATIONS_URL } from "constants/routes";
-import Button from "components/editorComponents/Button";
-import history from "utils/history";
-import ProfileDropdown from "./ProfileDropdown";
-import Bell from "notifications/Bell";
+import type { AppState } from "ee/reducers";
+import type { User } from "constants/userConstants";
+import { useIsMobileDevice } from "utils/hooks/useDeviceDetect";
+import { getTemplateNotificationSeenAction } from "actions/templateActions";
+import { shouldShowLicenseBanner } from "ee/selectors/tenantSelectors";
+import { Banner } from "ee/utils/licenseHelpers";
+import bootIntercom from "utils/bootIntercom";
+import EntitySearchBar from "pages/common/SearchBar/EntitySearchBar";
+import { Switch, Tooltip } from "@appsmith/ads";
+import { getIsAnvilLayoutEnabled } from "layoutSystems/anvil/integrations/selectors";
+import { useFeatureFlag } from "utils/hooks/useFeatureFlag";
+import { FEATURE_FLAG } from "ee/entities/FeatureFlag";
+import { setFeatureFlagOverrideValues } from "utils/storage";
+import { updateFeatureFlagOverrideAction } from "actions/featureFlagActions";
 
 const StyledPageHeader = styled(StyledHeader)<{
   hideShadow?: boolean;
+  isMobile?: boolean;
   showSeparator?: boolean;
+  isBannerVisible?: boolean;
 }>`
-  background: white;
+  justify-content: space-between;
+  background: var(--ads-v2-color-bg);
   height: 48px;
-  color: white;
-  flex-direction: row;
+  color: var(--ads-v2-color-bg);
   position: fixed;
   top: 0;
-  z-index: 10;
-  box-shadow: ${(props) =>
-    props.hideShadow ? `none` : `0px 4px 4px rgba(0, 0, 0, 0.05)`};
-  ${(props) => props.showSeparator && sideBorder}
-`;
+  z-index: var(--ads-v2-z-index-9);
+  border-bottom: 1px solid var(--ads-v2-color-border);
+  ${({ isMobile }) =>
+    isMobile &&
+    `
+    padding: 0 12px;
+    padding-left: 10px;
+    `};
+  ${({ isBannerVisible, isMobile }) =>
+    isBannerVisible ? (isMobile ? `top: 70px;` : `top: 40px;`) : ""};
 
-const HeaderSection = styled.div`
-  display: flex;
-  flex: 1;
-  align-items: center;
-
-  .t--appsmith-logo {
-    svg {
-      max-width: 110px;
-      width: 110px;
+  /* intentionally "hacky" approach to show the Anvil toggle in the header. This will be removed once all features work well with Anvil */
+  & .ads-v2-switch {
+    display: block;
+    width: 100%;
+    position: absolute;
+    left: 175px;
+    top: 12px;
+    width: 30px;
+    & > label {
+      min-width: 0;
+      flex-direction: row-reverse;
     }
   }
 `;
 
-const sideBorder = css`
-  &:after {
-    content: "";
-    position: absolute;
-    left: ${(props) => props.theme.homePage.sidebar}px;
-    width: 1px;
-    height: 100%;
-    background-color: #ededed;
-  }
-`;
-
-const StyledDropDownContainer = styled.div``;
-
-type PageHeaderProps = {
+interface PageHeaderProps {
   user?: User;
   hideShadow?: boolean;
   showSeparator?: boolean;
-};
+  hideEditProfileLink?: boolean;
+}
 
 export function PageHeader(props: PageHeaderProps) {
   const { user } = props;
-  const location = useLocation();
-  const queryParams = new URLSearchParams(location.search);
-  let loginUrl = AUTH_LOGIN_URL;
-  if (queryParams.has("redirectUrl")) {
-    loginUrl += `?redirectUrl
-    =${queryParams.get("redirectUrl")}`;
+  const dispatch = useDispatch();
+
+  const isMobile = useIsMobileDevice();
+
+  useEffect(() => {
+    dispatch(getTemplateNotificationSeenAction());
+  }, []);
+
+  useEffect(() => {
+    bootIntercom(user);
+  }, [user?.email]);
+
+  const showBanner = useSelector(shouldShowLicenseBanner);
+  const isHomePage = useRouteMatch("/applications")?.isExact;
+  const isLicensePage = useRouteMatch("/license")?.isExact;
+  const isAnvilEnabled = useSelector(getIsAnvilLayoutEnabled);
+  const shouldShowAnvilToggle = useFeatureFlag(
+    FEATURE_FLAG.release_anvil_toggle_enabled,
+  );
+
+  /*
+    If Anvil toggle is enabled, the switch allows us to enable or disable Anvil
+    We pass the anvil feature's value via the toggle. We also passthrough the original
+    anvil toggle feature flag value as-is.
+  */
+  function handleAnvilToggle(isSelected: boolean) {
+    const featureFlags = {
+      release_anvil_enabled: isSelected,
+      release_anvil_toggle_enabled: shouldShowAnvilToggle,
+    };
+
+    dispatch(updateFeatureFlagOverrideAction(featureFlags));
+    setFeatureFlagOverrideValues(featureFlags);
   }
 
   return (
-    <StyledPageHeader
-      hideShadow={props.hideShadow || false}
-      showSeparator={props.showSeparator || false}
-    >
-      <HeaderSection>
-        <Link className="t--appsmith-logo" to={APPLICATIONS_URL}>
-          <AppsmithLogo />
-        </Link>
-      </HeaderSection>
-      {user && (
-        <>
-          {user.username !== ANONYMOUS_USERNAME && <Bell />}
-          <StyledDropDownContainer>
-            {user.username === ANONYMOUS_USERNAME ? (
-              <Button
-                filled
-                intent={"primary"}
-                onClick={() => history.push(loginUrl)}
-                size="small"
-                text="Sign In"
-              />
-            ) : (
-              <ProfileDropdown
-                name={user.name}
-                photoId={user.photoId}
-                userName={user.username}
-              />
-            )}
-          </StyledDropDownContainer>
-        </>
-      )}
-    </StyledPageHeader>
+    <>
+      <Banner />
+      <StyledPageHeader
+        data-testid="t--appsmith-page-header"
+        hideShadow={props.hideShadow || false}
+        isBannerVisible={showBanner && (isHomePage || isLicensePage)}
+        isMobile={isMobile}
+        showSeparator={props.showSeparator || false}
+      >
+        {
+          // Based on a feature flag, show the switch that enables/disables Anvil
+          shouldShowAnvilToggle && (
+            <Switch isSelected={isAnvilEnabled} onChange={handleAnvilToggle}>
+              <Tooltip content="Toggles Anvil Layout System" trigger="hover">
+                <b>&alpha;</b>
+              </Tooltip>
+            </Switch>
+          )
+        }
+        <EntitySearchBar user={user} />
+      </StyledPageHeader>
+    </>
   );
 }
 

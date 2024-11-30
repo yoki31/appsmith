@@ -1,15 +1,16 @@
 import React, { Component } from "react";
 import styled from "styled-components";
-import { WrappedFieldInputProps, WrappedFieldMetaProps } from "redux-form";
-import {
+import type { WrappedFieldInputProps, WrappedFieldMetaProps } from "redux-form";
+import type {
   IconName,
   IInputGroupProps,
   IIntentProps,
-  InputGroup,
   MaybeElement,
 } from "@blueprintjs/core";
-import { ComponentProps } from "widgets/BaseComponent";
+import { InputGroup } from "@blueprintjs/core";
+import type { ComponentProps } from "widgets/BaseComponent";
 import { Colors } from "constants/Colors";
+import { replayHighlightClass } from "globalStyles/portals";
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export const TextInput = styled(({ hasError, ...rest }) => (
@@ -30,7 +31,9 @@ export const TextInput = styled(({ hasError, ...rest }) => (
       props.hasError ? Colors.DANGER_SOLID : Colors.CODE_GRAY};
     &:focus {
       border-color: ${(props) =>
-        props.hasError ? props.theme.colors.error : Colors.CRUSTA};
+        props.hasError
+          ? props.theme.colors.error
+          : "var(--appsmith-input-focus-border-color)"};
       background-color: ${(props) => props.theme.colors.textOnDarkBG};
       outline: 0;
       box-shadow: none;
@@ -88,6 +91,8 @@ export interface TextInputProps extends IInputGroupProps {
   /** Additional classname */
   className?: string;
   type?: string;
+  // TODO: Fix this the next time the file is edited
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   refHandler?: any;
   noValidate?: boolean;
   readonly?: boolean;
@@ -108,25 +113,21 @@ export class BaseTextInput extends Component<TextInputProps, TextInputState> {
 
   handleFocus = (e: React.FocusEvent) => {
     this.setState({ inputIsFocused: true });
+
     if (this.props.input && this.props.input.onFocus) {
       this.props.input.onFocus(e);
     }
   };
   handleBlur = (e: React.FocusEvent) => {
     this.setState({ inputIsFocused: false });
+
     if (this.props.input && this.props.input.onBlur) {
       this.props.input.onBlur(e);
     }
   };
   render() {
-    const {
-      className,
-      input,
-      meta,
-      refHandler,
-      showError,
-      ...rest
-    } = this.props;
+    const { className, input, meta, refHandler, showError, ...rest } =
+      this.props;
     const hasError = !!(
       showError &&
       meta &&
@@ -144,6 +145,8 @@ export class BaseTextInput extends Component<TextInputProps, TextInputState> {
           onBlur={this.handleBlur}
           onFocus={this.handleFocus}
           {...rest}
+          className={replayHighlightClass}
+          tabIndex={0}
         />
         {hasError && <TextInputError>{meta ? meta.error : ""}</TextInputError>}
       </InputContainer>

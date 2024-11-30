@@ -1,3 +1,10 @@
+// Mocks for static fields set on the `CodeMirror` object
+const MockCodemirrorNamespace = {
+  Pos: jest.fn(),
+  on: jest.fn(),
+};
+
+// Mocks for fields of the CodeMirror instance
 export const MockCodemirrorEditor = {
   setOption: jest.fn(),
   options: {
@@ -10,6 +17,9 @@ export const MockCodemirrorEditor = {
   closeHint: jest.fn(),
   getRange: jest.fn(),
   getDoc: jest.fn(),
+  getTokenAt: jest.fn(),
+  getMode: jest.fn(),
+  constructor: MockCodemirrorNamespace,
 };
 
 export const mockCodemirrorRender = () => {
@@ -18,8 +28,7 @@ export const mockCodemirrorRender = () => {
 
     range.getBoundingClientRect = jest.fn();
 
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    // @ts-ignore
+    // @ts-expect-error: Types are not available
     range.getClientRects = jest.fn(() => ({
       item: () => null,
       length: 0,

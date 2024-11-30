@@ -7,5 +7,4 @@ public class ConfigNames {
 
     // Disallow instantiation of this class.
     private ConfigNames() {}
-
 }

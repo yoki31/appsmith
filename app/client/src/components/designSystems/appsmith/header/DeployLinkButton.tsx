@@ -1,84 +1,38 @@
-import React, { ReactNode, useState } from "react";
-import styled, { withTheme } from "styled-components";
-import { Icon, Popover, PopoverPosition } from "@blueprintjs/core";
-import { Theme } from "constants/DefaultTheme";
+import type { ReactNode } from "react";
+import React from "react";
+import { Menu, MenuItem, MenuContent, MenuTrigger } from "@appsmith/ads";
 import { useSelector, useDispatch } from "react-redux";
-import { getIsGitConnected } from "../../../../selectors/gitSyncSelectors";
-import getFeatureFlags from "utils/featureFlags";
+import { getIsGitConnected } from "selectors/gitSyncSelectors";
 import { setIsGitSyncModalOpen } from "actions/gitSyncActions";
 import { GitSyncModalTab } from "entities/GitSync";
-import { Colors } from "constants/Colors";
+import AnalyticsUtil from "ee/utils/AnalyticsUtil";
+import {
+  CONNECT_TO_GIT_OPTION,
+  CURRENT_DEPLOY_PREVIEW_OPTION,
+} from "ee/constants/messages";
+import { Button } from "@appsmith/ads";
+import { KBEditorMenuItem } from "ee/pages/Editor/KnowledgeBase/KBEditorMenuItem";
+import { useHasConnectToGitPermission } from "pages/Editor/gitSync/hooks/gitPermissionHooks";
+import { getIsAnvilEnabledInCurrentApplication } from "layoutSystems/anvil/integrations/selectors";
 
-import { ReactComponent as GitBranch } from "assets/icons/ads/git-branch.svg";
-
-const DeployLinkDialog = styled.div`
-  flex-direction: column;
-  display: flex;
-  align-items: center;
-  /* padding: 10px; */
-  background-color: ${(props) =>
-    props.theme.colors.header.deployToolTipBackground};
-`;
-
-const DeployLink = styled.a`
-  display: flex;
-  height: 36px;
-
-  width: 100%;
-  justify-content: center;
-  align-items: center;
-  cursor: pointer;
-  text-decoration: none;
-  color: ${Colors.GREY_10};
-  background-color: ${Colors.GREY_1};
-  margin: 0 5px;
-  :hover {
-    text-decoration: none;
-    color: ${(props) => props.theme.colors.header.deployToolTipText};
-    background-color: ${Colors.GREY_2};
-  }
-`;
-
-const DeployUrl = styled.div`
-  flex: 1;
-  font-size: 14px;
-  color: ${Colors.GREY_10};
-  font-weight: 400;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-`;
-
-const GitBranchIcon = styled(GitBranch)`
-  & path {
-    fill: ${Colors.GREY_10};
-  }
-`;
-
-const IconWrapper = styled.div`
-  display: flex;
-  width: 30px;
-  justify-content: center;
-`;
-
-type Props = {
+interface Props {
   trigger: ReactNode;
   link: string;
-  theme: Theme;
-};
+}
 
-export const DeployLinkButton = withTheme((props: Props) => {
-  const [isOpen, setIsOpen] = useState(false);
+export const DeployLinkButton = (props: Props) => {
   const dispatch = useDispatch();
-
   const isGitConnected = useSelector(getIsGitConnected);
-
-  const onClose = () => {
-    setIsOpen(false);
-  };
+  const isConnectToGitPermitted = useHasConnectToGitPermission();
+  // We check if the current application is an Anvil application.
+  // If it is an Anvil application, we remove the Git features from the deploy button
+  // as they donot yet work correctly with Anvil.
+  const isAnvilEnabled = useSelector(getIsAnvilEnabledInCurrentApplication);
 
   const goToGitConnectionPopup = () => {
-    setIsOpen(false);
+    AnalyticsUtil.logEvent("GS_CONNECT_GIT_CLICK", {
+      source: "Deploy button",
+    });
     dispatch(
       setIsGitSyncModalOpen({
         isOpen: true,
@@ -88,38 +42,41 @@ export const DeployLinkButton = withTheme((props: Props) => {
   };
 
   return (
-    <Popover
-      canEscapeKeyClose={false}
-      content={
-        <DeployLinkDialog>
-          {getFeatureFlags().GIT && !isGitConnected && (
-            <DeployLink onClick={goToGitConnectionPopup}>
-              <IconWrapper>
-                <GitBranchIcon />
-              </IconWrapper>
-              <DeployUrl>Connect to Git Repository</DeployUrl>
-            </DeployLink>
-          )}
-
-          <DeployLink href={props.link} onClick={onClose} target="_blank">
-            <IconWrapper>
-              <Icon
-                color={props.theme.colors.header.deployToolTipText}
-                icon="share"
-              />
-            </IconWrapper>
-            <DeployUrl>Current deployed version</DeployUrl>
-          </DeployLink>
-        </DeployLinkDialog>
-      }
-      isOpen={isOpen}
-      modifiers={{ offset: { enabled: true, offset: "0, -3" } }}
-      onClose={onClose}
-      position={PopoverPosition.BOTTOM_RIGHT}
-    >
-      <div onClick={() => setIsOpen(true)}>{props.trigger}</div>
-    </Popover>
+    <Menu>
+      <MenuTrigger>
+        <Button
+          className="t--deploy-popup-option-trigger"
+          isIconButton
+          kind="tertiary"
+          size="md"
+          startIcon={"down-arrow"}
+        />
+      </MenuTrigger>
+      <MenuContent>
+        {!isGitConnected && isConnectToGitPermitted && !isAnvilEnabled && (
+          <MenuItem
+            className="t--connect-to-git-btn"
+            onClick={goToGitConnectionPopup}
+            startIcon="git-branch"
+          >
+            {CONNECT_TO_GIT_OPTION()}
+          </MenuItem>
+        )}
+        <MenuItem
+          className="t--current-deployed-preview-btn"
+          onClick={() => {
+            if (window) {
+              window.open(props.link, "_blank")?.focus();
+            }
+          }}
+          startIcon="share-box-line"
+        >
+          {CURRENT_DEPLOY_PREVIEW_OPTION()}
+        </MenuItem>
+        <KBEditorMenuItem />
+      </MenuContent>
+    </Menu>
   );
-});
+};
 
 export default DeployLinkButton;

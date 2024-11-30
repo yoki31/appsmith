@@ -1,32 +1,35 @@
-import { getCanvasWidgetsPayload } from "sagas/PageSagas";
-import { updateCurrentPage } from "actions/pageActions";
-import { editorInitializer } from "utils/EditorUtils";
-import {
-  PageListPayload,
-  ReduxActionTypes,
-} from "constants/ReduxActionConstants";
-import { initEditor } from "actions/initActions";
-import { useDispatch } from "react-redux";
-import { extractCurrentDSL } from "utils/WidgetPropsUtils";
-import { setAppMode } from "actions/pageActions";
+import { ReduxActionTypes } from "ee/constants/ReduxActionConstants";
+import { initEditorAction } from "actions/initActions";
+import { setAppMode, updateCurrentPage } from "actions/pageActions";
 import { APP_MODE } from "entities/App";
-import { createSelector } from "reselect";
-import { CanvasWidgetsReduxState } from "reducers/entityReducers/canvasWidgetsReducer";
-import { getCanvasWidgets } from "selectors/entitiesSelector";
+import { useDispatch } from "react-redux";
+import type { CanvasWidgetsReduxState } from "reducers/entityReducers/canvasWidgetsReducer";
+import { getCanvasWidgetsPayload } from "ee/sagas/PageSagas";
+import { editorInitializer } from "utils/editor/EditorUtils";
+import { extractCurrentDSL } from "utils/WidgetPropsUtils";
+import type { AppState } from "ee/reducers";
+import type { WidgetEntity } from "ee/entities/DataTree/types";
+import urlBuilder from "ee/entities/URLRedirect/URLAssembly";
+import type { FlattenedWidgetProps } from "reducers/entityReducers/canvasWidgetsStructureReducer";
+import type { Page } from "entities/Page";
+import { useEffect, useState } from "react";
+import type { FetchPageResponse } from "api/PageApi";
 
-import CanvasWidgetsNormalizer from "normalizers/CanvasWidgetsNormalizer";
-import { DSLWidget } from "widgets/constants";
+const pageId = "0123456789abcdef00000000";
 
-export const useMockDsl = (dsl: any) => {
+export const useMockDsl = (dsl: unknown, mode?: APP_MODE) => {
   const dispatch = useDispatch();
-  dispatch(setAppMode(APP_MODE.EDIT));
-  const mockResp: any = {
+  const [hasLoaded, setHasLoaded] = useState(false);
+
+  const mockResp = {
     data: {
-      id: "page_id",
+      id: pageId,
+      pageId: pageId,
       name: "Page1",
       applicationId: "app_id",
       isDefault: true,
       isHidden: false,
+      slug: "page-1",
       layouts: [
         {
           id: "layout_id",
@@ -35,81 +38,218 @@ export const useMockDsl = (dsl: any) => {
           layoutActions: [],
         },
       ],
+      userPermissions: [
+        "read:pages",
+        "manage:pages",
+        "create:pageActions",
+        "delete:pages",
+      ],
     },
-  };
-  const canvasWidgetsPayload = getCanvasWidgetsPayload(mockResp);
-  dispatch({
-    type: ReduxActionTypes.FETCH_PAGE_DSLS_SUCCESS,
-    payload: [
-      {
-        pageId: mockResp.data.id,
-        dsl: extractCurrentDSL(mockResp),
-      },
-    ],
-  });
-  const pages: PageListPayload = [
-    {
-      pageName: mockResp.data.name,
-      pageId: mockResp.data.id,
-      isDefault: mockResp.data.isDefault,
-      isHidden: !!mockResp.data.isHidden,
-    },
-  ];
-  dispatch({
-    type: ReduxActionTypes.FETCH_PAGE_LIST_SUCCESS,
-    payload: {
-      pages,
-      applicationId: mockResp.data.applicationId,
-    },
-  });
-  dispatch({
-    type: "UPDATE_LAYOUT",
-    payload: { widgets: canvasWidgetsPayload.widgets },
-  });
+  } as unknown as FetchPageResponse;
 
-  dispatch(updateCurrentPage(mockResp.data.id));
+  useEffect(function loadScripts() {
+    const loadMigrationScripts = async () => {
+      const canvasWidgetsPayloadD = await getCanvasWidgetsPayload(mockResp);
+      const currentDSL = await extractCurrentDSL({
+        response: mockResp,
+      });
+
+      const currentDsl = currentDSL.dsl;
+      const canvasWidgetsPayload = canvasWidgetsPayloadD.widgets;
+
+      dispatch(setAppMode(mode || APP_MODE.EDIT));
+
+      dispatch({
+        type: ReduxActionTypes.FETCH_PAGE_DSLS_SUCCESS,
+        payload: [
+          {
+            pageId: mockResp.data.id,
+            dsl: currentDsl,
+          },
+        ],
+      });
+      const pages = [
+        {
+          pageName: mockResp.data.name,
+          pageId: mockResp.data.id,
+          basePageId: mockResp.data.id,
+          isDefault: mockResp.data.isDefault,
+          isHidden: !!mockResp.data.isHidden,
+          slug: mockResp.data.slug,
+          userPermissions: [
+            "read:pages",
+            "manage:pages",
+            "create:pageActions",
+            "delete:pages",
+          ],
+        },
+      ] as unknown as Page[];
+
+      dispatch({
+        type: ReduxActionTypes.FETCH_PAGE_LIST_SUCCESS,
+        payload: {
+          pages,
+          applicationId: mockResp.data.applicationId,
+        },
+      });
+      dispatch({
+        type: "UPDATE_LAYOUT",
+        payload: { widgets: canvasWidgetsPayload },
+      });
+
+      dispatch(updateCurrentPage(mockResp.data.id));
+      setHasLoaded(true);
+    };
+
+    loadMigrationScripts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return hasLoaded;
 };
-export function MockPageDSL({ children, dsl }: any) {
+
+export function MockPageDSL({
+  children,
+  dsl,
+}: {
+  children: JSX.Element;
+  dsl?: unknown;
+}) {
   editorInitializer();
-  useMockDsl(dsl);
-  return children;
+
+  const hasLoaded = useMockDsl(dsl);
+
+  return hasLoaded ? children : null;
 }
 
-export const mockGetCanvasWidgetDsl = createSelector(
-  getCanvasWidgets,
-  (canvasWidgets: CanvasWidgetsReduxState): DSLWidget => {
-    return CanvasWidgetsNormalizer.denormalize("0", {
-      canvasWidgets,
+const getChildWidgets = (
+  canvasWidgets: CanvasWidgetsReduxState,
+  widgetId: string,
+) => {
+  const parentWidget = canvasWidgets[widgetId];
+
+  if (parentWidget.children) {
+    return parentWidget.children.map((childWidgetId) => {
+      const childWidget = { ...canvasWidgets[childWidgetId] } as WidgetEntity;
+
+      if (childWidget?.children?.length > 0) {
+        childWidget.children = getChildWidgets(canvasWidgets, childWidgetId);
+      }
+
+      return childWidget;
     });
-  },
-);
+  }
+
+  return [];
+};
+
+export const mockGetChildWidgets = (state: AppState, widgetId: string) => {
+  return getChildWidgets(state.entities.canvasWidgets, widgetId);
+};
+
+export const mockGetPagePermissions = () => {
+  return ["read:pages", "manage:pages", "create:pageActions", "delete:pages"];
+};
+
+export const mockCreateCanvasWidget = (
+  canvasWidget: FlattenedWidgetProps,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  evaluatedWidget: WidgetEntity,
+) => {
+  return { ...canvasWidget };
+};
+
+export const mockGetWidgetEvalValues = (
+  state: AppState,
+  widgetName: string,
+) => {
+  return Object.values(state.entities.canvasWidgets).find(
+    (widget) => widget.widgetName === widgetName,
+  ) as WidgetEntity;
+};
 
 export const syntheticTestMouseEvent = (
   event: MouseEvent,
   optionsToAdd = {},
 ) => {
   const options = Object.entries(optionsToAdd);
+
   options.forEach(([key, value]) => {
     Object.defineProperty(event, key, { get: () => value });
   });
+
   return event;
 };
 
-export function MockApplication({ children }: any) {
+export function MockApplication({ children }: { children: JSX.Element }) {
   editorInitializer();
   const dispatch = useDispatch();
-  dispatch(initEditor("app_id", "page_id"));
-  const mockResp: any = {
-    organizationId: "org_id",
-    pages: [{ id: "page_id", name: "Page1", isDefault: true }],
+
+  dispatch(initEditorAction({ basePageId: pageId, mode: APP_MODE.EDIT }));
+
+  const mockResp = {
+    workspaceId: "workspace_id",
+    pages: [
+      {
+        id: pageId,
+        baseId: pageId,
+        pageId: pageId,
+        name: "Page1",
+        isDefault: true,
+        slug: "page-1",
+        userPermissions: [
+          "read:pages",
+          "manage:pages",
+          "create:pageActions",
+          "delete:pages",
+        ],
+      },
+    ],
     id: "app_id",
+    baseId: "app_id",
     isDefault: true,
-    name: "Page1",
+    name: "appName",
+    slug: "app-name",
+    applicationVersion: 2,
   };
+
+  urlBuilder.updateURLParams(
+    {
+      baseApplicationId: mockResp.baseId,
+      applicationSlug: mockResp.slug,
+      applicationVersion: mockResp.applicationVersion,
+    },
+    [
+      {
+        basePageId: mockResp.pages[0].baseId,
+        pageSlug: mockResp.pages[0].slug,
+      },
+    ],
+  );
   dispatch({
     type: ReduxActionTypes.FETCH_APPLICATION_SUCCESS,
     payload: mockResp,
   });
+  dispatch({
+    type: ReduxActionTypes.FETCH_PAGE_LIST_SUCCESS,
+    payload: {
+      pages: mockResp.pages,
+    },
+  });
+  dispatch({
+    type: ReduxActionTypes.SWITCH_CURRENT_PAGE_ID,
+    payload: {
+      id: pageId,
+      slug: "page-1",
+      permissions: [
+        "read:pages",
+        "manage:pages",
+        "create:pageActions",
+        "delete:pages",
+      ],
+    },
+  });
+
   return children;
 }
 
@@ -123,7 +263,8 @@ export function dispatchTestKeyboardEventWithCode(
   meta = false,
 ) {
   const event = document.createEvent("KeyboardEvent");
-  (event as any).initKeyboardEvent(
+
+  event.initKeyboardEvent(
     eventType,
     true,
     true,

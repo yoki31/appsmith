@@ -1,37 +1,25 @@
 import React, { useLayoutEffect } from "react";
-import { AppState } from "reducers";
-import { withRouter, RouteComponentProps } from "react-router-dom";
+import type { AppState } from "ee/reducers";
+import type { RouteComponentProps } from "react-router-dom";
+import { withRouter } from "react-router-dom";
 import { connect } from "react-redux";
-import { InjectedFormProps, reduxForm, Field } from "redux-form";
-import { RESET_PASSWORD_FORM_NAME } from "constants/forms";
-import { ReduxActionTypes } from "constants/ReduxActionConstants";
+import type { InjectedFormProps } from "redux-form";
+import { reduxForm, Field } from "redux-form";
+import { RESET_PASSWORD_FORM_NAME } from "ee/constants/forms";
+import { ReduxActionTypes } from "ee/constants/ReduxActionConstants";
 import { getIsTokenValid, getIsValidatingToken } from "selectors/authSelectors";
-import { Icon } from "@blueprintjs/core";
-import FormGroup from "components/ads/formFields/FormGroup";
-import FormTextField from "components/ads/formFields/TextField";
-import FormMessage, {
-  MessageAction,
-  FormMessageProps,
-} from "components/ads/formFields/FormMessage";
+import FormTextField from "components/utils/ReduxFormTextField";
+import { Button, Callout, Icon, Link } from "@appsmith/ads";
 import Spinner from "components/editorComponents/Spinner";
-import Button, { Size } from "components/ads/Button";
-
 import StyledForm from "components/editorComponents/Form";
 import { isEmptyString, isStrongPassword } from "utils/formhelpers";
-import { ResetPasswordFormValues, resetPasswordSubmitHandler } from "./helpers";
-import {
-  AuthCardHeader,
-  BlackAuthCardNavLink,
-  FormActions,
-} from "./StyledComponents";
+import type { ResetPasswordFormValues } from "./helpers";
+import { resetPasswordSubmitHandler } from "./helpers";
+import { FormActions, StyledFormGroup } from "./StyledComponents";
 import { AUTH_LOGIN_URL, FORGOT_PASSWORD_URL } from "constants/routes";
-import { withTheme } from "styled-components";
-import { Theme } from "constants/DefaultTheme";
-
 import {
   RESET_PASSWORD_PAGE_PASSWORD_INPUT_LABEL,
   RESET_PASSWORD_PAGE_PASSWORD_INPUT_PLACEHOLDER,
-  RESET_PASSWORD_LOGIN_LINK_TEXT,
   RESET_PASSWORD_SUBMIT_BUTTON_TEXT,
   RESET_PASSWORD_PAGE_TITLE,
   FORM_VALIDATION_INVALID_PASSWORD,
@@ -42,15 +30,19 @@ import {
   RESET_PASSWORD_RESET_SUCCESS,
   RESET_PASSWORD_RESET_SUCCESS_LOGIN_LINK,
   createMessage,
-} from "constants/messages";
+} from "ee/constants/messages";
+import Container from "./Container";
+import type { CalloutProps } from "@appsmith/ads";
 
 const validate = (values: ResetPasswordFormValues) => {
   const errors: ResetPasswordFormValues = {};
+
   if (!values.password || isEmptyString(values.password)) {
     errors.password = createMessage(FORM_VALIDATION_EMPTY_PASSWORD);
   } else if (!isStrongPassword(values.password)) {
     errors.password = createMessage(FORM_VALIDATION_INVALID_PASSWORD);
   }
+
   return errors;
 };
 
@@ -65,7 +57,6 @@ type ResetPasswordProps = InjectedFormProps<
   verifyToken: (token: string) => void;
   isTokenValid: boolean;
   validatingToken: boolean;
-  theme: Theme;
 } & RouteComponentProps<{ email: string; token: string }>;
 
 export function ResetPassword(props: ResetPasswordProps) {
@@ -92,35 +83,48 @@ export function ResetPassword(props: ResetPasswordProps) {
   const showFailureMessage = submitFailed && !!error;
 
   let message = "";
-  let messageActions: MessageAction[] | undefined = undefined;
+  let messageActions = undefined;
+
   if (showExpiredMessage || showInvalidMessage) {
+    const messageActionText = createMessage(
+      RESET_PASSWORD_FORGOT_PASSWORD_LINK,
+    );
+
     messageActions = [
       {
-        url: FORGOT_PASSWORD_URL,
-        text: createMessage(RESET_PASSWORD_FORGOT_PASSWORD_LINK),
-        intent: "primary",
+        to: FORGOT_PASSWORD_URL,
+        children: messageActionText,
+        target: "_self",
       },
     ];
   }
+
   if (showExpiredMessage) {
     message = createMessage(RESET_PASSWORD_EXPIRED_TOKEN);
   }
+
   if (showInvalidMessage) {
     message = createMessage(RESET_PASSWORD_INVALID_TOKEN);
   }
 
   if (showSuccessMessage) {
+    const messageActionText = createMessage(
+      RESET_PASSWORD_RESET_SUCCESS_LOGIN_LINK,
+    );
+
     message = createMessage(RESET_PASSWORD_RESET_SUCCESS);
     messageActions = [
       {
-        url: AUTH_LOGIN_URL,
-        text: createMessage(RESET_PASSWORD_RESET_SUCCESS_LOGIN_LINK),
-        intent: "success",
+        to: AUTH_LOGIN_URL,
+        children: messageActionText,
+        target: "_self",
       },
     ];
   }
+
   if (showFailureMessage) {
     message = error;
+
     if (
       message
         .toLowerCase()
@@ -128,51 +132,63 @@ export function ResetPassword(props: ResetPasswordProps) {
           createMessage(RESET_PASSWORD_FORGOT_PASSWORD_LINK).toLowerCase(),
         )
     ) {
+      const messageActionText = createMessage(
+        RESET_PASSWORD_FORGOT_PASSWORD_LINK,
+      );
+
       messageActions = [
         {
-          url: FORGOT_PASSWORD_URL,
-          text: createMessage(RESET_PASSWORD_FORGOT_PASSWORD_LINK),
-          intent: "primary",
+          to: FORGOT_PASSWORD_URL,
+          children: messageActionText,
+          target: "_self",
         },
       ];
     }
   }
 
-  const messageTagProps: FormMessageProps = {
-    intent:
+  const messageTagProps: CalloutProps = {
+    kind:
       showInvalidMessage || showExpiredMessage || showFailureMessage
-        ? "danger"
-        : "lightSuccess",
-    message,
-    actions: messageActions,
+        ? "error"
+        : "success",
+    links: messageActions,
+    children: message,
   };
 
   if (showInvalidMessage || showExpiredMessage) {
-    return <FormMessage {...messageTagProps} />;
+    return <Callout {...messageTagProps} />;
   }
 
   if (!isTokenValid && validatingToken) {
     return <Spinner />;
   }
+
+  const footerSection = (
+    <div className="px-2 flex items-center justify-center text-center text-[color:var(--ads-v2\-color-fg)] text-[14px]">
+      <Icon name="arrow-left-line" size="md" />
+      &nbsp; Back to &nbsp;
+      <Link
+        className="text-sm justify-center"
+        kind="primary"
+        target="_self"
+        to={AUTH_LOGIN_URL}
+      >
+        Sign in
+      </Link>
+    </div>
+  );
+
   return (
-    <>
-      <AuthCardHeader>
-        <h1>{createMessage(RESET_PASSWORD_PAGE_TITLE)}</h1>
-      </AuthCardHeader>
-      <div style={{ display: "flex", justifyContent: "center" }}>
-        <BlackAuthCardNavLink to={AUTH_LOGIN_URL}>
-          <Icon
-            icon="arrow-left"
-            style={{ marginRight: props.theme.spaces[3] }}
-          />
-          {createMessage(RESET_PASSWORD_LOGIN_LINK_TEXT)}
-        </BlackAuthCardNavLink>
-      </div>
+    <Container
+      footer={footerSection}
+      title={createMessage(RESET_PASSWORD_PAGE_TITLE)}
+    >
       {(showSuccessMessage || showFailureMessage) && (
-        <FormMessage {...messageTagProps} />
+        <Callout {...messageTagProps} />
       )}
       <StyledForm onSubmit={handleSubmit(resetPasswordSubmitHandler)}>
-        <FormGroup
+        <StyledFormGroup
+          className="text-[color:var(--ads-v2\-color-fg)]"
           intent={error ? "danger" : "none"}
           label={createMessage(RESET_PASSWORD_PAGE_PASSWORD_INPUT_LABEL)}
         >
@@ -184,28 +200,28 @@ export function ResetPassword(props: ResetPasswordProps) {
             )}
             type="password"
           />
-        </FormGroup>
+        </StyledFormGroup>
         <Field component="input" name="email" type="hidden" />
         <Field component="input" name="token" type="hidden" />
         <FormActions>
           <Button
-            disabled={pristine || submitSucceeded}
-            fill
+            isDisabled={pristine || submitSucceeded}
             isLoading={submitting}
-            size={Size.large}
-            tag="button"
-            text={createMessage(RESET_PASSWORD_SUBMIT_BUTTON_TEXT)}
+            size="md"
             type="submit"
-          />
+          >
+            {createMessage(RESET_PASSWORD_SUBMIT_BUTTON_TEXT)}
+          </Button>
         </FormActions>
       </StyledForm>
-    </>
+    </Container>
   );
 }
 
 export default connect(
   (state: AppState, props: ResetPasswordProps) => {
     const queryParams = new URLSearchParams(props.location.search);
+
     return {
       initialValues: {
         token: queryParams.get("token") || undefined,
@@ -214,6 +230,8 @@ export default connect(
       validatingToken: getIsValidatingToken(state),
     };
   },
+  // TODO: Fix this the next time the file is edited
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (dispatch: any) => ({
     verifyToken: (token: string) =>
       dispatch({
@@ -233,5 +251,5 @@ export default connect(
     validate,
     form: RESET_PASSWORD_FORM_NAME,
     touchOnBlur: true,
-  })(withRouter(withTheme(ResetPassword))),
+  })(withRouter(ResetPassword)),
 );

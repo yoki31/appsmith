@@ -1,7 +1,7 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 
-import { AppState } from "reducers";
+import type { AppState } from "ee/reducers";
 
 import {
   moveActionRequest,
@@ -9,61 +9,53 @@ import {
   deleteAction,
 } from "actions/pluginActionActions";
 
-import { ContextMenuPopoverModifiers } from "../helpers";
-import { noop } from "lodash";
-import TreeDropdown from "components/ads/TreeDropdown";
-import { useNewActionName } from "./helpers";
-import styled from "styled-components";
-import Icon, { IconSize } from "components/ads/Icon";
-import { Classes } from "components/ads/common";
+import {
+  CONTEXT_COPY,
+  CONTEXT_DELETE,
+  CONFIRM_CONTEXT_DELETE,
+  CONTEXT_MOVE,
+  createMessage,
+} from "ee/constants/messages";
+import {
+  Button,
+  Menu,
+  MenuContent,
+  MenuItem,
+  MenuSub,
+  MenuSubContent,
+  MenuSubTrigger,
+  MenuTrigger,
+} from "@appsmith/ads";
+import { useToggle } from "@mantine/hooks";
+import { convertToPageIdSelector } from "selectors/pageListSelectors";
 
-type EntityContextMenuProps = {
+interface EntityContextMenuProps {
   id: string;
   name: string;
   className?: string;
-  pageId: string;
-};
-
-export const MoreActionablesContainer = styled.div<{ isOpen?: boolean }>`
-  width: 34px;
-  height: 30px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background-color: transparent;
-
-  &&&& span {
-    width: auto;
-  }
-
-  .${Classes.ICON} {
-    fill: ${(props) => props.theme.colors.treeDropdown.targetIcon.normal};
-  }
-
-  ${(props) =>
-    props.isOpen
-      ? `
-		background-color: ${props.theme.colors.treeDropdown.targetBg};
-
-    &&&& .${Classes.ICON} {
-      fill: ${props.theme.colors.treeDropdown.targetIcon.hover};
-    }
-	`
-      : null}
-
-  &:hover {
-    background-color: ${(props) => props.theme.colors.treeDropdown.targetBg};
-
-    &&&& .${Classes.ICON} {
-      fill: ${(props) => props.theme.colors.treeDropdown.targetIcon.hover};
-    }
-  }
-`;
+  basePageId: string;
+  isChangePermitted?: boolean;
+  isDeletePermitted?: boolean;
+  prefixAdditionalMenus?: React.ReactNode | React.ReactNode[];
+  postfixAdditionalMenus?: React.ReactNode | React.ReactNode[];
+}
 
 export function MoreActionsMenu(props: EntityContextMenuProps) {
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const nextEntityName = useNewActionName();
+  const [isMenuOpen, toggleMenuOpen] = useToggle([false, true]);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const propPageId = useSelector((state) =>
+    convertToPageIdSelector(state, props.basePageId),
+  );
+  const {
+    isChangePermitted = false,
+    isDeletePermitted = false,
+    postfixAdditionalMenus,
+    prefixAdditionalMenus,
+  } = props;
+
+  useEffect(() => {
+    if (!isMenuOpen) setConfirmDelete(false);
+  }, [isMenuOpen]);
 
   const dispatch = useDispatch();
   const copyActionToPage = useCallback(
@@ -71,11 +63,11 @@ export function MoreActionsMenu(props: EntityContextMenuProps) {
       dispatch(
         copyActionRequest({
           id: actionId,
-          destinationPageId: pageId,
-          name: nextEntityName(`${actionName}Copy`, pageId),
+          destinationEntityId: pageId,
+          name: actionName,
         }),
       ),
-    [dispatch, nextEntityName],
+    [dispatch],
   );
   const moveActionToPage = useCallback(
     (actionId: string, actionName: string, destinationPageId: string) =>
@@ -83,15 +75,20 @@ export function MoreActionsMenu(props: EntityContextMenuProps) {
         moveActionRequest({
           id: actionId,
           destinationPageId,
-          originalPageId: props.pageId,
-          name: nextEntityName(actionName, destinationPageId),
+          originalPageId: propPageId ?? "",
+          name: actionName,
         }),
       ),
-    [dispatch, nextEntityName, props.pageId],
+    [dispatch, propPageId],
   );
   const deleteActionFromPage = useCallback(
-    (actionId: string, actionName: string) =>
-      dispatch(deleteAction({ id: actionId, name: actionName })),
+    (actionId: string, actionName: string) => {
+      dispatch(deleteAction({ id: actionId, name: actionName }));
+      // Reset the delete confirmation state because it can navigate to another action
+      // which will not remount this component
+      setConfirmDelete(false);
+      toggleMenuOpen(false);
+    },
     [dispatch],
   );
 
@@ -99,68 +96,103 @@ export function MoreActionsMenu(props: EntityContextMenuProps) {
     return state.entities.pageList.pages.map((page) => ({
       label: page.pageName,
       id: page.pageId,
+      baseId: page.basePageId,
       value: page.pageName,
     }));
   });
 
-  return (
-    <TreeDropdown
+  return isChangePermitted || isDeletePermitted ? (
+    <Menu
       className={props.className}
-      defaultText=""
-      modifiers={ContextMenuPopoverModifiers}
-      onMenuToggle={(isOpen: boolean) => setIsMenuOpen(isOpen)}
-      onSelect={noop}
-      optionTree={[
-        {
-          icon: "duplicate",
-          value: "copy",
-          onSelect: noop,
-          label: "Copy to page",
-          children: menuPages.map((page) => {
-            return {
-              ...page,
-              onSelect: () => copyActionToPage(props.id, props.name, page.id),
-            };
-          }),
-        },
-        {
-          icon: "swap-horizontal",
-          value: "move",
-          onSelect: noop,
-          label: "Move to page",
-          children:
-            menuPages.length > 1
-              ? menuPages
-                  .filter((page) => page.id !== props.pageId) // Remove current page from the list
+      onOpenChange={() => toggleMenuOpen()}
+      open={isMenuOpen}
+    >
+      <MenuTrigger>
+        <Button
+          data-testid="more-action-trigger"
+          isIconButton
+          kind="tertiary"
+          size="md"
+          startIcon="context-menu"
+        />
+      </MenuTrigger>
+      <MenuContent loop style={{ zIndex: 100 }} width="200px">
+        {prefixAdditionalMenus ? prefixAdditionalMenus : null}
+        {isChangePermitted && (
+          <MenuSub>
+            <MenuSubTrigger startIcon="duplicate">
+              {createMessage(CONTEXT_COPY)}
+            </MenuSubTrigger>
+            <MenuSubContent>
+              {menuPages.map((page) => {
+                return (
+                  <MenuItem
+                    key={page.baseId}
+                    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+                    //@ts-ignore
+                    onSelect={() =>
+                      copyActionToPage(props.id, props.name, page.id)
+                    }
+                  >
+                    {page.label}
+                  </MenuItem>
+                );
+              })}
+            </MenuSubContent>
+          </MenuSub>
+        )}
+        {isChangePermitted && (
+          <MenuSub>
+            <MenuSubTrigger startIcon="swap-horizontal">
+              {createMessage(CONTEXT_MOVE)}
+            </MenuSubTrigger>
+            <MenuSubContent>
+              {/* Isn't it better ux to perform this check outside the menu and then simply not show the option?*/}
+              {menuPages.length > 1 ? (
+                menuPages
+                  .filter((page) => page.baseId !== props.basePageId) // Remove current page from the list
                   .map((page) => {
-                    return {
-                      ...page,
-                      onSelect: () =>
-                        moveActionToPage(props.id, props.name, page.id),
-                    };
+                    return (
+                      <MenuItem
+                        key={page.baseId}
+                        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+                        //@ts-ignore
+                        onSelect={() =>
+                          moveActionToPage(props.id, props.name, page.id)
+                        }
+                      >
+                        {page.label}
+                      </MenuItem>
+                    );
                   })
-              : [{ value: "No Pages", onSelect: noop, label: "No Pages" }],
-        },
-        {
-          icon: "trash",
-          value: "delete",
-          onSelect: () => deleteActionFromPage(props.id, props.name),
-          label: "Delete",
-          intent: "danger",
-          className: "t--apiFormDeleteBtn",
-        },
-      ]}
-      selectedValue=""
-      toggle={
-        <MoreActionablesContainer
-          className={props.className}
-          isOpen={isMenuOpen}
-        >
-          <Icon name="context-menu" size={IconSize.XXXL} />
-        </MoreActionablesContainer>
-      }
-    />
-  );
+              ) : (
+                <MenuItem key="no-pages">No pages</MenuItem>
+              )}
+            </MenuSubContent>
+          </MenuSub>
+        )}
+        {isDeletePermitted && (
+          <MenuItem
+            className="t--apiFormDeleteBtn error-menuitem"
+            // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+            //@ts-ignore
+            onSelect={(e: Event) => {
+              e.preventDefault();
+              confirmDelete
+                ? deleteActionFromPage(props.id, props.name)
+                : setConfirmDelete(true);
+            }}
+            startIcon="trash"
+          >
+            {confirmDelete
+              ? createMessage(CONFIRM_CONTEXT_DELETE)
+              : createMessage(CONTEXT_DELETE)}
+          </MenuItem>
+        )}
+        {postfixAdditionalMenus ? postfixAdditionalMenus : null}
+      </MenuContent>
+    </Menu>
+  ) : null;
 }
 
 export default MoreActionsMenu;

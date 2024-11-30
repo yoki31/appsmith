@@ -1,39 +1,32 @@
-import React, { useEffect, lazy, Suspense } from "react";
+import React from "react";
 import styled from "styled-components";
 import ActionLink from "./ActionLink";
 import Highlight from "./Highlight";
-import { algoliaHighlightTag, getItemTitle, SEARCH_ITEM_TYPES } from "./utils";
-import { getTypographyByKey } from "constants/DefaultTheme";
-import { SearchItem } from "./utils";
-import parseDocumentationContent from "./parseDocumentationContent";
-import { retryPromise } from "utils/AppsmithUtils";
-import Skeleton from "components/utils/Skeleton";
+import { getItemTitle, SEARCH_ITEM_TYPES } from "./utils";
+import { getTypographyByKey } from "@appsmith/ads-old";
+import type { SearchItem } from "./utils";
 
-const SnippetDescription = lazy(() =>
-  retryPromise(() => import("./SnippetsDescription")),
-);
-
-type Props = {
+interface Props {
   activeItem: SearchItem;
   activeItemType?: SEARCH_ITEM_TYPES;
   query: string;
   scrollPositionRef: React.MutableRefObject<number>;
-};
+}
 
 const Container = styled.div`
   flex: 2;
   display: flex;
   flex-direction: column;
   margin-left: ${(props) => `${props.theme.spaces[4]}px`};
-  background: white;
+  background: var(--ads-v2-color-bg);
   padding: ${(props) =>
     `${props.theme.spaces[5]}px ${props.theme.spaces[7]}px 0`};
-  color: ${(props) => props.theme.colors.globalSearch.searchItemText};
+  color: var(--ads-v2-color-fg);
   overflow: auto;
-
-  ${(props) => getTypographyByKey(props, "spacedOutP1")};
+  border-left: 1px solid var(--ads-v2-color-border);
+  font-size: 13px;
   [class^="ais-"] {
-    ${(props) => getTypographyByKey(props, "spacedOutP1")};
+    ${getTypographyByKey("spacedOutP1")};
   }
 
   img {
@@ -41,24 +34,34 @@ const Container = styled.div`
   }
 
   h1 {
-    ${(props) => getTypographyByKey(props, "docHeader")}
     word-break: break-word;
+    color: var(--ads-v2-color-fg-emphasis-plus) !important;
+    font-size: 16px !important;
+    font-weight: var(--ads-v2-font-weight-bold);
+    letter-spacing: var(--ads-v2-p-letter-spacing);
   }
 
   h2,
   h3 {
-    ${(props) => getTypographyByKey(props, "h5")}
+    ${getTypographyByKey("h5")}
     font-weight: 600;
   }
 
   h1,
   h2,
   h3,
-  strong {
-    color: #484848;
+  strong,
+  p {
+    color: var(--ads-v2-color-fg);
+    font-size: 13px;
+    margin: 0.25rem 0;
   }
 
   table {
+    margin: 0.25rem 0;
+    th {
+      text-align: left;
+    }
     th:nth-child(1) {
       width: 150px;
     }
@@ -68,93 +71,73 @@ const Container = styled.div`
   }
 
   .documentation-cta {
-    ${(props) => getTypographyByKey(props, "p3")}
-    white-space: nowrap;
-    background: ${(props) =>
-      props.theme.colors.globalSearch.documentationCtaBackground};
-    color: ${(props) => props.theme.colors.globalSearch.documentationCtaText};
-    padding: ${(props) => props.theme.spaces[2]}px;
-    margin: 0 ${(props) => props.theme.spaces[2]}px;
+    --button-font-weight: 600;
+    --button-font-size: 12px;
+    --button-padding: var(--ads-v2-spaces-2) var(--ads-v2-spaces-3);
+    --button-gap: var(--ads-v2-spaces-2);
+    --button-color-bg: transparent;
+    --button-color-fg: var(--ads-v2-color-fg);
+    mix-blend-mode: multiply;
+
     position: relative;
-    bottom: 3px;
-    float: right;
+    font-size: var(--button-font-size);
+    cursor: pointer;
+    color: var(--button-color-fg);
+    text-decoration: none;
+    height: var(--button-height);
+    box-sizing: border-box;
+    overflow: hidden;
+    min-width: min-content;
+    border-radius: var(--ads-v2-border-radius) !important;
+
+    display: inline-flex;
+    align-self: center;
+    gap: var(--button-gap);
+    background-color: var(--button-color-bg);
+    border: 1px solid var(--ads-v2-color-border);
+    padding: var(--button-padding);
+    text-transform: capitalize;
+    &:hover {
+      --button-color-bg: var(--ads-v2-color-bg-subtle);
+      --button-color-fg: var(--ads-v2-color-fg);
+    }
   }
 
   & a {
-    color: ${(props) => props.theme.colors.globalSearch.documentLink};
+    color: var(--ads-v2-color-bg-brand);
   }
 
   code {
     word-break: break-word;
-    font-size: 12px;
+    font-size: 13px;
   }
 
   pre {
-    background: ${(props) =>
-      props.theme.colors.globalSearch.documentationCodeBackground} !important;
+    background: var(--ads-v2-color-bg-subtle) !important;
     white-space: pre-wrap;
     overflow: hidden;
-    border-left: 3px solid #f86a2b;
-    padding: 12px;
+    border-left: 3px solid var(--ads-v2-color-bg-brand);
+    padding: var(--ads-v2-spaces-4);
+    border-radius: var(--ads-v2-border-radius);
   }
   .CodeMirror {
     pre {
       background: transparent !important;
     }
   }
+
+  object {
+    width: 100%;
+    height: 280px;
+  }
+
+  ul,
+  ol {
+    list-style: revert;
+    padding: revert;
+    margin: revert;
+  }
 `;
-
-function DocumentationDescription({
-  item,
-  query,
-}: {
-  item: SearchItem;
-  query: string;
-}) {
-  const {
-    _highlightResult: {
-      document: { value: rawDocument },
-      title: { value: rawTitle },
-    },
-  } = item;
-  const content = parseDocumentationContent({
-    rawDocument: rawDocument,
-    rawTitle: rawTitle,
-    path: item.path,
-    query,
-  });
-  const containerRef = React.useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    scrollToMatchedValue();
-  }, [content]);
-
-  const scrollToMatchedValue = () => {
-    const root = containerRef.current;
-    if (!root) return;
-    const list = root.getElementsByTagName(algoliaHighlightTag);
-    if (list.length) {
-      const bestMatch = Array.from(list).reduce((accumulator, currentValue) => {
-        if (
-          currentValue.textContent &&
-          accumulator.textContent &&
-          currentValue.textContent.length > accumulator.textContent.length
-        )
-          return currentValue;
-        return accumulator;
-      }, list[0]);
-
-      bestMatch.scrollIntoView();
-    } else {
-      setTimeout(() => {
-        root.firstElementChild?.scrollIntoView();
-      }, 0);
-    }
-  };
-
-  return content ? (
-    <div dangerouslySetInnerHTML={{ __html: content }} ref={containerRef} />
-  ) : null;
-}
 
 const StyledHitEnterMessageContainer = styled.div`
   background: ${(props) =>
@@ -163,7 +146,7 @@ const StyledHitEnterMessageContainer = styled.div`
     `${props.theme.spaces[6]}px ${props.theme.spaces[3]}px`};
   border: 1px solid
     ${(props) => props.theme.colors.globalSearch.snippets.codeContainerBorder};
-  ${(props) => getTypographyByKey(props, "p3")};
+  ${getTypographyByKey("p3")};
 `;
 
 const StyledKey = styled.span`
@@ -192,16 +175,7 @@ function HitEnterMessage({ item, query }: { item: SearchItem; query: string }) {
   );
 }
 
-function LazySnippetDescription(props: any) {
-  return (
-    <Suspense fallback={<Skeleton />}>
-      <SnippetDescription {...props} />
-    </Suspense>
-  );
-}
-
 const descriptionByType = {
-  [SEARCH_ITEM_TYPES.document]: DocumentationDescription,
   [SEARCH_ITEM_TYPES.action]: HitEnterMessage,
   [SEARCH_ITEM_TYPES.jsAction]: HitEnterMessage,
   [SEARCH_ITEM_TYPES.widget]: HitEnterMessage,
@@ -210,20 +184,21 @@ const descriptionByType = {
   [SEARCH_ITEM_TYPES.sectionTitle]: () => null,
   [SEARCH_ITEM_TYPES.placeholder]: () => null,
   [SEARCH_ITEM_TYPES.category]: () => null,
-  [SEARCH_ITEM_TYPES.snippet]: LazySnippetDescription,
+  [SEARCH_ITEM_TYPES.actionOperation]: () => null,
 };
 
 function Description(props: Props) {
   const { activeItem, activeItemType } = props;
 
   if (!activeItemType || !activeItem) return null;
+
   const Component = descriptionByType[activeItemType];
 
   return (
-    <Container>
+    <Container data-testid="description">
       <Component item={activeItem} query={props.query} />
     </Container>
   );
 }
 
-export default Description;
+export default React.memo(Description);

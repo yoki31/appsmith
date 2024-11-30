@@ -1,15 +1,15 @@
 import React, { useEffect, useCallback } from "react";
 import styled from "styled-components";
-import { Icon, NumericInput, Keys } from "@blueprintjs/core";
+import { Icon, NumericInput, Keys, Classes } from "@blueprintjs/core";
 import {
   RowWrapper,
   PaginationWrapper,
   PaginationItemWrapper,
   CommonFunctionsMenuWrapper,
 } from "./TableStyledWrappers";
-import SearchComponent from "components/designSystems/appsmith/SearchComponent";
+import { SearchComponent } from "@design-system/widgets-old";
 import TableFilters from "./TableFilters";
-import {
+import type {
   ReactTableColumnProps,
   TableSizes,
   ReactTableFilter,
@@ -18,13 +18,14 @@ import TableDataDownload from "./TableDataDownload";
 import { Colors } from "constants/Colors";
 import { EventType } from "constants/AppsmithActionConstants/ActionConstants";
 
-const PageNumberInputWrapper = styled(NumericInput)`
+const PageNumberInputWrapper = styled(NumericInput)<{
+  borderRadius: string;
+}>`
   &&& input {
     box-shadow: none;
-    border: 1px solid ${Colors.DANUBE};
+    border: 1px solid ${Colors.ALTO2};
     background: linear-gradient(0deg, ${Colors.WHITE}, ${Colors.WHITE}),
       ${Colors.POLAR};
-    border-radius: none;
     box-sizing: border-box;
     width: 24px;
     height: 24px;
@@ -32,6 +33,7 @@ const PageNumberInputWrapper = styled(NumericInput)`
     padding: 0 !important;
     text-align: center;
     font-size: 12px;
+    border-radius: ${({ borderRadius }) => borderRadius};
   }
   &&&.bp3-control-group > :only-child {
     border-radius: 0;
@@ -39,9 +41,24 @@ const PageNumberInputWrapper = styled(NumericInput)`
   margin: 0 8px;
 `;
 
-const SearchComponentWrapper = styled.div`
+const SearchComponentWrapper = styled.div<{
+  borderRadius: string;
+  boxShadow?: string;
+  accentColor: string;
+}>`
   margin: 3px 10px;
   flex: 0 0 200px;
+
+  & .${Classes.INPUT} {
+    border-radius: ${({ borderRadius }) => borderRadius} !important;
+  }
+
+  & .${Classes.INPUT}:active, & .${Classes.INPUT}:focus {
+    border-radius: ${({ borderRadius }) => borderRadius};
+    border: 0px solid !important;
+    border-color: ${({ accentColor }) => accentColor} !important;
+    box-shadow: none !important;
+  }
 `;
 
 function PageNumberInput(props: {
@@ -49,8 +66,10 @@ function PageNumberInput(props: {
   pageCount: number;
   updatePageNo: (pageNo: number, event?: EventType) => void;
   disabled: boolean;
+  borderRadius: string;
 }) {
   const [pageNumber, setPageNumber] = React.useState(props.pageNo || 0);
+
   useEffect(() => {
     setPageNumber(props.pageNo || 0);
   }, [props.pageNo]);
@@ -58,26 +77,32 @@ function PageNumberInput(props: {
     (e) => {
       const oldPageNo = Number(props.pageNo || 0);
       let page = Number(e.target.value);
+
       // check page is less then min page count
       if (isNaN(page) || page < 1) {
         page = 1;
       }
+
       // check page is greater then max page count
       if (page > props.pageCount) {
         page = props.pageCount;
       }
+
       // fire Event based on new page number
       if (oldPageNo < page) {
         props.updatePageNo(page, EventType.ON_NEXT_PAGE);
       } else if (oldPageNo > page) {
         props.updatePageNo(page, EventType.ON_PREV_PAGE);
       }
+
       setPageNumber(page);
     },
     [props.pageNo, props.pageCount],
   );
+
   return (
     <PageNumberInputWrapper
+      borderRadius={props.borderRadius}
       buttonPosition="none"
       clampValueOnBlur
       className="t--table-widget-page-input"
@@ -85,6 +110,8 @@ function PageNumberInput(props: {
       max={props.pageCount || 1}
       min={1}
       onBlur={handleUpdatePageNo}
+      // TODO: Fix this the next time the file is edited
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       onKeyDown={(e: any) => {
         if (e.keyCode === Keys.ENTER) {
           handleUpdatePageNo(e);
@@ -114,6 +141,8 @@ interface TableHeaderProps {
   widgetName: string;
   widgetId: string;
   searchKey: string;
+  // TODO: Fix this the next time the file is edited
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   searchTableData: (searchKey: any) => void;
   serverSidePaginationEnabled: boolean;
   filters?: ReactTableFilter[];
@@ -124,13 +153,20 @@ interface TableHeaderProps {
   isVisiblePagination?: boolean;
   isVisibleSearch?: boolean;
   delimiter: string;
+  borderRadius: string;
+  boxShadow?: string;
+  accentColor: string;
 }
 
 function TableHeader(props: TableHeaderProps) {
   return (
     <>
       {props.isVisibleSearch && (
-        <SearchComponentWrapper>
+        <SearchComponentWrapper
+          accentColor={props.accentColor}
+          borderRadius={props.borderRadius}
+          boxShadow={props.boxShadow}
+        >
           <SearchComponent
             onSearch={props.searchTableData}
             placeholder="Search..."
@@ -142,7 +178,9 @@ function TableHeader(props: TableHeaderProps) {
         <CommonFunctionsMenuWrapper tableSizes={props.tableSizes}>
           {props.isVisibleFilters && (
             <TableFilters
+              accentColor={props.accentColor}
               applyFilter={props.applyFilter}
+              borderRadius={props.borderRadius}
               columns={props.columns}
               filters={props.filters}
               widgetId={props.widgetId}
@@ -162,7 +200,14 @@ function TableHeader(props: TableHeaderProps) {
 
       {props.isVisiblePagination && props.serverSidePaginationEnabled && (
         <PaginationWrapper>
+          {props.totalRecordsCount ? (
+            <RowWrapper className="show-page-items">
+              {props.totalRecordsCount} Records
+            </RowWrapper>
+          ) : null}
           <PaginationItemWrapper
+            accentColor={props.accentColor}
+            borderRadius={props.borderRadius}
             className="t--table-widget-prev-page"
             disabled={props.pageNo === 0}
             onClick={() => {
@@ -171,10 +216,34 @@ function TableHeader(props: TableHeaderProps) {
           >
             <Icon color={Colors.HIT_GRAY} icon="chevron-left" iconSize={16} />
           </PaginationItemWrapper>
-          <PaginationItemWrapper className="page-item" selected>
-            {props.pageNo + 1}
-          </PaginationItemWrapper>
+          {props.totalRecordsCount ? (
+            <RowWrapper>
+              Page&nbsp;
+              <PaginationItemWrapper
+                accentColor={props.accentColor}
+                borderRadius={props.borderRadius}
+                className="page-item"
+                selected
+              >
+                {props.pageNo + 1}
+              </PaginationItemWrapper>
+              &nbsp;
+              <span>{`of ${props.pageCount}`}</span>
+            </RowWrapper>
+          ) : (
+            <PaginationItemWrapper
+              accentColor={props.accentColor}
+              borderRadius={props.borderRadius}
+              className="page-item"
+              selected
+            >
+              {props.pageNo + 1}
+            </PaginationItemWrapper>
+          )}
+
           <PaginationItemWrapper
+            accentColor={props.accentColor}
+            borderRadius={props.borderRadius}
             className="t--table-widget-next-page"
             disabled={
               !!props.totalRecordsCount && props.pageNo === props.pageCount - 1
@@ -193,27 +262,33 @@ function TableHeader(props: TableHeaderProps) {
             {props.tableData?.length} Records
           </RowWrapper>
           <PaginationItemWrapper
+            accentColor={props.accentColor}
+            borderRadius={props.borderRadius}
             className="t--table-widget-prev-page"
             disabled={props.currentPageIndex === 0}
             onClick={() => {
               const pageNo =
                 props.currentPageIndex > 0 ? props.currentPageIndex - 1 : 0;
+
               props.updatePageNo(pageNo + 1, EventType.ON_PREV_PAGE);
             }}
           >
             <Icon color={Colors.GRAY} icon="chevron-left" iconSize={16} />
           </PaginationItemWrapper>
           <RowWrapper>
-            Page{" "}
+            Page&nbsp;
             <PageNumberInput
+              borderRadius={props.borderRadius}
               disabled={props.pageCount === 1}
               pageCount={props.pageCount}
               pageNo={props.pageNo + 1}
               updatePageNo={props.updatePageNo}
-            />{" "}
-            of {props.pageCount}
+            />
+            &nbsp; of {props.pageCount}
           </RowWrapper>
           <PaginationItemWrapper
+            accentColor={props.accentColor}
+            borderRadius={props.borderRadius}
             className="t--table-widget-next-page"
             disabled={props.currentPageIndex === props.pageCount - 1}
             onClick={() => {
@@ -221,6 +296,7 @@ function TableHeader(props: TableHeaderProps) {
                 props.currentPageIndex < props.pageCount - 1
                   ? props.currentPageIndex + 1
                   : 0;
+
               props.updatePageNo(pageNo + 1, EventType.ON_NEXT_PAGE);
             }}
           >

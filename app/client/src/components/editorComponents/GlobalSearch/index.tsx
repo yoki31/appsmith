@@ -1,107 +1,105 @@
 import React, {
-  useState,
-  useMemo,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
+  useState,
 } from "react";
-import { useDispatch, useSelector } from "react-redux";
+import { shallowEqual, useDispatch, useSelector } from "react-redux";
 import styled, { ThemeProvider } from "styled-components";
 import { useParams } from "react-router";
-import history from "utils/history";
-import { AppState } from "reducers";
+import history, { NavigationMethod } from "utils/history";
+import type { AppState } from "ee/reducers";
 import SearchModal from "./SearchModal";
-import AlgoliaSearchWrapper from "./AlgoliaSearchWrapper";
 import SearchBox from "./SearchBox";
 import SearchResults from "./SearchResults";
-import SetSearchResults from "./SetSearchResults";
 import GlobalSearchHotKeys from "./GlobalSearchHotKeys";
 import SearchContext from "./GlobalSearchContext";
 import Description from "./Description";
 import ResultsNotFound from "./ResultsNotFound";
-import {
-  getActions,
-  getAllPageWidgets,
-  getJSCollections,
-} from "selectors/entitiesSelector";
 import { useNavigateToWidget } from "pages/Editor/Explorer/Widgets/useNavigateToWidget";
 import {
-  toggleShowGlobalSearchModal,
-  setGlobalSearchQuery,
   setGlobalSearchFilterContext,
-  cancelSnippet,
-  insertSnippet,
+  setGlobalSearchQuery,
+  toggleShowGlobalSearchModal,
 } from "actions/globalSearchActions";
+import type { SearchCategory, SearchItem, SelectEvent } from "./utils";
 import {
-  getItemType,
-  getItemTitle,
-  getItemPage,
-  SEARCH_ITEM_TYPES,
-  useDefaultDocumentationResults,
-  DocSearchItem,
-  SearchItem,
-  algoliaHighlightTag,
-  attachKind,
-  SEARCH_CATEGORY_ID,
-  getEntityId,
   filterCategories,
+  getEntityId,
   getFilterCategoryList,
-  SearchCategory,
-  isNavigation,
+  getItemPage,
+  getItemTitle,
+  getItemType,
+  isActionOperation,
+  isMatching,
   isMenu,
-  isSnippet,
-  isDocumentation,
-  SelectEvent,
-  getOptionalFilters,
+  isNavigation,
+  SEARCH_CATEGORY_ID,
+  SEARCH_ITEM_TYPES,
 } from "./utils";
 import { getActionConfig } from "pages/Editor/Explorer/Actions/helpers";
-import { HelpBaseURL } from "constants/HelpConstants";
-import { ExplorerURLParams } from "pages/Editor/Explorer/helpers";
-import {
-  BUILDER_PAGE_URL,
-  DATA_SOURCES_EDITOR_ID_URL,
-  JS_COLLECTION_ID_URL,
-} from "constants/routes";
-import { getSelectedWidget } from "selectors/ui";
-import AnalyticsUtil from "utils/AnalyticsUtil";
-import {
-  getCurrentApplicationId,
-  getPageList,
-} from "selectors/editorSelectors";
+import type { ExplorerURLParams } from "ee/pages/Editor/Explorer/helpers";
+import { getLastSelectedWidget } from "selectors/ui";
+import AnalyticsUtil from "ee/utils/AnalyticsUtil";
 import useRecentEntities from "./useRecentEntities";
-import { get, keyBy, noop } from "lodash";
-import { getCurrentPageId } from "selectors/editorSelectors";
-import { getQueryParams } from "../../../utils/AppsmithUtils";
-import SnippetsFilter from "./SnippetsFilter";
-import SnippetRefinements from "./SnippetRefinements";
-import { Configure, Index } from "react-instantsearch-dom";
-import { getAppsmithConfigs } from "configs";
+import { noop } from "lodash";
+import {
+  getCurrentPageId,
+  getPagePermissions,
+} from "selectors/editorSelectors";
+import { getQueryParams } from "utils/URLUtils";
 import { lightTheme } from "selectors/themeSelectors";
-import { SnippetAction } from "reducers/uiReducers/globalSearchReducer";
-import copy from "copy-to-clipboard";
-import { getSnippet } from "./SnippetsDescription";
-import { Variant } from "components/ads/common";
-import { Toaster } from "components/ads/Toast";
+import {
+  useFilteredActions,
+  useFilteredFileOperations,
+  useFilteredJSCollections,
+  useFilteredPages,
+  useFilteredWidgets,
+} from "./GlobalSearchHooks";
+import {
+  builderURL,
+  datasourcesEditorIdURL,
+  jsCollectionIdURL,
+} from "ee/RouteBuilder";
+import { getPlugins } from "ee/selectors/entitiesSelector";
+import {
+  DatasourceCreateEntryPoints,
+  TEMP_DATASOURCE_ID,
+} from "constants/Datasource";
+import { getHasCreateActionPermission } from "ee/utils/BusinessFeatures/permissionPageHelpers";
+import { FEATURE_FLAG } from "ee/entities/FeatureFlag";
+import { useFeatureFlag } from "utils/hooks/useFeatureFlag";
+import {
+  getBasePageIdToPageIdMap,
+  getPageIdToBasePageIdMap,
+} from "selectors/pageListSelectors";
 
-const StyledContainer = styled.div<{ category: SearchCategory }>`
-  width: 785px;
+const StyledContainer = styled.div<{ category: SearchCategory; query: string }>`
   max-height: 530px;
-  height: ${(props) => (isMenu(props.category) ? "auto" : "530px")};
-  background: ${(props) => props.theme.colors.globalSearch.primaryBgColor};
+  transition:
+    height 0.1s ease,
+    width 0.1s ease;
+  height: ${(props) =>
+    isMenu(props.category) ||
+    isActionOperation(props.category) ||
+    isNavigation(props.category)
+      ? "auto"
+      : "530px"};
   display: flex;
-  padding: ${(props) => props.theme.spaces[5]}px;
   flex-direction: column;
   position: relative;
+
   & .main {
     display: flex;
     flex: 1;
-    margin-top: ${(props) => props.theme.spaces[4]}px;
-    overflow: hidden;
-    background-color: ${(props) =>
-      props.theme.colors.globalSearch.primaryBgColor};
+    margin-top: 50px;
+    &.main-snippet {
+      margin-top: 17px;
+      overflow: hidden;
+    }
   }
-  ${algoliaHighlightTag},
-  & .ais-Highlight-highlighted,
+
   & .search-highlighted {
     background-color: transparent;
     font-style: normal;
@@ -109,70 +107,67 @@ const StyledContainer = styled.div<{ category: SearchCategory }>`
   }
 `;
 
-const { algolia } = getAppsmithConfigs();
-
-const isModalOpenSelector = (state: AppState) =>
+export const isModalOpenSelector = (state: AppState) =>
   state.ui.globalSearch.modalOpen;
 
 const searchQuerySelector = (state: AppState) => state.ui.globalSearch.query;
 
-const isMatching = (text = "", query = "") => {
-  if (typeof text === "string" && typeof query === "string") {
-    return text.toLowerCase().indexOf(query.toLowerCase()) > -1;
-  }
-  return false;
-};
-
 const getQueryIndexForSorting = (item: SearchItem, query: string) => {
-  if (item.kind === SEARCH_ITEM_TYPES.document) {
-    const title = item?._highlightResult?.title?.value;
-    return title.indexOf(algoliaHighlightTag);
-  } else {
-    const title = getItemTitle(item) || "";
-    return title.toLowerCase().indexOf(query.toLowerCase());
-  }
+  const title = getItemTitle(item) || "";
+
+  return title.toLowerCase().indexOf(query.toLowerCase());
 };
 
 const getSortedResults = (
   query: string,
+  // TODO: Fix this the next time the file is edited
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   filteredEntities: Array<any>,
-  documentationSearchResults: Array<any>,
+  // TODO: Fix this the next time the file is edited
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   recentEntityIndex: (entity: any) => number,
-  snippets: Array<any>,
   currentPageId?: string,
 ) => {
-  return [...filteredEntities, ...documentationSearchResults, ...snippets].sort(
-    (a: any, b: any) => {
-      const queryIndexA = getQueryIndexForSorting(a, query);
-      const queryIndexB = getQueryIndexForSorting(b, query);
+  // TODO: Fix this the next time the file is edited
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return filteredEntities.sort((a: any, b: any) => {
+    const queryIndexA = getQueryIndexForSorting(a, query);
+    const queryIndexB = getQueryIndexForSorting(b, query);
 
-      if (queryIndexA === queryIndexB) {
-        const idxA = recentEntityIndex(a);
-        const idxB = recentEntityIndex(b);
-        if (idxA > -1 && idxB > -1) return idxA - idxB;
-        if (idxA > -1) return -1;
-        else if (idxB > -1) return 1;
-        const pageA = getItemPage(a);
-        const pageB = getItemPage(b);
-        const isAInCurrentPage = pageA === currentPageId;
-        const isBInCurrentPage = pageB === currentPageId;
-        if (isAInCurrentPage) return -1;
-        if (isBInCurrentPage) return 1;
-        return 0;
-      } else {
-        if (queryIndexA === -1 && queryIndexB !== -1) return 1;
-        else if (queryIndexB === -1 && queryIndexA !== -1) return -1;
-        else return queryIndexA - queryIndexB;
-      }
-    },
-  );
+    if (queryIndexA === queryIndexB) {
+      const idxA = recentEntityIndex(a);
+      const idxB = recentEntityIndex(b);
+
+      if (idxA > -1 && idxB > -1) return idxA - idxB;
+
+      if (idxA > -1) return -1;
+      else if (idxB > -1) return 1;
+
+      const pageA = getItemPage(a);
+      const pageB = getItemPage(b);
+      const isAInCurrentPage = pageA === currentPageId;
+      const isBInCurrentPage = pageB === currentPageId;
+
+      if (isAInCurrentPage) return -1;
+
+      if (isBInCurrentPage) return 1;
+
+      return 0;
+    } else {
+      if (queryIndexA === -1 && queryIndexB !== -1) return 1;
+      else if (queryIndexB === -1 && queryIndexA !== -1) return -1;
+      else return queryIndexA - queryIndexB;
+    }
+  });
 };
 
+const filterCategoryList = getFilterCategoryList();
+const emptyObj = {};
+
 function GlobalSearch() {
-  const currentPageId = useSelector(getCurrentPageId);
+  const currentPageId = useSelector(getCurrentPageId) as string;
   const modalOpen = useSelector(isModalOpenSelector);
   const dispatch = useDispatch();
-  const [snippets, setSnippetsState] = useState([]);
   const [query, setQueryInState] = useState("");
   const setQuery = useCallback(
     (value: string) => {
@@ -180,46 +175,30 @@ function GlobalSearch() {
     },
     [setQueryInState],
   );
-  const optionalFilterMeta = useSelector(
-    (state: AppState) => state.ui.globalSearch.filterContext.fieldMeta,
-  );
-  const filterCategoryList = getFilterCategoryList();
   const category = useSelector(
     (state: AppState) => state.ui.globalSearch.filterContext.category,
   );
+  const plugins = useSelector(getPlugins);
   const setCategory = useCallback(
     (category: SearchCategory) => {
-      if (isSnippet(category)) {
-        AnalyticsUtil.logEvent("SNIPPET_LOOKUP");
-      }
       dispatch(setGlobalSearchFilterContext({ category: category }));
     },
-    [dispatch, isSnippet, setGlobalSearchFilterContext],
+    [dispatch],
   );
-  const setRefinements = (entityMeta: any) =>
-    dispatch(setGlobalSearchFilterContext({ refinements: entityMeta }));
-  const refinements = useSelector(
-    (state: AppState) => state.ui.globalSearch.filterContext.refinements,
-  );
-  const defaultDocs = useDefaultDocumentationResults(modalOpen);
   const params = useParams<ExplorerURLParams>();
-  const applicationId = useSelector(getCurrentApplicationId);
+  const pageIdToBasePageIdMap = useSelector(getPageIdToBasePageIdMap);
+  const basePageIdToPageIdMap = useSelector(getBasePageIdToPageIdMap);
 
   const toggleShow = () => {
     if (modalOpen) {
       setQuery("");
-      setCategory(filterCategories[SEARCH_CATEGORY_ID.DOCUMENTATION]);
+      setCategory(filterCategories[SEARCH_CATEGORY_ID.INIT]);
     }
+
     dispatch(toggleShowGlobalSearchModal());
-    dispatch(cancelSnippet());
   };
 
   const scrollPositionRef = useRef(0);
-
-  const [
-    documentationSearchResults,
-    setDocumentationSearchResultsInState,
-  ] = useState<Array<DocSearchItem>>([]);
 
   const [activeItemIndex, setActiveItemIndexInState] = useState(0);
   const setActiveItemIndex = useCallback((index) => {
@@ -229,6 +208,7 @@ function GlobalSearch() {
 
   useEffect(() => {
     setTimeout(() => document.getElementById("global-search")?.focus());
+
     if (isNavigation(category) && recentEntities.length > 1) {
       setActiveItemIndex(1);
     } else {
@@ -238,55 +218,45 @@ function GlobalSearch() {
 
   useEffect(() => {
     setActiveItemIndex(0);
-  }, [refinements]);
-
-  const allWidgets = useSelector(getAllPageWidgets);
-
-  const searchableWidgets = useMemo(
-    () =>
-      allWidgets.filter(
-        (widget: any) =>
-          ["CANVAS_WIDGET", "ICON_WIDGET"].indexOf(widget.type) === -1,
-      ),
-    [allWidgets],
-  );
-  const actions = useSelector(getActions);
-  const jsActions = useSelector(getJSCollections);
-  const pages = useSelector(getPageList) || [];
-  const pageMap = keyBy(pages, "pageId");
+  }, []);
 
   const reducerDatasources = useSelector((state: AppState) => {
-    return state.entities.datasources.list;
-  });
+    return state.entities.datasources.list.filter(
+      (datasource) => datasource.id !== TEMP_DATASOURCE_ID,
+    );
+  }, shallowEqual);
   const datasourcesList = useMemo(() => {
     return reducerDatasources.map((datasource) => ({
       ...datasource,
-      pageId: params?.pageId,
+      pageId: basePageIdToPageIdMap[params?.basePageId],
     }));
-  }, [reducerDatasources]);
+  }, [basePageIdToPageIdMap, params?.basePageId, reducerDatasources]);
 
   const filteredDatasources = useMemo(() => {
     if (!query) return datasourcesList;
+
     return datasourcesList.filter((datasource) =>
       isMatching(datasource.name, query),
     );
-  }, [reducerDatasources, query]);
+  }, [datasourcesList, query]);
   const recentEntities = useRecentEntities();
   const recentEntityIds = recentEntities
     .map((r) => getEntityId(r))
     .filter(Boolean);
   const recentEntityIndex = useCallback(
-    (entity) => {
-      if (entity.kind === SEARCH_ITEM_TYPES.document) return -1;
+    // TODO: Fix this the next time the file is edited
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (entity: any) => {
       const id =
         entity.id || entity.widgetId || entity.config?.id || entity.pageId;
+
       return recentEntityIds.indexOf(id);
     },
-    [recentEntities],
+    [recentEntityIds],
   );
 
   const resetSearchQuery = useSelector(searchQuerySelector);
-  const selectedWidgetId = useSelector(getSelectedWidget);
+  const lastSelectedWidgetId = useSelector(getLastSelectedWidget);
 
   // keeping query in component state until we can figure out fixed for the perf issues
   // this is used to update query from outside the component, for ex. using the help button within prop. pane
@@ -302,62 +272,42 @@ function GlobalSearch() {
     if (query) setActiveItemIndex(0);
   }, [query]);
 
-  const filteredWidgets = useMemo(() => {
-    if (!query) return searchableWidgets;
+  const isFeatureEnabled = useFeatureFlag(FEATURE_FLAG.license_gac_enabled);
+  const pagePermissions = useSelector(getPagePermissions);
 
-    return searchableWidgets.filter((widget: any) => {
-      const page = pageMap[widget.pageId];
-      const isPageNameMatching = isMatching(page?.pageName, query);
-      const isWidgetNameMatching = isMatching(widget?.widgetName, query);
+  const canCreateActions = getHasCreateActionPermission(
+    isFeatureEnabled,
+    pagePermissions,
+  );
 
-      return isWidgetNameMatching || isPageNameMatching;
-    });
-  }, [allWidgets, query]);
-  const filteredActions = useMemo(() => {
-    if (!query) return actions;
-
-    return actions.filter((action: any) => {
-      const page = pageMap[action?.config?.pageId];
-      const isPageNameMatching = isMatching(page?.pageName, query);
-      const isActionNameMatching = isMatching(action?.config?.name, query);
-
-      return isActionNameMatching || isPageNameMatching;
-    });
-  }, [actions, query]);
-  const filteredJSCollections = useMemo(() => {
-    if (!query) return jsActions;
-
-    return jsActions.filter((action: any) => {
-      const page = pageMap[action?.config?.pageId];
-      const isPageNameMatching = isMatching(page?.pageName, query);
-      const isActionNameMatching = isMatching(action?.config?.name, query);
-
-      return isActionNameMatching || isPageNameMatching;
-    });
-  }, [jsActions, query]);
-  const filteredPages = useMemo(() => {
-    if (!query) return attachKind(pages, SEARCH_ITEM_TYPES.page);
-
-    return attachKind(
-      pages.filter(
-        (page: any) =>
-          page.pageName.toLowerCase().indexOf(query?.toLowerCase()) > -1,
-      ),
-      SEARCH_ITEM_TYPES.page,
-    );
-  }, [pages, query]);
+  const filteredWidgets = useFilteredWidgets(query);
+  const filteredActions = useFilteredActions(query);
+  const filteredJSCollections = useFilteredJSCollections(query);
+  const filteredPages = useFilteredPages(query);
+  const filteredFileOperations = useFilteredFileOperations({
+    canCreateActions,
+    query,
+  });
 
   const searchResults = useMemo(() => {
     if (isMenu(category) && !query) {
-      return filterCategoryList.filter((cat: SearchCategory) => !isMenu(cat));
-    }
-    if (isSnippet(category)) {
-      return snippets;
+      const shouldRemoveActionCreation = !filteredFileOperations.length;
+
+      return filterCategoryList.filter(
+        (cat: SearchCategory) =>
+          !isMenu(cat) &&
+          (isActionOperation(cat) ? !shouldRemoveActionCreation : true),
+      );
     }
 
-    let currentSnippets = snippets;
+    if (isActionOperation(category)) {
+      return filteredFileOperations;
+    }
+
+    // TODO: Fix this the next time the file is edited
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let filteredEntities: any = [];
-    let documents: DocSearchItem[] = [];
+
     if (isNavigation(category) || isMenu(category)) {
       filteredEntities = [
         ...filteredActions,
@@ -367,40 +317,33 @@ function GlobalSearch() {
         ...filteredDatasources,
       ];
     }
-    if (isDocumentation(category) || isMenu(category)) {
-      documents = query
-        ? documentationSearchResults
-        : defaultDocs.concat(documentationSearchResults);
-    }
-    if (isNavigation(category) || isDocumentation(category)) {
-      currentSnippets = [];
-    }
 
     return getSortedResults(
       query,
       filteredEntities,
-      documents,
       recentEntityIndex,
-      currentSnippets,
       currentPageId,
     );
   }, [
-    filteredWidgets,
+    category,
+    currentPageId,
     filteredActions,
-    filteredJSCollections,
-    documentationSearchResults,
     filteredDatasources,
+    filteredFileOperations,
+    filteredJSCollections,
+    filteredPages,
+    filteredWidgets,
     query,
-    recentEntities,
-    snippets,
+    recentEntityIndex,
   ]);
 
   const activeItem = useMemo(() => {
-    return searchResults[activeItemIndex] || {};
+    return searchResults[activeItemIndex] || emptyObj;
   }, [searchResults, activeItemIndex]);
 
   const getNextActiveItem = (nextIndex: number) => {
     const max = Math.max(searchResults.length - 1, 0);
+
     if (nextIndex < 0) return max;
     else if (nextIndex > max) return 0;
     else return nextIndex;
@@ -409,6 +352,7 @@ function GlobalSearch() {
   const handleUpKey = () => {
     let nextIndex = getNextActiveItem(activeItemIndex - 1);
     const activeItem = searchResults[nextIndex];
+
     if (
       activeItem &&
       (activeItem?.kind === SEARCH_ITEM_TYPES.sectionTitle ||
@@ -416,12 +360,14 @@ function GlobalSearch() {
     ) {
       nextIndex = getNextActiveItem(nextIndex - 1);
     }
+
     setActiveItemIndex(nextIndex);
   };
 
   const handleDownKey = () => {
     let nextIndex = getNextActiveItem(activeItemIndex + 1);
     const activeItem = searchResults[nextIndex];
+
     if (
       activeItem &&
       (activeItem?.kind === SEARCH_ITEM_TYPES.sectionTitle ||
@@ -429,109 +375,121 @@ function GlobalSearch() {
     ) {
       nextIndex = getNextActiveItem(nextIndex + 1);
     }
+
     setActiveItemIndex(nextIndex);
   };
 
   const { navigateToWidget } = useNavigateToWidget();
-
-  const handleDocumentationItemClick = (
-    item: SearchItem,
-    event?: SelectEvent,
-  ) => {
-    if (event && event.type === "click") return;
-    window.open(item.path.replace("master", HelpBaseURL), "_blank");
-  };
 
   const handleWidgetClick = (activeItem: SearchItem) => {
     toggleShow();
     navigateToWidget(
       activeItem.widgetId,
       activeItem.type,
-      activeItem.pageId,
-      selectedWidgetId === activeItem.widgetId,
-      activeItem.parentModalId,
+      pageIdToBasePageIdMap[activeItem.pageId],
+      NavigationMethod.Omnibar,
+      lastSelectedWidgetId === activeItem.widgetId,
+      false,
+      false,
+      activeItem.pageId !== currentPageId,
     );
   };
 
   const handleActionClick = (item: SearchItem) => {
     const { config } = item;
-    const { id, pageId, pluginType } = config;
+    const { baseId: baseActionId, pageId, pluginId, pluginType } = config;
     const actionConfig = getActionConfig(pluginType);
-    const url = actionConfig?.getURL(applicationId, pageId, id, pluginType);
+    const plugin = plugins.find((plugin) => plugin?.id === pluginId);
+    const basePageId = pageIdToBasePageIdMap[pageId];
+    const url = actionConfig?.getURL(
+      basePageId,
+      baseActionId,
+      pluginType,
+      plugin,
+    );
+
     toggleShow();
-    url && history.push(url);
+    url && history.push(url, { invokedBy: NavigationMethod.Omnibar });
   };
 
   const handleJSCollectionClick = (item: SearchItem) => {
     const { config } = item;
-    const { id, pageId } = config;
-    history.push(JS_COLLECTION_ID_URL(applicationId, pageId, id));
+    const { baseId: baseCollectionId, pageId } = config;
+    const basePageId = pageIdToBasePageIdMap[pageId];
+
+    history.push(
+      jsCollectionIdURL({
+        basePageId,
+        baseCollectionId,
+      }),
+      { invokedBy: NavigationMethod.Omnibar },
+    );
     toggleShow();
   };
 
   const handleDatasourceClick = (item: SearchItem) => {
     toggleShow();
+    const basePageId = pageIdToBasePageIdMap[item.pageId];
+
     history.push(
-      DATA_SOURCES_EDITOR_ID_URL(
-        applicationId,
-        item.pageId,
-        item.id,
-        getQueryParams(),
-      ),
+      datasourcesEditorIdURL({
+        basePageId: basePageId,
+        datasourceId: item.id,
+        params: getQueryParams(),
+      }),
+      { invokedBy: NavigationMethod.Omnibar },
     );
   };
 
   const handlePageClick = (item: SearchItem) => {
     toggleShow();
-    history.push(BUILDER_PAGE_URL({ applicationId, pageId: item.pageId }));
-  };
-
-  const onEnterSnippet = useSelector(
-    (state: AppState) => state.ui.globalSearch.filterContext.onEnter,
-  );
-
-  const handleSnippetClick = (event: SelectEvent, item: any) => {
-    if (event && event.type === "click") return;
-    const snippetExecuteBtn = document.querySelector(
-      ".snippet-execute",
-    ) as HTMLButtonElement;
-    if (snippetExecuteBtn && !snippetExecuteBtn.disabled) {
-      return snippetExecuteBtn && snippetExecuteBtn.click();
-    }
-    if (onEnterSnippet === SnippetAction.INSERT) {
-      dispatch(insertSnippet(get(item, "body.snippet", "")));
-    } else {
-      const snippet = getSnippet(get(item, "body.snippet", ""), {});
-      const title = get(item, "body.title", "");
-      copy(snippet);
-      Toaster.show({
-        text: "Snippet copied to clipboard",
-        variant: Variant.success,
-      });
-      AnalyticsUtil.logEvent("SNIPPET_COPIED", { snippet, title });
-    }
-    toggleShow();
+    history.push(
+      builderURL({
+        basePageId: item.basePageId,
+      }),
+      { invokedBy: NavigationMethod.Omnibar },
+    );
   };
 
   const itemClickHandlerByType = {
-    [SEARCH_ITEM_TYPES.document]: (e: SelectEvent, item: any) =>
-      handleDocumentationItemClick(item, e),
+    // TODO: Fix this the next time the file is edited
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     [SEARCH_ITEM_TYPES.widget]: (e: SelectEvent, item: any) =>
       handleWidgetClick(item),
+    // TODO: Fix this the next time the file is edited
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     [SEARCH_ITEM_TYPES.action]: (e: SelectEvent, item: any) =>
       handleActionClick(item),
+    // TODO: Fix this the next time the file is edited
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     [SEARCH_ITEM_TYPES.datasource]: (e: SelectEvent, item: any) =>
       handleDatasourceClick(item),
+    // TODO: Fix this the next time the file is edited
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     [SEARCH_ITEM_TYPES.page]: (e: SelectEvent, item: any) =>
       handlePageClick(item),
+    // TODO: Fix this the next time the file is edited
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     [SEARCH_ITEM_TYPES.jsAction]: (e: SelectEvent, item: any) =>
       handleJSCollectionClick(item),
     [SEARCH_ITEM_TYPES.sectionTitle]: noop,
     [SEARCH_ITEM_TYPES.placeholder]: noop,
+    // TODO: Fix this the next time the file is edited
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     [SEARCH_ITEM_TYPES.category]: (e: SelectEvent, item: any) =>
       setCategory(item),
-    [SEARCH_ITEM_TYPES.snippet]: (e: SelectEvent, item: any) =>
-      handleSnippetClick(e, item),
+    // TODO: Fix this the next time the file is edited
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    [SEARCH_ITEM_TYPES.actionOperation]: (e: SelectEvent, item: any) => {
+      if (item.action)
+        dispatch(
+          item.action(currentPageId, DatasourceCreateEntryPoints.OMNIBAR),
+        );
+      else if (item.redirect)
+        item.redirect(currentPageId, DatasourceCreateEntryPoints.OMNIBAR);
+
+      dispatch(toggleShowGlobalSearchModal());
+    },
   };
 
   const handleItemLinkClick = (
@@ -568,12 +526,8 @@ function GlobalSearch() {
   };
 
   const showDescription = useMemo(() => {
-    return (
-      isDocumentation(category) ||
-      isSnippet(category) ||
-      (isMenu(category) && query)
-    );
-  }, [category, query]);
+    return false;
+  }, []);
 
   const activeItemType = useMemo(() => {
     return activeItem ? getItemType(activeItem) : undefined;
@@ -584,76 +538,35 @@ function GlobalSearch() {
       <SearchContext.Provider value={searchContext}>
         <GlobalSearchHotKeys {...hotKeyProps}>
           <SearchModal modalOpen={modalOpen} toggleShow={toggleShow}>
-            <AlgoliaSearchWrapper
-              category={category}
-              query={query}
-              refinements={refinements}
-              setRefinement={setRefinements}
-            >
-              <StyledContainer category={category}>
-                <SearchBox
-                  category={category}
-                  query={query}
-                  setCategory={setCategory}
-                  setQuery={setQuery}
-                />
-                {isSnippet(category) &&
-                  refinements &&
-                  refinements.entities &&
-                  refinements.entities.length && <SnippetRefinements />}
-                <div className="main">
-                  {(isMenu(category) || isDocumentation(category)) && (
-                    <Index indexName={algolia.indexName}>
-                      <SetSearchResults
-                        category={category}
-                        setSearchResults={setDocumentationSearchResultsInState}
-                      />
-                    </Index>
-                  )}
-                  {/* Search from default menu should search multiple indexes.
-                Below is the code to search in the index-snippet. Index
-                component requires Hits component as its children to display the
-                results. SetSearchResults is the custom hits component. */}
-                  {(isMenu(category) || isSnippet(category)) && (
-                    <Index indexName="snippet">
-                      <Configure
-                        optionalFilters={getOptionalFilters(optionalFilterMeta)}
-                      />
-                      <SetSearchResults
-                        category={category}
-                        setSearchResults={setSnippetsState}
-                      />
-                    </Index>
-                  )}
-                  {searchResults.length > 0 ? (
-                    <>
-                      <SearchResults
-                        category={category}
-                        query={query}
-                        searchResults={searchResults}
-                      />
-                      {showDescription && (
-                        <Description
-                          activeItem={activeItem}
-                          activeItemType={activeItemType}
-                          query={query}
-                          scrollPositionRef={scrollPositionRef}
-                        />
-                      )}
-                    </>
-                  ) : (
-                    <ResultsNotFound />
-                  )}
-                  {isSnippet(category) && (
-                    <SnippetsFilter
-                      refinements={refinements}
-                      snippetsEmpty={snippets.length === 0}
+            <StyledContainer category={category} query={query}>
+              <SearchBox
+                category={category}
+                query={query}
+                setCategory={setCategory}
+                setQuery={setQuery}
+              />
+              <div className="main">
+                {searchResults.length > 0 ? (
+                  <>
+                    <SearchResults
+                      category={category}
+                      query={query}
+                      searchResults={searchResults}
                     />
-                  )}
-                </div>
-                {/* <Footer /> */}
-              </StyledContainer>
-            </AlgoliaSearchWrapper>
+                    {showDescription && (
+                      <Description
+                        activeItem={activeItem}
+                        activeItemType={activeItemType}
+                        query={query}
+                        scrollPositionRef={scrollPositionRef}
+                      />
+                    )}
+                  </>
+                ) : (
+                  <ResultsNotFound />
+                )}
+              </div>
+            </StyledContainer>
           </SearchModal>
         </GlobalSearchHotKeys>
       </SearchContext.Provider>

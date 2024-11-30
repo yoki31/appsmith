@@ -1,35 +1,40 @@
 import { formValueSelector, reduxForm } from "redux-form";
-import { QUERY_EDITOR_FORM_NAME } from "constants/forms";
-import { Action } from "entities/Action";
+import { QUERY_EDITOR_FORM_NAME } from "ee/constants/forms";
+import type { Action } from "entities/Action";
 import { connect } from "react-redux";
-import { AppState } from "reducers";
+import type { AppState } from "ee/reducers";
 import {
   getPluginResponseTypes,
   getPluginDocumentationLinks,
   getPlugin,
-} from "selectors/entitiesSelector";
-import { EditorJSONtoForm, EditorJSONtoFormProps } from "./EditorJSONtoForm";
-import { getFormValues } from "redux-form";
-import { QueryAction } from "entities/Action";
+  getActionData,
+} from "ee/selectors/entitiesSelector";
+import type { EditorJSONtoFormProps } from "./EditorJSONtoForm";
+import { EditorJSONtoForm } from "./EditorJSONtoForm";
 import { getFormEvaluationState } from "selectors/formSelectors";
+import { actionResponseDisplayDataFormats } from "../utils";
 
 const valueSelector = formValueSelector(QUERY_EDITOR_FORM_NAME);
-const mapStateToProps = (state: AppState) => {
+// TODO: Fix this the next time the file is edited
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const mapStateToProps = (state: AppState, props: any) => {
+  const actionId = valueSelector(state, "id");
   const actionName = valueSelector(state, "name");
   const pluginId = valueSelector(state, "datasource.pluginId");
   const selectedDbId = valueSelector(state, "datasource.id");
+  const actionData = getActionData(state, actionId);
+  const { responseDataTypes, responseDisplayFormat } =
+    actionResponseDisplayDataFormats(actionData);
 
   const responseTypes = getPluginResponseTypes(state);
   const documentationLinks = getPluginDocumentationLinks(state);
-  const formData = getFormValues(QUERY_EDITOR_FORM_NAME)(state) as QueryAction;
-
   const plugin = getPlugin(state, pluginId);
   // State to manage the evaluations for the form
   let formEvaluationState = {};
 
   // Fetching evaluations state only once the formData is populated
-  if (!!formData) {
-    formEvaluationState = getFormEvaluationState(state)[formData.id];
+  if (!!props.formData) {
+    formEvaluationState = getFormEvaluationState(state)[props.formData.id];
   }
 
   return {
@@ -37,10 +42,11 @@ const mapStateToProps = (state: AppState) => {
     plugin,
     pluginId,
     selectedDbId,
+    responseDataTypes,
+    responseDisplayFormat,
     responseType: responseTypes[pluginId],
     documentationLink: documentationLinks[pluginId],
     formName: QUERY_EDITOR_FORM_NAME,
-    formData: formData,
     formEvaluationState,
   };
 };

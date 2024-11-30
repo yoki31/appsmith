@@ -7,7 +7,7 @@ import org.springframework.data.projection.ProjectionFactory;
 import org.springframework.data.repository.core.NamedQueries;
 import org.springframework.data.repository.core.RepositoryMetadata;
 import org.springframework.data.repository.query.QueryLookupStrategy;
-import org.springframework.data.repository.query.QueryMethodEvaluationContextProvider;
+import org.springframework.data.repository.query.ReactiveQueryMethodEvaluationContextProvider;
 import org.springframework.data.repository.query.RepositoryQuery;
 import org.springframework.expression.ExpressionParser;
 import org.springframework.expression.spel.standard.SpelExpressionParser;
@@ -28,18 +28,18 @@ public class SoftDeleteMongoQueryLookupStrategy implements QueryLookupStrategy {
     private final QueryLookupStrategy strategy;
     private final ReactiveMongoOperations mongoOperations;
     private static final SpelExpressionParser EXPRESSION_PARSER = new SpelExpressionParser();
-    QueryMethodEvaluationContextProvider evaluationContextProvider = QueryMethodEvaluationContextProvider.DEFAULT;
+    ReactiveQueryMethodEvaluationContextProvider evaluationContextProvider =
+            ReactiveQueryMethodEvaluationContextProvider.DEFAULT.DEFAULT;
     private ExpressionParser expressionParser = new SpelExpressionParser();
 
-    public SoftDeleteMongoQueryLookupStrategy(QueryLookupStrategy strategy,
-                                              ReactiveMongoOperations mongoOperations) {
+    public SoftDeleteMongoQueryLookupStrategy(QueryLookupStrategy strategy, ReactiveMongoOperations mongoOperations) {
         this.strategy = strategy;
         this.mongoOperations = mongoOperations;
     }
 
     @Override
-    public RepositoryQuery resolveQuery(Method method, RepositoryMetadata metadata, ProjectionFactory factory,
-                                        NamedQueries namedQueries) {
+    public RepositoryQuery resolveQuery(
+            Method method, RepositoryMetadata metadata, ProjectionFactory factory, NamedQueries namedQueries) {
         RepositoryQuery repositoryQuery = strategy.resolveQuery(method, metadata, factory, namedQueries);
 
         // revert to the standard behavior if requested
@@ -52,7 +52,7 @@ public class SoftDeleteMongoQueryLookupStrategy implements QueryLookupStrategy {
         }
         ReactivePartTreeMongoQuery partTreeQuery = (ReactivePartTreeMongoQuery) repositoryQuery;
 
-        return new SoftDeletePartTreeMongoQuery(method, partTreeQuery, this.mongoOperations, EXPRESSION_PARSER, evaluationContextProvider);
+        return new SoftDeletePartTreeMongoQuery(
+                method, partTreeQuery, this.mongoOperations, EXPRESSION_PARSER, evaluationContextProvider);
     }
-
 }

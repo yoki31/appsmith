@@ -54,9 +54,7 @@ public class BodyReceiver {
                 (BodyInserter<Object, MinimalHttpOutputMessage>) bodyInserter;
 
         inserter.insert(
-                MinimalHttpOutputMessage.INSTANCE,
-                new SingleWriterContext(new WriteToConsumer<>(reference::set))
-        );
+                MinimalHttpOutputMessage.INSTANCE, new SingleWriterContext(new WriteToConsumer<>(reference::set)));
     }
 
     private Object receivedValue() {
@@ -67,8 +65,7 @@ public class BodyReceiver {
 
         if (value == DUMMY) {
             throw new AppsmithPluginException(
-                    AppsmithPluginError.PLUGIN_ERROR,
-                    "Value was not received, check if your inserter worked properly");
+                    AppsmithPluginError.PLUGIN_ERROR, "Value was not received, check if your inserter worked properly");
         } else {
             validatedValue = value;
         }
@@ -102,8 +99,7 @@ public class BodyReceiver {
                 ResolvableType elementType,
                 MediaType mediaType,
                 ReactiveHttpOutputMessage message,
-                Map<String, Object> hints
-        ) {
+                Map<String, Object> hints) {
             inputStream.subscribe(new OneValueConsumption<>(consumer));
             return Mono.empty();
         }
@@ -111,10 +107,9 @@ public class BodyReceiver {
 
     static class MinimalHttpOutputMessage implements ClientHttpRequest {
 
-        public static MinimalHttpOutputMessage INSTANCE = new MinimalHttpOutputMessage();
+        public static final MinimalHttpOutputMessage INSTANCE = new MinimalHttpOutputMessage();
 
-        private MinimalHttpOutputMessage() {
-        }
+        private MinimalHttpOutputMessage() {}
 
         @Override
         public HttpHeaders getHeaders() {
@@ -127,8 +122,7 @@ public class BodyReceiver {
         }
 
         @Override
-        public void beforeCommit(Supplier<? extends Mono<Void>> action) {
-        }
+        public void beforeCommit(Supplier<? extends Mono<Void>> action) {}
 
         @Override
         public boolean isCommitted() {
@@ -162,6 +156,11 @@ public class BodyReceiver {
 
         @Override
         public MultiValueMap<String, HttpCookie> getCookies() {
+            return null;
+        }
+
+        @Override
+        public <T> T getNativeRequest() {
             return null;
         }
     }

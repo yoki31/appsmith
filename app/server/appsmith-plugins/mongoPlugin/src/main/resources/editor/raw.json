@@ -1,33 +1,32 @@
 {
+  "controlType": "SECTION_V2",
   "identifier": "RAW",
-  "controlType" : "SECTION",
   "conditionals": {
-    "show": "{{actionConfiguration.formData.command === 'RAW'}}"
+    "show": "{{actionConfiguration.formData.command.data === 'RAW'}}"
   },
   "children": [
     {
-      "controlType": "SECTION",
-      "label": "Query",
-      "description" : "Optional",
+      "controlType": "SINGLE_COLUMN_ZONE",
+      "identifier": "RAW-Z1",
       "children": [
         {
           "label": "",
-          "propertyName" : "rawWithSmartSubstitute",
-          "configProperty": "actionConfiguration.body",
+          "propertyName": "rawWithSmartSubstitute",
+          "configProperty": "actionConfiguration.formData.body.data",
           "controlType": "QUERY_DYNAMIC_TEXT",
           "evaluationSubstitutionType": "SMART_SUBSTITUTE",
           "conditionals": {
-            "show": "{{actionConfiguration.formData.command === 'RAW' && actionConfiguration.formData.smartSubstitution === true}}"
+            "show": "{{actionConfiguration.formData.command.data === 'RAW' && actionConfiguration.formData.smartSubstitution.data === true}}"
           }
         },
         {
           "label": "",
-          "configProperty": "actionConfiguration.body",
-          "propertyName" : "rawWithTemplateSubstitute",
+          "configProperty": "actionConfiguration.formData.body.data",
+          "propertyName": "rawWithTemplateSubstitute",
           "controlType": "QUERY_DYNAMIC_TEXT",
           "evaluationSubstitutionType": "TEMPLATE",
           "conditionals": {
-            "show": "{{actionConfiguration.formData.command === 'RAW' && actionConfiguration.formData.smartSubstitution === false}}"
+            "show": "{{actionConfiguration.formData.command.data === 'RAW' && actionConfiguration.formData.smartSubstitution.data === false}}"
           }
         }
       ]

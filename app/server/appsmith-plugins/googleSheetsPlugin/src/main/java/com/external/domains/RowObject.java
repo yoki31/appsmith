@@ -2,7 +2,7 @@ package com.external.domains;
 
 import com.appsmith.external.exceptions.pluginExceptions.AppsmithPluginError;
 import com.appsmith.external.exceptions.pluginExceptions.AppsmithPluginException;
-import com.external.constants.GoogleSheets;
+import com.external.constants.FieldName;
 import com.google.api.services.sheets.v4.model.CellData;
 import com.google.api.services.sheets.v4.model.ExtendedValue;
 import com.google.api.services.sheets.v4.model.RowData;
@@ -32,7 +32,7 @@ public class RowObject {
     int startingColumnIndex = 0;
 
     public RowObject(LinkedHashMap<String, String> valueMap) {
-        this.rowIndex = valueMap.remove(GoogleSheets.ROW_INDEX);
+        this.rowIndex = valueMap.remove(FieldName.ROW_INDEX);
         this.valueMap = valueMap;
     }
 
@@ -58,17 +58,19 @@ public class RowObject {
 
         this.currentRowIndex = rowIndex;
         this.rowIndex = String.valueOf(rowIndex);
-        valueMap.put(GoogleSheets.ROW_INDEX, this.rowIndex);
+        valueMap.put(FieldName.ROW_INDEX, this.rowIndex);
     }
 
     public RowObject initialize() {
         if (this.rowIndex == null) {
-            throw new AppsmithPluginException(AppsmithPluginError.PLUGIN_EXECUTE_ARGUMENT_ERROR, "Missing required field row index.");
+            throw new AppsmithPluginException(
+                    AppsmithPluginError.PLUGIN_EXECUTE_ARGUMENT_ERROR, "Missing required field row index.");
         }
         try {
             this.currentRowIndex = Integer.parseInt(this.rowIndex);
         } catch (NumberFormatException e) {
-            throw new AppsmithPluginException(AppsmithPluginError.PLUGIN_EXECUTE_ARGUMENT_ERROR, "Unable to parse row index: " + this.rowIndex);
+            throw new AppsmithPluginException(
+                    AppsmithPluginError.PLUGIN_EXECUTE_ARGUMENT_ERROR, "Unable to parse row index: " + this.rowIndex);
         }
         return this;
     }
@@ -76,8 +78,7 @@ public class RowObject {
     public RowData getAsSheetRowData(String[] referenceKeys) {
         RowData rowData = new RowData();
         if (referenceKeys == null) {
-            rowData.setValues(this.valueMap.values()
-                    .stream()
+            rowData.setValues(this.valueMap.values().stream()
                     .map(value -> new CellData().setFormattedValue(value))
                     .collect(Collectors.toList()));
             return rowData;
@@ -86,10 +87,9 @@ public class RowObject {
         List<CellData> cellDataList = new ArrayList<>();
 
         for (String referenceKey : referenceKeys) {
-            cellDataList
-                    .add(new CellData()
-                            .setUserEnteredValue(new ExtendedValue()
-                                    .setStringValue(this.valueMap.getOrDefault(referenceKey, null))));
+            cellDataList.add(new CellData()
+                    .setUserEnteredValue(
+                            new ExtendedValue().setStringValue(this.valueMap.getOrDefault(referenceKey, null))));
         }
 
         return rowData.setValues(cellDataList);

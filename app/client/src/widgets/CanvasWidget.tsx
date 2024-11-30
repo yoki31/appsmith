@@ -1,91 +1,49 @@
-import React, { CSSProperties } from "react";
-import { WidgetProps } from "widgets/BaseWidget";
-import ContainerWidget, {
-  ContainerWidgetProps,
-} from "widgets/ContainerWidget/widget";
-import { GridDefaults } from "constants/WidgetConstants";
-import DropTargetComponent from "components/editorComponents/DropTargetComponent";
-import { getCanvasSnapRows } from "utils/WidgetPropsUtils";
-import { getCanvasClassName } from "utils/generators";
-import WidgetFactory, { DerivedPropertiesMap } from "utils/WidgetFactory";
+import { ResponsiveBehavior } from "layoutSystems/common/utils/constants";
+import { FILL_WIDGET_MIN_WIDTH } from "constants/minWidthConstants";
+import type { DerivedPropertiesMap } from "WidgetProvider/factory";
+import ContainerWidget from "widgets/ContainerWidget/widget";
+import type { WidgetDefaultProps } from "../WidgetProvider/constants";
+import type { AutocompletionDefinitions } from "WidgetProvider/constants";
+import type { SetterConfig } from "entities/AppTheming";
+
+/**
+ * Please refer to renderAppsmithCanvas in CanvasFactory to see current version of How CanvasWidget is rendered.
+ */
 
 class CanvasWidget extends ContainerWidget {
+  static type = "CANVAS_WIDGET";
+
+  static getConfig() {
+    return {
+      name: "Canvas",
+      hideCard: true,
+      eagerRender: true,
+    };
+  }
+
+  static getDefaults(): WidgetDefaultProps {
+    return {
+      rows: 0,
+      columns: 0,
+      widgetName: "Canvas",
+      version: 1,
+      detachFromLayout: true,
+      flexLayers: [],
+      responsiveBehavior: ResponsiveBehavior.Fill,
+      minWidth: FILL_WIDGET_MIN_WIDTH,
+    };
+  }
+
   static getPropertyPaneConfig() {
     return [];
   }
-  static getWidgetType() {
-    return "CANVAS_WIDGET";
+
+  static getAutocompleteDefinitions(): AutocompletionDefinitions {
+    return {};
   }
 
-  getCanvasProps(): ContainerWidgetProps<WidgetProps> {
-    return {
-      ...this.props,
-      parentRowSpace: 1,
-      parentColumnSpace: 1,
-      topRow: 0,
-      leftColumn: 0,
-      containerStyle: "none",
-      detachFromLayout: true,
-    };
-  }
-
-  renderAsDropTarget() {
-    const canvasProps = this.getCanvasProps();
-    return (
-      <DropTargetComponent
-        {...canvasProps}
-        {...this.getSnapSpaces()}
-        minHeight={this.props.minHeight || 380}
-      >
-        {this.renderAsContainerComponent(canvasProps)}
-      </DropTargetComponent>
-    );
-  }
-
-  renderChildWidget(childWidgetData: WidgetProps): React.ReactNode {
-    if (!childWidgetData) return null;
-    // For now, isVisible prop defines whether to render a detached widget
-    if (childWidgetData.detachFromLayout && !childWidgetData.isVisible) {
-      return null;
-    }
-    const snapSpaces = this.getSnapSpaces();
-
-    childWidgetData.parentColumnSpace = snapSpaces.snapColumnSpace;
-    childWidgetData.parentRowSpace = snapSpaces.snapRowSpace;
-    if (this.props.noPad) childWidgetData.noContainerOffset = true;
-    childWidgetData.parentId = this.props.widgetId;
-
-    return WidgetFactory.createWidget(childWidgetData, this.props.renderMode);
-  }
-
-  getPageView() {
-    let height = 0;
-    const snapRows = getCanvasSnapRows(
-      this.props.bottomRow,
-      this.props.canExtend,
-    );
-    height = snapRows * GridDefaults.DEFAULT_GRID_ROW_HEIGHT;
-
-    const style: CSSProperties = {
-      width: "100%",
-      height: `${height}px`,
-      background: "none",
-      position: "relative",
-    };
-    // This div is the DropTargetComponent alternative for the page view
-    // DropTargetComponent and this div are responsible for the canvas height
-    return (
-      <div className={getCanvasClassName()} style={style}>
-        {this.renderAsContainerComponent(this.getCanvasProps())}
-      </div>
-    );
-  }
-
-  getCanvasView() {
-    if (!this.props.dropDisabled) {
-      return this.renderAsDropTarget();
-    }
-    return this.getPageView();
+  static getSetterConfig(): SetterConfig | null {
+    return null;
   }
 
   static getDerivedPropertiesMap(): DerivedPropertiesMap {
@@ -96,28 +54,11 @@ class CanvasWidget extends ContainerWidget {
     return {};
   }
   // TODO Find a way to enforce this, (dont let it be set)
+  // TODO: Fix this the next time the file is edited
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   static getMetaPropertiesMap(): Record<string, any> {
     return {};
   }
 }
-
-export const CONFIG = {
-  type: CanvasWidget.getWidgetType(),
-  name: "Canvas",
-  hideCard: true,
-  defaults: {
-    rows: 0,
-    columns: 0,
-    widgetName: "Canvas",
-    version: 1,
-    detachFromLayout: true,
-  },
-  properties: {
-    derived: CanvasWidget.getDerivedPropertiesMap(),
-    default: CanvasWidget.getDefaultPropertiesMap(),
-    meta: CanvasWidget.getMetaPropertiesMap(),
-    config: CanvasWidget.getPropertyPaneConfig(),
-  },
-};
 
 export default CanvasWidget;

@@ -11,9 +11,9 @@ const TooltipStyles = createGlobalStyle`
     }
     .bp3-popover-content {
       padding: 8px;
-      color: ${Colors.RED};
+      color: ${Colors.ERROR_RED};
       text-align: center;
-      border-radius: 4px;
+      border-radius: 0;
       text-transform: initial;
       font-weight: 500;
       font-size: 12px;
@@ -26,7 +26,7 @@ const TooltipStyles = createGlobalStyle`
 const Wrapper = styled.div`
   position: relative;
   flex: 1;
-  height: 100%;
+  height: auto;
   .bp3-popover-target {
     width: 100%;
     height: 100%;
@@ -34,12 +34,35 @@ const Wrapper = styled.div`
 `;
 
 interface Props {
+  boundary?: string;
   isOpen: boolean;
   message: string;
   children: JSX.Element;
+  customClass?: string;
 }
 
 function ErrorTooltip(props: Props) {
+  let conditionalProps = {};
+  let containerElement;
+
+  if (
+    props.boundary &&
+    (containerElement = document.querySelector(props.boundary))
+  ) {
+    conditionalProps = {
+      modifiers: {
+        flip: {
+          enabled: true,
+          boundariesElement: containerElement,
+        },
+        preventOverflow: {
+          enabled: true,
+          boundariesElement: containerElement,
+        },
+      },
+    };
+  }
+
   return (
     <Wrapper>
       <TooltipStyles />
@@ -48,9 +71,10 @@ function ErrorTooltip(props: Props) {
         canEscapeKeyClose
         content={props.message}
         isOpen={props.isOpen && !!props.message}
-        portalClassName="error-tooltip"
-        position="bottom"
+        portalClassName={`error-tooltip ${props.customClass || ""}`}
+        position={props.boundary ? "auto" : "bottom"}
         usePortal
+        {...conditionalProps}
       >
         {props.children}
       </Popover>

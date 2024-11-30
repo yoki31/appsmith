@@ -1,118 +1,187 @@
-import React, { useState, useMemo } from "react";
-import { useDispatch } from "react-redux";
-import { useSelector } from "store";
-import { getUserApplicationsOrgs } from "selectors/applicationSelectors";
-import { isPermitted, PERMISSION_TYPE } from "./permissionHelpers";
-import { ReduxActionTypes } from "constants/ReduxActionConstants";
-import { AppState } from "reducers";
-import { Size } from "components/ads/Button";
+import React, { useState, useMemo, useEffect } from "react";
+import { useDispatch, useSelector } from "react-redux";
+import { hasCreateNewAppPermission } from "ee/utils/permissionHelpers";
+import { ReduxActionTypes } from "ee/constants/ReduxActionConstants";
+import type { AppState } from "ee/reducers";
 import {
-  StyledDialog,
-  StyledRadioComponent,
-  ForkButton,
-  OrganizationList,
-  ButtonWrapper,
-  SpinnerWrapper,
-} from "./ForkModalStyles";
-import Divider from "components/editorComponents/Divider";
-import { getIsFetchingApplications } from "selectors/applicationSelectors";
-import { useLocation } from "react-router";
-import Spinner from "components/ads/Spinner";
-import { IconSize } from "components/ads/Icon";
-import { matchViewerForkPath } from "constants/routes";
+  Button,
+  Modal,
+  ModalContent,
+  ModalHeader,
+  Spinner,
+  Select,
+  Option,
+} from "@appsmith/ads";
+import { ButtonWrapper, SpinnerWrapper } from "./ForkModalStyles";
+import {
+  CANCEL,
+  createMessage,
+  FORK,
+  FORK_APP_MODAL_EMPTY_TITLE,
+  FORK_APP_MODAL_LOADING_TITLE,
+  FORK_APP_MODAL_SUCCESS_TITLE,
+} from "ee/constants/messages";
+import { getFetchedWorkspaces } from "ee/selectors/workspaceSelectors";
+import { getIsFetchingApplications } from "ee/selectors/selectedWorkspaceSelectors";
+import { fetchAllWorkspaces } from "ee/actions/workspaceActions";
 
-type ForkApplicationModalProps = {
+interface ForkApplicationModalProps {
   applicationId: string;
   // if a trigger is passed
   // it renders that component
   trigger?: React.ReactNode;
   isModalOpen?: boolean;
-  setModalClose?: (isOpen: boolean) => void;
-};
+  handleOpen?: () => void;
+  handleClose?: () => void;
+  isInEditMode?: boolean;
+}
 
 function ForkApplicationModal(props: ForkApplicationModalProps) {
-  const { isModalOpen, setModalClose } = props;
-  const [organizationId, selectOrganizationId] = useState("");
+  const { handleClose, handleOpen, isModalOpen } = props;
+  const [workspace, selectWorkspace] = useState<{
+    label: string;
+    value: string;
+  }>({ label: "", value: "" });
   const dispatch = useDispatch();
-  const userOrgs = useSelector(getUserApplicationsOrgs);
+  const workspaces = useSelector(getFetchedWorkspaces);
   const forkingApplication = useSelector(
     (state: AppState) => state.ui.applications.forkingApplication,
   );
 
   const isFetchingApplications = useSelector(getIsFetchingApplications);
-  const { pathname } = useLocation();
 
-  const showBasedOnURL = matchViewerForkPath(pathname);
+  useEffect(() => {
+    // This effect makes sure that no if <ForkApplicationModel />
+    // is getting controlled from outside, then we always load workspaces
+    if (isModalOpen) {
+      getApplicationsListAndOpenModal();
+
+      return;
+    }
+  }, [isModalOpen]);
+
+  useEffect(() => {
+    // when we fork from within the appeditor, fork modal remains open
+    // even on the landing page of "Forked" app, this closes it
+    const url = new URL(window.location.href);
+    const shouldCloseForcibly =
+      !forkingApplication &&
+      isModalOpen &&
+      handleClose &&
+      !url.searchParams.has("fork");
+
+    if (shouldCloseForcibly) {
+      handleClose();
+    }
+  }, [forkingApplication]);
 
   const forkApplication = () => {
     dispatch({
       type: ReduxActionTypes.FORK_APPLICATION_INIT,
       payload: {
         applicationId: props.applicationId,
-        organizationId,
+        workspaceId: workspace?.value,
+        editMode: props.isInEditMode,
       },
     });
   };
 
-  const organizationList = useMemo(() => {
-    const filteredUserOrgs = userOrgs.filter((item) => {
-      const permitted = isPermitted(
-        item.organization.userPermissions ?? [],
-        PERMISSION_TYPE.CREATE_APPLICATION,
-      );
+  const workspaceList = useMemo(() => {
+    const filteredUserWorkspaces = workspaces.filter((item) => {
+      const permitted = hasCreateNewAppPermission(item.userPermissions ?? []);
+
       return permitted;
     });
 
-    if (filteredUserOrgs.length) {
-      selectOrganizationId(filteredUserOrgs[0].organization.id);
+    if (filteredUserWorkspaces.length) {
+      selectWorkspace({
+        label: filteredUserWorkspaces[0].name,
+        value: filteredUserWorkspaces[0].id,
+      });
     }
 
-    return filteredUserOrgs.map((org) => {
+    return filteredUserWorkspaces.map((workspace) => {
       return {
-        label: org.organization.name,
-        value: org.organization.id,
+        label: workspace.name,
+        value: workspace.id,
       };
     });
-  }, [userOrgs]);
+  }, [workspaces]);
+
+  const modalHeading = isFetchingApplications
+    ? createMessage(FORK_APP_MODAL_LOADING_TITLE)
+    : !workspaceList.length
+      ? createMessage(FORK_APP_MODAL_EMPTY_TITLE)
+      : createMessage(FORK_APP_MODAL_SUCCESS_TITLE);
+
+  const getApplicationsListAndOpenModal = () => {
+    !workspaceList.length &&
+      dispatch(fetchAllWorkspaces({ fetchEntities: true }));
+    handleOpen && handleOpen();
+  };
+
+  const handleOnOpenChange = (isOpen: boolean) => {
+    if (isOpen) {
+      getApplicationsListAndOpenModal();
+    } else {
+      handleClose && handleClose();
+    }
+  };
 
   return (
-    <StyledDialog
-      canOutsideClickClose
-      className={"fork-modal"}
-      isOpen={isModalOpen || showBasedOnURL}
-      maxHeight={"540px"}
-      setModalClose={setModalClose}
-      title={"Choose where to fork the app"}
-      trigger={props.trigger}
-    >
-      <Divider />
-      {isFetchingApplications && (
-        <SpinnerWrapper>
-          <Spinner size={IconSize.XXXL} />
-        </SpinnerWrapper>
-      )}
-      {!isFetchingApplications && organizationList.length && (
-        <OrganizationList>
-          <StyledRadioComponent
-            className={"radio-group"}
-            columns={1}
-            defaultValue={organizationList[0].value}
-            onSelect={(value) => selectOrganizationId(value)}
-            options={organizationList}
-          />
-        </OrganizationList>
-      )}
-      <ButtonWrapper>
-        <ForkButton
-          cypressSelector={"t--fork-app-to-org-button"}
-          disabled={!organizationId}
-          isLoading={forkingApplication}
-          onClick={forkApplication}
-          size={Size.large}
-          text={"FORK"}
-        />
-      </ButtonWrapper>
-    </StyledDialog>
+    <Modal onOpenChange={handleOnOpenChange} open={isModalOpen}>
+      <ModalContent className={"fork-modal"} style={{ width: "640px" }}>
+        <ModalHeader>{modalHeading}</ModalHeader>
+        {isFetchingApplications ? (
+          <SpinnerWrapper>
+            <Spinner size="lg" />
+          </SpinnerWrapper>
+        ) : (
+          !!workspaceList.length && (
+            <>
+              <Select
+                dropdownMatchSelectWidth
+                getPopupContainer={(triggerNode) => triggerNode.parentNode}
+                onSelect={(_, dropdownOption) =>
+                  // ignoring this because rc-select label and value types are not compatible
+                  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+                  // @ts-ignore
+                  selectWorkspace(dropdownOption)
+                }
+                value={workspace.value}
+              >
+                {workspaceList.map((option) => (
+                  <Option key={option.value} value={option.value}>
+                    {option.label}
+                  </Option>
+                ))}
+              </Select>
+
+              <ButtonWrapper>
+                <Button
+                  isDisabled={forkingApplication}
+                  kind="secondary"
+                  onClick={() => {
+                    handleClose && handleClose();
+                  }}
+                  size="md"
+                >
+                  {createMessage(CANCEL)}
+                </Button>
+                <Button
+                  className="t--fork-app-to-workspace-button"
+                  isLoading={forkingApplication}
+                  onClick={forkApplication}
+                  size="md"
+                >
+                  {createMessage(FORK)}
+                </Button>
+              </ButtonWrapper>
+            </>
+          )
+        )}
+      </ModalContent>
+    </Modal>
   );
 }
 

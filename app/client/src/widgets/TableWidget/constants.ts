@@ -1,12 +1,12 @@
-import {
+import type {
   ColumnProperties,
   CompactMode,
   ReactTableFilter,
   TableStyles,
   SortOrderTypes,
 } from "./component/Constants";
-import { WidgetProps } from "widgets/BaseWidget";
-import { WithMeta } from "widgets/MetaHOC";
+import type { WidgetProps } from "widgets/BaseWidget";
+import type { WithMeta } from "widgets/MetaHOC";
 
 export interface TableWidgetProps extends WidgetProps, WithMeta, TableStyles {
   nextPageKey?: string;
@@ -25,6 +25,7 @@ export interface TableWidgetProps extends WidgetProps, WithMeta, TableStyles {
   selectedRowIndices: number[];
   serverSidePaginationEnabled?: boolean;
   multiRowSelection?: boolean;
+  enableClientSideSearch?: boolean;
   hiddenColumns?: string[];
   columnOrder?: string[];
   columnNameMap?: { [key: string]: string };
@@ -34,6 +35,8 @@ export interface TableWidgetProps extends WidgetProps, WithMeta, TableStyles {
   columnSizeMap?: { [key: string]: number };
   filters?: ReactTableFilter[];
   compactMode?: CompactMode;
+  isSortable?: boolean;
+  primaryColumnId?: string;
   primaryColumns: Record<string, ColumnProperties>;
   derivedColumns: Record<string, ColumnProperties>;
   sortOrder: {
@@ -41,6 +44,9 @@ export interface TableWidgetProps extends WidgetProps, WithMeta, TableStyles {
     order: SortOrderTypes | null;
   };
   totalRecordsCount?: number;
+  primaryColor: string;
+  borderRadius: string;
+  boxShadow?: string;
 }
 
 export const getCurrentRowBinding = (
@@ -49,6 +55,8 @@ export const getCurrentRowBinding = (
   withBinding = true,
 ) => {
   let rowBinding = `${entityName}.sanatizedTableData.map((currentRow) => ( ${userInput}))`;
+
   if (withBinding) rowBinding = `{{${rowBinding}}}`;
+
   return rowBinding;
 };

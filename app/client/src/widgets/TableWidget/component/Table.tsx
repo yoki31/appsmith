@@ -1,12 +1,12 @@
 import React, { useRef } from "react";
 import { reduce } from "lodash";
+import type { Row } from "react-table";
 import {
   useTable,
   usePagination,
   useBlockLayout,
   useResizeColumns,
   useRowSelect,
-  Row,
 } from "react-table";
 import {
   TableWrapper,
@@ -21,17 +21,16 @@ import {
 } from "./TableUtilities";
 import TableHeader from "./TableHeader";
 import { Classes } from "@blueprintjs/core";
-import {
+import type {
   ReactTableColumnProps,
   ReactTableFilter,
-  TABLE_SIZES,
   CompactMode,
-  CompactModeTypes,
 } from "./Constants";
+import { TABLE_SIZES, CompactModeTypes } from "./Constants";
 import { Colors } from "constants/Colors";
 
-import ScrollIndicator from "components/ads/ScrollIndicator";
-import { EventType } from "constants/AppsmithActionConstants/ActionConstants";
+import { ScrollIndicator } from "@design-system/widgets-old";
+import type { EventType } from "constants/AppsmithActionConstants/ActionConstants";
 import { Scrollbars } from "react-custom-scrollbars";
 
 interface TableProps {
@@ -56,6 +55,7 @@ interface TableProps {
   pageNo: number;
   updatePageNo: (pageNo: number, event?: EventType) => void;
   multiRowSelection?: boolean;
+  isSortable?: boolean;
   nextPageClick: () => void;
   prevPageClick: () => void;
   serverSidePaginationEnabled: boolean;
@@ -68,6 +68,8 @@ interface TableProps {
     pageData: Row<Record<string, unknown>>[],
   ) => void;
   triggerRowSelection: boolean;
+  // TODO: Fix this the next time the file is edited
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   searchTableData: (searchKey: any) => void;
   filters?: ReactTableFilter[];
   applyFilter: (filters: ReactTableFilter[]) => void;
@@ -77,6 +79,9 @@ interface TableProps {
   isVisiblePagination?: boolean;
   isVisibleSearch?: boolean;
   delimiter: string;
+  accentColor: string;
+  borderRadius: string;
+  boxShadow?: string;
 }
 
 const defaultColumn = {
@@ -84,10 +89,14 @@ const defaultColumn = {
   width: 150,
 };
 
+// TODO: Fix this the next time the file is edited
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function ScrollbarVerticalThumb(props: any) {
   return <div {...props} className="thumb-vertical" />;
 }
 
+// TODO: Fix this the next time the file is edited
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function ScrollbarHorizontalThumb(props: any) {
   return <div {...props} className="thumb-horizontal" />;
 }
@@ -100,17 +109,22 @@ export function Table(props: TableProps) {
       ...props.columnSizeMap,
       ...columnWidths,
     };
+
     for (const i in columnSizeMap) {
       if (columnSizeMap[i] < 60) {
         columnSizeMap[i] = 60;
       } else if (columnSizeMap[i] === undefined) {
-        const columnCounts = props.columns.filter((column) => !column.isHidden)
-          .length;
+        const columnCounts = props.columns.filter(
+          (column) => !column.isHidden,
+        ).length;
+
         columnSizeMap[i] = props.width / columnCounts;
       }
     }
+
     props.handleResizeColumn(columnSizeMap);
   };
+  // I don't see the need to useMemo here.
   const data = React.useMemo(() => props.data, [props.data]);
   const columnString = JSON.stringify({
     columns: props.columns,
@@ -155,6 +169,7 @@ export function Table(props: TableProps) {
     usePagination,
     useRowSelect,
   );
+
   //Set isResizingColumn as true when column is resizing using table state
   if (state.columnResizing.isResizingColumn) {
     isResizingColumn.current = true;
@@ -162,18 +177,21 @@ export function Table(props: TableProps) {
     // We are updating column size since the drag is complete when we are changing value of isResizing from true to false
     if (isResizingColumn.current) {
       //update isResizingColumn in next event loop so that dragEnd event does not trigger click event.
-      setTimeout(function() {
+      setTimeout(function () {
         isResizingColumn.current = false;
         handleResizeColumn(state.columnResizing.columnWidths);
       }, 0);
     }
   }
+
   let startIndex = currentPageIndex * props.pageSize;
   let endIndex = startIndex + props.pageSize;
+
   if (props.serverSidePaginationEnabled) {
     startIndex = 0;
     endIndex = props.data.length;
   }
+
   const subPage = page.slice(startIndex, endIndex);
   const selectedRowIndex = props.selectedRowIndex;
   const selectedRowIndices = props.selectedRowIndices || [];
@@ -184,6 +202,7 @@ export function Table(props: TableProps) {
   const rowSelectionState = React.useMemo(() => {
     // return : 0; no row selected | 1; all row selected | 2: some rows selected
     if (!props.multiRowSelection) return null;
+
     const selectedRowCount = reduce(
       page,
       (count, row) => {
@@ -193,6 +212,7 @@ export function Table(props: TableProps) {
     );
     const result =
       selectedRowCount === 0 ? 0 : selectedRowCount === page.length ? 1 : 2;
+
     return result;
   }, [selectedRowIndices, page]);
   const handleAllRowSelectClick = (
@@ -212,7 +232,10 @@ export function Table(props: TableProps) {
 
   return (
     <TableWrapper
+      accentColor={props.accentColor}
       backgroundColor={Colors.ATHENS_GRAY_DARKER}
+      borderRadius={props.borderRadius}
+      boxShadow={props.boxShadow}
       height={props.height}
       id={`table${props.widgetId}`}
       isHeaderVisible={isHeaderVisible}
@@ -229,9 +252,13 @@ export function Table(props: TableProps) {
           width={props.width}
         >
           <Scrollbars
+            autoHide
             renderThumbHorizontal={ScrollbarHorizontalThumb}
             renderThumbVertical={ScrollbarVerticalThumb}
-            style={{ width: props.width, height: 38 }}
+            style={{
+              width: props.width,
+              height: 38,
+            }}
           >
             <TableHeaderInnerWrapper
               backgroundColor={Colors.WHITE}
@@ -240,7 +267,10 @@ export function Table(props: TableProps) {
               width={props.width}
             >
               <TableHeader
+                accentColor={props.accentColor}
                 applyFilter={props.applyFilter}
+                borderRadius={props.borderRadius}
+                boxShadow={props.boxShadow}
                 columns={tableHeadercolumns}
                 currentPageIndex={currentPageIndex}
                 delimiter={props.delimiter}
@@ -274,6 +304,7 @@ export function Table(props: TableProps) {
         ref={tableWrapperRef}
       >
         <Scrollbars
+          autoHide
           renderThumbHorizontal={ScrollbarHorizontalThumb}
           style={{
             width: props.width,
@@ -286,30 +317,40 @@ export function Table(props: TableProps) {
               onMouseLeave={props.enableDrag}
               onMouseOver={props.disableDrag}
             >
+              {/* TODO: Fix this the next time the file is edited */}
+              {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
               {headerGroups.map((headerGroup: any, index: number) => {
                 const headerRowProps = {
                   ...headerGroup.getHeaderGroupProps(),
                   style: { display: "flex" },
                 };
+
                 return (
                   <div {...headerRowProps} className="tr" key={index}>
                     {props.multiRowSelection &&
                       renderCheckBoxHeaderCell(
                         handleAllRowSelectClick,
                         rowSelectionState,
+                        props.accentColor,
+                        props.borderRadius,
                       )}
                     {headerGroup.headers.map(
+                      // TODO: Fix this the next time the file is edited
+                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
                       (column: any, columnIndex: number) => {
                         return (
                           <TableHeaderCell
                             column={column}
                             columnIndex={columnIndex}
                             columnName={column.Header}
+                            editMode={props.editMode}
                             isAscOrder={column.isAscOrder}
                             isHidden={column.isHidden}
                             isResizingColumn={isResizingColumn.current}
+                            isSortable={props.isSortable}
                             key={columnIndex}
                             sortTableColumn={props.sortTableColumn}
+                            width={props.width}
                           />
                         );
                       },
@@ -325,6 +366,8 @@ export function Table(props: TableProps) {
                   subPage,
                   prepareRow,
                   props.multiRowSelection,
+                  props.accentColor,
+                  props.borderRadius,
                 )}
             </div>
             <div
@@ -343,6 +386,7 @@ export function Table(props: TableProps) {
                 const isRowSelected =
                   row.index === selectedRowIndex ||
                   selectedRowIndices.includes(row.index);
+
                 return (
                   <div
                     {...rowProps}
@@ -355,7 +399,11 @@ export function Table(props: TableProps) {
                     }}
                   >
                     {props.multiRowSelection &&
-                      renderCheckBoxCell(isRowSelected)}
+                      renderCheckBoxCell(
+                        isRowSelected,
+                        props.accentColor,
+                        props.borderRadius,
+                      )}
                     {row.cells.map((cell, cellIndex) => {
                       return (
                         <div
@@ -380,6 +428,8 @@ export function Table(props: TableProps) {
                   subPage,
                   prepareRow,
                   props.multiRowSelection,
+                  props.accentColor,
+                  props.borderRadius,
                 )}
             </div>
           </div>

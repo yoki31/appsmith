@@ -1,16 +1,8 @@
 package com.appsmith.server.repositories;
 
-import com.appsmith.server.domains.Collection;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.mongodb.core.ReactiveMongoOperations;
-import org.springframework.data.mongodb.core.convert.MongoConverter;
+import com.appsmith.server.repositories.ce.CustomCollectionRepositoryCEImpl;
 import org.springframework.stereotype.Component;
 
 @Component
-public class CustomCollectionRepositoryImpl extends BaseAppsmithRepositoryImpl<Collection> implements CustomCollectionRepository {
-
-    @Autowired
-    public CustomCollectionRepositoryImpl(ReactiveMongoOperations mongoOperations, MongoConverter mongoConverter) {
-        super(mongoOperations, mongoConverter);
-    }
-}
+public class CustomCollectionRepositoryImpl extends CustomCollectionRepositoryCEImpl
+        implements CustomCollectionRepository {}

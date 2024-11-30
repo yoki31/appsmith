@@ -1,55 +1,100 @@
 import { Layers } from "constants/Layers";
-import React, { useState, useEffect, RefObject } from "react";
+import type { RefObject } from "react";
+import React, { useState, useEffect } from "react";
 import styled, { css } from "styled-components";
+import { ActionExecutionResizerHeight } from "PluginActionEditor/components/PluginActionResponse/constants";
 
 export const ResizerCSS = css`
-  width: calc(100vw - ${(props) => props.theme.sidebarWidth});
+  width: 100%;
   z-index: ${Layers.debugger};
   position: relative;
 `;
 
 const Top = styled.div`
-  position: absolute;
   cursor: ns-resize;
   height: 4px;
   width: 100%;
-  z-index: 1;
-  left: 0;
-  top: 0;
+  margin-bottom: -2px;
 `;
 
-type ResizerProps = {
+interface ResizerProps {
   panelRef: RefObject<HTMLDivElement>;
   setContainerDimensions?: (height: number) => void;
-};
+  onResizeComplete?: (height: number) => void;
+  snapToHeight?: number;
+  openResizer?: boolean;
+  initialHeight?: number;
+  minHeight?: number;
+}
 
 function Resizer(props: ResizerProps) {
   const [mouseDown, setMouseDown] = useState(false);
+  const [height, setHeight] = useState(
+    props.initialHeight ||
+      props.panelRef.current?.getBoundingClientRect().height ||
+      ActionExecutionResizerHeight,
+  );
+
+  // On mount and update, set the initial height of the component
+  useEffect(() => {
+    if (!props.initialHeight) return;
+
+    const panel = props.panelRef.current;
+
+    if (!panel) return;
+
+    panel.style.height = `${props.initialHeight}px`;
+
+    if (height !== props.initialHeight) {
+      setHeight(props.initialHeight);
+    }
+  }, [props.initialHeight]);
 
   const handleResize = (movementY: number) => {
     const panel = props.panelRef.current;
+
     if (!panel) return;
 
     const { height } = panel.getBoundingClientRect();
     const updatedHeight = height - movementY;
     const headerHeightNumber = 35;
-    const minHeight = parseInt(
-      window.getComputedStyle(panel).minHeight.replace("px", ""),
-    );
 
     if (
       updatedHeight < window.innerHeight - headerHeightNumber &&
-      updatedHeight > minHeight
+      updatedHeight > (props.minHeight || 0)
     ) {
       panel.style.height = `${height - movementY}px`;
+      setHeight(height - movementY);
       props.setContainerDimensions &&
         props.setContainerDimensions(height - movementY);
     }
   };
 
+  const handleResizeComplete = () => {
+    props.onResizeComplete && props.onResizeComplete(height);
+  };
+
   useEffect(() => {
     handleResize(0);
   }, []);
+
+  useEffect(() => {
+    // if the resizer is configured to open and the user is not actively controlling it
+    // snap the resizer to a specific height as specified by the snapToHeight prop.
+    if (props.openResizer && !mouseDown) {
+      const panel = props.panelRef.current;
+
+      if (!panel) return;
+
+      const { height } = panel.getBoundingClientRect();
+
+      if (props?.snapToHeight && height < props?.snapToHeight) {
+        panel.style.height = `${props?.snapToHeight}px`;
+        props.setContainerDimensions &&
+          props.setContainerDimensions(props?.snapToHeight);
+      }
+    }
+  }, [props?.openResizer]);
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
@@ -59,6 +104,8 @@ function Resizer(props: ResizerProps) {
 
     if (mouseDown) {
       window.addEventListener("mousemove", handleMouseMove);
+    } else {
+      handleResizeComplete();
     }
 
     return () => {

@@ -1,5 +1,5 @@
-import { Intent as BlueprintIntent } from "@blueprintjs/core";
-import { IconName } from "@blueprintjs/icons";
+import type { Intent as BlueprintIntent } from "@blueprintjs/core";
+import type { IconName } from "@blueprintjs/icons";
 
 export interface DropdownOption {
   label: string;
@@ -12,6 +12,11 @@ export interface DropdownOption {
   intent?: BlueprintIntent;
 }
 
+export enum SubTextPosition {
+  BOTTOM,
+  LEFT,
+}
+
 export const InputTypes: { [key: string]: string } = {
   TEXT: "TEXT",
   NUMBER: "NUMBER",
@@ -21,15 +26,17 @@ export const InputTypes: { [key: string]: string } = {
   PASSWORD: "PASSWORD",
   CURRENCY: "CURRENCY",
   SEARCH: "SEARCH",
+  MULTI_LINE_TEXT: "MULTI_LINE_TEXT",
 };
 
-export type InputType = typeof InputTypes[keyof typeof InputTypes];
+export type InputType = (typeof InputTypes)[keyof typeof InputTypes];
 
 export enum ButtonBorderRadiusTypes {
   SHARP = "SHARP",
   ROUNDED = "ROUNDED",
   CIRCLE = "CIRCLE",
 }
+
 export type ButtonBorderRadius = keyof typeof ButtonBorderRadiusTypes;
 
 export enum ButtonBoxShadowTypes {
@@ -65,3 +72,42 @@ export enum ButtonVariantTypes {
   TERTIARY = "TERTIARY",
 }
 export type ButtonVariant = keyof typeof ButtonVariantTypes;
+
+export enum RecaptchaTypes {
+  V3 = "V3",
+  V2 = "V2",
+}
+export type RecaptchaType = keyof typeof RecaptchaTypes;
+
+export enum CheckboxGroupAlignmentTypes {
+  START = "flex-start",
+  END = "flex-end",
+  CENTER = "center",
+  SPACE_BETWEEN = "space-between",
+  SPACE_AROUND = "space-around",
+  NONE = "unset",
+}
+export type CheckboxGroupAlignment = keyof typeof CheckboxGroupAlignmentTypes;
+export enum ButtonPlacementTypes {
+  START = "START",
+  BETWEEN = "BETWEEN",
+  CENTER = "CENTER",
+}
+export type ButtonPlacement = keyof typeof ButtonPlacementTypes;
+
+export enum LabelPosition {
+  Auto = "Auto",
+  Top = "Top",
+  Left = "Left",
+  Right = "Right",
+}
+
+/**
+ * Default height for Select, MultiSelect, SingleTreeSelect and MultiTreeSelect
+ */
+export const SELECT_DEFAULT_HEIGHT = "32px";
+
+/**
+ * Default margin bottom value for old select widgets
+ */
+export const LABEL_MARGIN_OLD_SELECT = "5px";

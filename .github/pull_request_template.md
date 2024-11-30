@@ -1,39 +1,29 @@
-> Pull Request Template
->
-> Use this template to quickly create a well written pull request. Delete all quotes before creating the pull request.
-
 ## Description
+> [!TIP]  
+> _Add a TL;DR when the description is longer than 500 words or extremely technical (helps the content, marketing, and DevRel team)._
+>
+> _Please also include relevant motivation and context. List any dependencies that are required for this change. Add links to Notion, Figma or any other documents that might be relevant to the PR._
 
-> Please include a summary of the changes and which issue has been fixed. Please also include relevant motivation
-> and context. List any dependencies that are required for this change.
 
-Fixes # (issue)
+Fixes #`Issue Number`  
+_or_  
+Fixes `Issue URL`
+> [!WARNING]  
+> _If no issue exists, please create an issue first, and check with the maintainers if the issue is valid._
 
-> if no issue exists, please create an issue and ask the maintainers about this first
+## Automation
 
-## Type of change
+/ok-to-test tags=""
 
-> Please delete options that are not relevant.
+### :mag: Cypress test results
+<!-- This is an auto-generated comment: Cypress test results  -->
+> [!CAUTION]  
+> If you modify the content in this section, you are likely to disrupt the CI result for your PR.
 
-- Bug fix (non-breaking change which fixes an issue)
-- New feature (non-breaking change which adds functionality)
-- Breaking change (fix or feature that would cause existing functionality to not work as expected)
-- This change requires a documentation update
+<!-- end of auto-generated comment: Cypress test results  -->
 
-## How Has This Been Tested?
 
-> Please describe the tests that you ran to verify your changes. Provide instructions, so we can reproduce.
-> Please also list any relevant details for your test configuration.
-
-- Test A
-- Test B
-
-## Checklist:
-
-- [ ] My code follows the style guidelines of this project
-- [ ] I have performed a self-review of my own code
-- [ ] I have commented my code, particularly in hard-to-understand areas
-- [ ] I have made corresponding changes to the documentation
-- [ ] My changes generate no new warnings
-- [ ] I have added tests that prove my fix is effective or that my feature works
-- [ ] New and existing unit tests pass locally with my changes
+## Communication
+Should the DevRel and Marketing teams inform users about this change?
+- [ ] Yes
+- [ ] No

@@ -1,31 +1,22 @@
 import React from "react";
-import BaseControl, { ControlProps } from "./BaseControl";
-import { InputType } from "components/constants";
-import { ControlType } from "constants/PropertyControlConstants";
+import type { ControlProps } from "./BaseControl";
+import BaseControl from "./BaseControl";
+import type { InputType } from "components/constants";
+import type { ControlType } from "constants/PropertyControlConstants";
 import TextField from "components/editorComponents/form/fields/TextField";
-import FormLabel from "components/editorComponents/FormLabel";
 import styled from "styled-components";
 
 const Wrapper = styled.div`
-  width: 50vh;
+  width: 545px;
 `;
 
 class FixKeyInputControl extends BaseControl<FixedKeyInputControlProps> {
   render() {
-    const {
-      configProperty,
-      dataType,
-      fixedKey,
-      isRequired,
-      label,
-      placeholderText,
-    } = this.props;
+    const { configProperty, dataType, disabled, fixedKey, placeholderText } =
+      this.props;
 
     return (
       <Wrapper>
-        <FormLabel>
-          {label} {isRequired && "*"}
-        </FormLabel>
         <TextField
           format={(value) => {
             // Get the value property
@@ -35,6 +26,7 @@ class FixKeyInputControl extends BaseControl<FixedKeyInputControlProps> {
 
             return "";
           }}
+          isDisabled={disabled}
           name={configProperty}
           parse={(value) => {
             // Store the value in this field as {key: fixedKey, value: <user-input>}
@@ -44,7 +36,7 @@ class FixKeyInputControl extends BaseControl<FixedKeyInputControlProps> {
             };
           }}
           placeholder={placeholderText}
-          showError
+          size="md"
           type={this.getType(dataType)}
         />
       </Wrapper>

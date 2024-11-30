@@ -16,6 +16,7 @@ import java.util.Set;
 @Setter
 public class CRUDPageResourceDTO {
 
+    // This will be branchedApplicationId if the application is connected with git
     String applicationId;
 
     String datasourceId;

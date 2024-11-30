@@ -1,27 +1,40 @@
+import type { IconName } from "@blueprintjs/icons";
 import React from "react";
-import { IconName } from "@blueprintjs/icons";
 
-import BaseWidget, { WidgetProps, WidgetState } from "widgets/BaseWidget";
-import { WidgetType } from "constants/WidgetConstants";
-import { ValidationTypes } from "constants/WidgetValidation";
 import { EventType } from "constants/AppsmithActionConstants/ActionConstants";
+import { ValidationTypes } from "constants/WidgetValidation";
+import type { WidgetProps, WidgetState } from "widgets/BaseWidget";
+import BaseWidget from "widgets/BaseWidget";
 
+import { IconNames } from "@blueprintjs/icons";
+import type { ButtonVariant } from "components/constants";
+import { ButtonVariantTypes } from "components/constants";
+import type { SetterConfig, Stylesheet } from "entities/AppTheming";
 import IconButtonComponent from "../component";
-import {
-  ButtonBorderRadius,
-  ButtonBoxShadow,
-  ButtonVariant,
-  ButtonBorderRadiusTypes,
-  ButtonVariantTypes,
-} from "components/constants";
-import { Colors } from "constants/Colors";
+import { DefaultAutocompleteDefinitions } from "widgets/WidgetUtils";
+import type {
+  AnvilConfig,
+  AutocompletionDefinitions,
+} from "WidgetProvider/constants";
+import { ICON_BUTTON_MIN_WIDTH } from "constants/minWidthConstants";
+import { ResponsiveBehavior } from "layoutSystems/common/utils/constants";
+import IconSVG from "../icon.svg";
+import ThumbnailSVG from "../thumbnail.svg";
+
+import { WIDGET_TAGS } from "constants/WidgetConstants";
+
+const ICON_BUTTON_SIZE_IN_AUTOLAYOUT = 32;
+
+const ICON_NAMES = Object.keys(IconNames).map(
+  (name: string) => IconNames[name as keyof typeof IconNames],
+);
 
 export interface IconButtonWidgetProps extends WidgetProps {
   iconName?: IconName;
-  buttonColor?: string;
+  backgroundColor: string;
   buttonVariant: ButtonVariant;
-  borderRadius: ButtonBorderRadius;
-  boxShadow: ButtonBoxShadow;
+  borderRadius: string;
+  boxShadow: string;
   boxShadowColor: string;
   isDisabled: boolean;
   isVisible: boolean;
@@ -29,19 +42,129 @@ export interface IconButtonWidgetProps extends WidgetProps {
 }
 
 class IconButtonWidget extends BaseWidget<IconButtonWidgetProps, WidgetState> {
-  static getPropertyPaneConfig() {
+  static type = "ICON_BUTTON_WIDGET";
+
+  static getConfig() {
+    return {
+      name: "Icon button",
+      iconSVG: IconSVG,
+      thumbnailSVG: ThumbnailSVG,
+      tags: [WIDGET_TAGS.BUTTONS],
+      searchTags: ["click", "submit"],
+    };
+  }
+
+  static getDefaults() {
+    return {
+      iconName: IconNames.PLUS,
+      buttonVariant: ButtonVariantTypes.PRIMARY,
+      isDisabled: false,
+      isVisible: true,
+      rows: 4,
+      columns: 4,
+      widgetName: "IconButton",
+      version: 1,
+      animateLoading: true,
+      responsiveBehavior: ResponsiveBehavior.Hug,
+      minWidth: ICON_BUTTON_MIN_WIDTH,
+    };
+  }
+
+  static getAutoLayoutConfig() {
+    return {
+      defaults: {
+        rows: 4,
+        columns: 2.21,
+      },
+      autoDimension: {
+        width: true,
+      },
+      widgetSize: [
+        {
+          viewportMinWidth: 0,
+          configuration: () => {
+            return {
+              minWidth: "40px",
+              minHeight: "40px",
+            };
+          },
+        },
+      ],
+      disableResizeHandles: {
+        horizontal: true,
+        vertical: true,
+      },
+    };
+  }
+
+  static getAnvilConfig(): AnvilConfig | null {
+    return {
+      isLargeWidget: false,
+      widgetSize: {
+        maxHeight: {},
+        maxWidth: {},
+        minHeight: { base: "40px" },
+        minWidth: { base: "40px" },
+      },
+    };
+  }
+
+  static getPropertyPaneContentConfig() {
     return [
       {
-        sectionName: "General",
+        sectionName: "Basic",
         children: [
           {
             propertyName: "iconName",
             label: "Icon",
             helpText: "Sets the icon to be used for the icon button",
             controlType: "ICON_SELECT",
-            isBindProperty: false,
+            defaultIconName: "plus",
+            hideNoneIcon: true,
+            isJSConvertible: true,
+            isBindProperty: true,
+            isTriggerProperty: false,
+            validation: {
+              type: ValidationTypes.TEXT,
+              params: {
+                allowedValues: ICON_NAMES,
+                default: IconNames.PLUS,
+              },
+            },
+          },
+          {
+            helpText: "when the button is clicked",
+            propertyName: "onClick",
+            label: "onClick",
+            controlType: "ACTION_SELECTOR",
+            isJSConvertible: true,
+            isBindProperty: true,
+            isTriggerProperty: true,
+          },
+        ],
+      },
+      {
+        sectionName: "General",
+        children: [
+          {
+            helpText: "Show helper text with button on hover",
+            propertyName: "tooltip",
+            label: "Tooltip",
+            controlType: "INPUT_TEXT",
+            placeholderText: "Add Input Field",
+            isBindProperty: true,
             isTriggerProperty: false,
             validation: { type: ValidationTypes.TEXT },
+          },
+          {
+            propertyName: "isVisible",
+            helpText: "Controls the visibility of the widget",
+            label: "Visible",
+            controlType: "SWITCH",
+            isJSConvertible: true,
+            isBindProperty: true,
+            isTriggerProperty: false,
+            validation: { type: ValidationTypes.BOOLEAN },
           },
           {
             propertyName: "isDisabled",
@@ -54,10 +177,11 @@ class IconButtonWidget extends BaseWidget<IconButtonWidgetProps, WidgetState> {
             validation: { type: ValidationTypes.BOOLEAN },
           },
           {
-            propertyName: "isVisible",
-            helpText: "Controls the visibility of the widget",
-            label: "Visible",
+            propertyName: "animateLoading",
+            label: "Animate loading",
             controlType: "SWITCH",
+            helpText: "Controls the loading of the widget",
+            defaultValue: true,
             isJSConvertible: true,
             isBindProperty: true,
             isTriggerProperty: false,
@@ -65,35 +189,20 @@ class IconButtonWidget extends BaseWidget<IconButtonWidgetProps, WidgetState> {
           },
         ],
       },
+    ];
+  }
+
+  static getPropertyPaneStyleConfig() {
+    return [
       {
-        sectionName: "Actions",
+        sectionName: "General",
         children: [
-          {
-            helpText: "Triggers an action when the button is clicked",
-            propertyName: "onClick",
-            label: "onClick",
-            controlType: "ACTION_SELECTOR",
-            isJSConvertible: true,
-            isBindProperty: true,
-            isTriggerProperty: true,
-          },
-        ],
-      },
-      {
-        sectionName: "Styles",
-        children: [
-          {
-            propertyName: "buttonColor",
-            helpText: "Sets the style of the icon button",
-            label: "Button Color",
-            controlType: "COLOR_PICKER",
-            isBindProperty: false,
-            isTriggerProperty: false,
-          },
           {
             propertyName: "buttonVariant",
-            label: "Button Variant",
-            controlType: "DROP_DOWN",
+            label: "Button variant",
+            controlType: "ICON_TABS",
+            defaultValue: ButtonVariantTypes.PRIMARY,
+            fullWidth: true,
             helpText: "Sets the variant of the icon button",
             options: [
               {
@@ -109,103 +218,147 @@ class IconButtonWidget extends BaseWidget<IconButtonWidgetProps, WidgetState> {
                 value: ButtonVariantTypes.TERTIARY,
               },
             ],
-            isBindProperty: false,
-            isTriggerProperty: false,
-          },
-          {
-            propertyName: "borderRadius",
-            label: "Border Radius",
-            helpText:
-              "Rounds the corners of the icon button's outer border edge",
-            controlType: "BORDER_RADIUS_OPTIONS",
-            options: [
-              ButtonBorderRadiusTypes.SHARP,
-              ButtonBorderRadiusTypes.ROUNDED,
-              ButtonBorderRadiusTypes.CIRCLE,
-            ],
-            isBindProperty: false,
-            isTriggerProperty: false,
-            validation: {
-              type: ValidationTypes.TEXT,
-              params: {
-                allowedValues: ["CIRCLE", "SHARP", "ROUNDED"],
-              },
-            },
-          },
-          {
-            propertyName: "boxShadow",
-            label: "Box Shadow",
-            helpText:
-              "Enables you to cast a drop shadow from the frame of the widget",
-            controlType: "BOX_SHADOW_OPTIONS",
-            isBindProperty: false,
+            isJSConvertible: true,
+            isBindProperty: true,
             isTriggerProperty: false,
             validation: {
               type: ValidationTypes.TEXT,
               params: {
                 allowedValues: [
-                  "NONE",
-                  "VARIANT1",
-                  "VARIANT2",
-                  "VARIANT3",
-                  "VARIANT4",
-                  "VARIANT5",
+                  ButtonVariantTypes.PRIMARY,
+                  ButtonVariantTypes.SECONDARY,
+                  ButtonVariantTypes.TERTIARY,
                 ],
+                default: ButtonVariantTypes.PRIMARY,
               },
             },
           },
+        ],
+      },
+      {
+        sectionName: "Color",
+        children: [
           {
-            propertyName: "boxShadowColor",
-            helpText: "Sets the shadow color of the widget",
-            label: "Shadow Color",
+            propertyName: "buttonColor",
+            helpText: "Sets the style of the icon button",
+            label: "Button color",
             controlType: "COLOR_PICKER",
-            isBindProperty: false,
+            isJSConvertible: true,
+            isBindProperty: true,
             isTriggerProperty: false,
+            validation: {
+              type: ValidationTypes.TEXT,
+              params: {
+                regex: /^(?![<|{{]).+/,
+              },
+            },
+          },
+        ],
+      },
+      {
+        sectionName: "Border and shadow",
+        children: [
+          {
+            propertyName: "borderRadius",
+            label: "Border radius",
+            helpText:
+              "Rounds the corners of the icon button's outer border edge",
+            controlType: "BORDER_RADIUS_OPTIONS",
+            isJSConvertible: true,
+            isBindProperty: true,
+            isTriggerProperty: false,
+            validation: { type: ValidationTypes.TEXT },
+          },
+          {
+            propertyName: "boxShadow",
+            label: "Box shadow",
+            helpText:
+              "Enables you to cast a drop shadow from the frame of the widget",
+            controlType: "BOX_SHADOW_OPTIONS",
+            isJSConvertible: true,
+            isBindProperty: true,
+            isTriggerProperty: false,
+            validation: { type: ValidationTypes.TEXT },
           },
         ],
       },
     ];
   }
 
-  getPageView() {
+  static getStylesheetConfig(): Stylesheet {
+    return {
+      buttonColor: "{{appsmith.theme.colors.primaryColor}}",
+      borderRadius: "{{appsmith.theme.borderRadius.appBorderRadius}}",
+      boxShadow: "none",
+    };
+  }
+
+  static getSetterConfig(): SetterConfig {
+    return {
+      __setters: {
+        setVisibility: {
+          path: "isVisible",
+          type: "boolean",
+        },
+        setDisabled: {
+          path: "isDisabled",
+          type: "boolean",
+        },
+      },
+    };
+  }
+
+  getWidgetView() {
     const {
       borderRadius,
       boxShadow,
-      boxShadowColor,
       buttonColor,
       buttonVariant,
       iconName,
       isDisabled,
       isVisible,
+      tooltip,
       widgetId,
     } = this.props;
+    const { componentHeight, componentWidth } = this.props;
 
     return (
       <IconButtonComponent
         borderRadius={borderRadius}
         boxShadow={boxShadow}
-        boxShadowColor={boxShadowColor}
-        buttonColor={buttonColor || Colors.GREEN}
+        buttonColor={buttonColor}
         buttonVariant={buttonVariant}
         hasOnClickAction={!!this.props.onClick}
         height={
-          (this.props.bottomRow - this.props.topRow) * this.props.parentRowSpace
+          this.isAutoLayoutMode
+            ? ICON_BUTTON_SIZE_IN_AUTOLAYOUT
+            : componentHeight
         }
         iconName={iconName}
         isDisabled={isDisabled}
         isVisible={isVisible}
+        minHeight={this.props.minHeight}
+        minWidth={this.props.minWidth}
         onClick={this.handleClick}
+        renderMode={this.props.renderMode}
+        tooltip={tooltip}
         widgetId={widgetId}
         width={
-          (this.props.rightColumn - this.props.leftColumn) *
-          this.props.parentColumnSpace
+          this.isAutoLayoutMode
+            ? ICON_BUTTON_SIZE_IN_AUTOLAYOUT
+            : componentWidth
         }
       />
     );
   }
 
-  static getWidgetType(): WidgetType {
-    return "ICON_BUTTON_WIDGET";
+  static getAutocompleteDefinitions(): AutocompletionDefinitions {
+    return {
+      "!doc":
+        "Icon button widget is just an icon, along with all other button properties.",
+      "!url": "https://docs.appsmith.com/widget-reference/icon-button",
+      isVisible: DefaultAutocompleteDefinitions.isVisible,
+    };
   }
 
   handleClick = () => {

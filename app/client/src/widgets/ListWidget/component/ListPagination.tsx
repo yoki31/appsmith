@@ -2,6 +2,8 @@ import React from "react";
 import Pagination from "rc-pagination";
 import styled, { css } from "styled-components";
 
+import { Icon, IconSize } from "@design-system/widgets-old";
+
 const locale = {
   // Options.jsx
   items_per_page: "/ page",
@@ -17,7 +19,12 @@ const locale = {
   next_3: "Next 3 Pages",
 };
 
-const paginatorCss = css`
+const paginatorCss = css<{
+  borderRadius: string;
+  boxShadow?: string;
+  accentColor: string;
+  disabled?: boolean;
+}>`
   margin: 0 auto;
   padding: 0;
   font-size: 14px;
@@ -48,7 +55,7 @@ const paginatorCss = css`
     min-width: 28px;
     height: 28px;
     margin-right: 8px;
-    font-family: Arial;
+    font-family: inherit;
     line-height: 26px;
     text-align: center;
     vertical-align: middle;
@@ -59,6 +66,9 @@ const paginatorCss = css`
     outline: 0;
     cursor: pointer;
     user-select: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
   .rc-pagination-item a {
     display: block;
@@ -123,7 +133,7 @@ const paginatorCss = css`
     min-width: 28px;
     height: 28px;
     color: rgba(0, 0, 0, 0.85);
-    font-family: Arial;
+    font-family: inherit;
     line-height: 28px;
     text-align: center;
     vertical-align: middle;
@@ -148,7 +158,6 @@ const paginatorCss = css`
   }
   .rc-pagination-prev .rc-pagination-item-link,
   .rc-pagination-next .rc-pagination-item-link {
-    display: block;
     width: 100%;
     height: 100%;
     font-size: 12px;
@@ -158,6 +167,14 @@ const paginatorCss = css`
     border-radius: 2px;
     outline: none;
     transition: all 0.3s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    &::after,
+    &::before {
+      display: none;
+    }
   }
   .rc-pagination-prev:focus .rc-pagination-item-link,
   .rc-pagination-next:focus .rc-pagination-item-link,
@@ -178,6 +195,10 @@ const paginatorCss = css`
   .rc-pagination-disabled:hover,
   .rc-pagination-disabled:focus {
     cursor: not-allowed;
+
+    & > * {
+      pointer-events: none;
+    }
   }
   .rc-pagination-disabled .rc-pagination-item-link,
   .rc-pagination-disabled:hover .rc-pagination-item-link,
@@ -296,14 +317,66 @@ const paginatorCss = css`
       display: none;
     }
   }
+
+  pointer-events: ${(props) => (props.disabled ? "none" : "all")};
+  opacity: ${(props) => (props.disabled ? "0.4" : "1")};
+
+  .rc-pagination-item {
+    border-radius: ${({ borderRadius }) => borderRadius};
+    box-shadow: ${({ boxShadow }) => `${boxShadow}`} !important;
+    color:  var(--wds-color-text) !important;
+    border-color:  transparent !important;
+  }
+
+  .rc-pagination-prev .rc-pagination-item-link, .rc-pagination-next .rc-pagination-item-link  {
+    border-radius: ${({ borderRadius }) => borderRadius};
+    box-shadow: ${({ boxShadow }) => `${boxShadow}`} !important;
+    border-color:  transparent !important;
+    color:  var(--wds-color-text) !important;
+
+    &:hover {
+      background-color: var(--wds-color-bg-hover) !important;
+
+      a {
+        color: var(--wds-color-text);
+      }
+    }
+  }
+
+  .rc-pagination-disabled .rc-pagination-item-link {
+    color: var(--wds-color-text-disabled) !important;
+  }
+
+  .rc-pagination-item:hover {
+    background-color: var(--wds-color-bg-hover) !important;
+
+    a {
+      color: var(--wds-color-text);
+    }
+  }
+
+  .rc-pagination-item-active {
+    background-color: ${({ accentColor }) => accentColor} !important;
+    a {
+      color: white;
+    }
+
+    &:hover {
+      background-color: ${({ accentColor }) => accentColor} !important;
+
+      a {
+        color: white !important;
+      }
+    }
 `;
 
 const StyledPagination = styled(Pagination)<{
   disabled?: boolean;
+  borderRadius: string;
+  boxShadow?: string;
+  accentColor: string;
 }>`
   ${paginatorCss}
-  pointer-events: ${(props) => (props.disabled ? "none" : "all")};
-  opacity: ${(props) => (props.disabled ? "0.4" : "1")};
 `;
 
 interface ListPaginationProps {
@@ -312,16 +385,32 @@ interface ListPaginationProps {
   perPage: number;
   disabled?: boolean;
   onChange: (page: number) => void;
+  borderRadius: string;
+  boxShadow?: string;
+  accentColor: string;
 }
 
 function ListPagination(props: ListPaginationProps) {
   return (
     <StyledPagination
+      accentColor={props.accentColor}
+      borderRadius={props.borderRadius}
+      boxShadow={props.boxShadow}
       current={props.current}
       disabled={props.disabled}
       locale={locale}
+      nextIcon={() => (
+        <button aria-label="next page" className="rc-pagination-item-link">
+          <Icon name="right-arrow-2" size={IconSize.XXL} />
+        </button>
+      )}
       onChange={props.onChange}
       pageSize={props.perPage}
+      prevIcon={() => (
+        <button aria-label="prev page" className="rc-pagination-item-link">
+          <Icon name="left-arrow-2" size={IconSize.XXL} />
+        </button>
+      )}
       total={props.total}
     />
   );
@@ -333,22 +422,32 @@ const PaginationWrapper = styled.ul`
   opacity: "1";
 `;
 
+// TODO: Fix this the next time the file is edited
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function ServerSideListPagination(props: any) {
   return (
-    <PaginationWrapper>
+    <PaginationWrapper
+      accentColor={props.accentColor}
+      borderRadius={props.borderRadius}
+      boxShadow={props.boxShadow}
+      disabled={props.disabled}
+    >
       <li
-        className={`t--list-widget-prev-page rc-pagination-prev ${props.pageNo ===
-          1 && "rc-pagination-disabled"}`}
+        className={`t--list-widget-prev-page rc-pagination-prev ${
+          props.pageNo === 1 && "rc-pagination-disabled"
+        }`}
         title="Previous Page"
       >
         <button
-          area-label="prev page"
+          aria-label="prev page"
           className="rc-pagination-item-link"
           onClick={() => {
             if (props.pageNo > 1) props.prevPageClick();
           }}
           type="button"
-        />
+        >
+          <Icon name="left-arrow-2" size={IconSize.XXL} />
+        </button>
       </li>
       <li
         className="rc-pagination-item rc-pagination-item-0 rc-pagination-item-active"
@@ -361,13 +460,15 @@ export function ServerSideListPagination(props: any) {
         title="Next Page"
       >
         <button
-          area-label="next page"
+          aria-label="next page"
           className="rc-pagination-item-link"
           onClick={() => {
             props.nextPageClick();
           }}
           type="button"
-        />
+        >
+          <Icon name="right-arrow-2" size={IconSize.XXL} />
+        </button>
       </li>
     </PaginationWrapper>
   );

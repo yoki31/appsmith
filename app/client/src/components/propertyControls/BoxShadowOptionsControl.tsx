@@ -1,140 +1,86 @@
 import * as React from "react";
-import styled from "styled-components";
-import { Button, ButtonGroup, IButtonProps } from "@blueprintjs/core";
 
-import BaseControl, { ControlProps } from "./BaseControl";
-import { ControlIcons } from "icons/ControlIcons";
-import { ThemeProp } from "components/ads/common";
-import { ButtonBoxShadow, ButtonBoxShadowTypes } from "components/constants";
-
-const StyledButtonGroup = styled(ButtonGroup)`
-  display: grid !important;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
-  height: 100%;
-`;
-
-const StyledButton = styled(Button)<ThemeProp & IButtonProps>`
-  margin-right: 0 !important;
-  border: ${(props) =>
-    props.active ? `1px solid #6A86CE` : `1px solid #E0DEDE`};
-  border-radius: 0;
-  box-shadow: none !important;
-  background-image: none;
-  background-color: #ffffff !important;
-  & > div {
-    display: flex;
-  }
-  &.bp3-active {
-    box-shadow: none !important;
-    background-color: #ffffff !important;
-  }
-  &:hover {
-    background-color: #ffffff !important;
-  }
-`;
-
+import type { ControlData, ControlProps } from "./BaseControl";
+import BaseControl from "./BaseControl";
+import { Icon, SegmentedControl } from "@appsmith/ads";
+import { boxShadowOptions, sizeMappings } from "constants/ThemeConstants";
+import type { DSEventDetail } from "utils/AppsmithUtils";
+import {
+  DSEventTypes,
+  DS_EVENT,
+  emitInteractionAnalyticsEvent,
+} from "utils/AppsmithUtils";
 export interface BoxShadowOptionsControlProps extends ControlProps {
-  propertyValue: ButtonBoxShadow | undefined;
+  propertyValue: string | undefined;
 }
+const options = Object.keys(boxShadowOptions).map((optionKey) => ({
+  label:
+    optionKey === "none" ? (
+      <Icon name="close-line" size="md" />
+    ) : (
+      sizeMappings[optionKey]
+    ),
+  value: boxShadowOptions[optionKey],
+}));
 
-const buttonConfigs = [
-  {
-    variant: ButtonBoxShadowTypes.NONE,
-    icon: {
-      element: ControlIcons.BOX_SHADOW_NONE,
-      color: "#CACACA",
-      width: 16,
-    },
-  },
-  {
-    variant: ButtonBoxShadowTypes.VARIANT1,
-    icon: {
-      element: ControlIcons.BOX_SHADOW_VARIANT1,
-      height: 32,
-      width: 40,
-    },
-  },
-  {
-    variant: ButtonBoxShadowTypes.VARIANT2,
-    icon: {
-      element: ControlIcons.BOX_SHADOW_VARIANT2,
-      height: 28,
-      width: 36,
-    },
-  },
-  {
-    variant: ButtonBoxShadowTypes.VARIANT3,
-    icon: {
-      element: ControlIcons.BOX_SHADOW_VARIANT3,
-      height: 27,
-      width: 32,
-    },
-  },
-  {
-    variant: ButtonBoxShadowTypes.VARIANT4,
-    icon: {
-      element: ControlIcons.BOX_SHADOW_VARIANT4,
-      height: 26,
-      width: 34,
-    },
-  },
-  {
-    variant: ButtonBoxShadowTypes.VARIANT5,
-    icon: {
-      element: ControlIcons.BOX_SHADOW_VARIANT5,
-      height: 26,
-      width: 34,
-    },
-  },
-];
+const optionsValues = new Set(Object.values(boxShadowOptions));
 
-class BoxShadowOptionsControl extends BaseControl<
-  BoxShadowOptionsControlProps
-> {
-  constructor(props: BoxShadowOptionsControlProps) {
-    super(props);
+class BoxShadowOptionsControl extends BaseControl<BoxShadowOptionsControlProps> {
+  componentRef = React.createRef<HTMLDivElement>();
+
+  componentDidMount() {
+    this.componentRef.current?.addEventListener(
+      DS_EVENT,
+      this.handleAdsEvent as (arg0: Event) => void,
+    );
   }
+
+  componentWillUnmount() {
+    this.componentRef.current?.removeEventListener(
+      DS_EVENT,
+      this.handleAdsEvent as (arg0: Event) => void,
+    );
+  }
+
+  handleAdsEvent = (e: CustomEvent<DSEventDetail>) => {
+    if (
+      e.detail.component === "ButtonGroup" &&
+      e.detail.event === DSEventTypes.KEYPRESS
+    ) {
+      emitInteractionAnalyticsEvent(this.componentRef.current, {
+        key: e.detail.meta.key,
+      });
+      e.stopPropagation();
+    }
+  };
 
   static getControlType() {
     return "BOX_SHADOW_OPTIONS";
   }
 
   public render() {
-    const { propertyValue } = this.props;
-
     return (
-      <StyledButtonGroup fill>
-        {buttonConfigs.map(({ icon, variant }) => {
-          const active =
-            variant === ButtonBoxShadowTypes.NONE
-              ? propertyValue === variant || propertyValue === undefined
-              : propertyValue === variant;
-
-          return (
-            <StyledButton
-              active={active}
-              icon={
-                <icon.element
-                  color={icon.color}
-                  height={icon.height}
-                  keepColors
-                  width={icon.width}
-                />
-              }
-              key={variant}
-              large
-              onClick={() => this.toggleOption(variant)}
-            />
+      <SegmentedControl
+        isFullWidth={false}
+        onChange={(value, isUpdatedViaKeyboard = false) => {
+          this.updateProperty(
+            this.props.propertyName,
+            value,
+            isUpdatedViaKeyboard,
           );
-        })}
-      </StyledButtonGroup>
+        }}
+        options={options}
+        ref={this.componentRef}
+        value={this.props.evaluatedValue || ""}
+      />
     );
   }
 
-  private toggleOption = (option: ButtonBoxShadow) => {
-    this.updateProperty(this.props.propertyName, option);
-  };
+  // TODO: Fix this the next time the file is edited
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static canDisplayValueInUI(config: ControlData, value: any): boolean {
+    return optionsValues.has(value);
+  }
 }
 
 export default BoxShadowOptionsControl;

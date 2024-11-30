@@ -1,121 +1,245 @@
-import { AxiosPromise } from "axios";
+import type { AxiosPromise } from "axios";
 import Api from "api/Api";
-import { ApiResponse } from "./ApiResponses";
-import { GitConfig } from "entities/GitSync";
+import type { ApiResponse } from "./ApiResponses";
+import type { GitConfig } from "entities/GitSync";
+import ApplicationApi from "ee/api/ApplicationApi";
 
-export type CommitPayload = {
+export interface CommitPayload {
   applicationId: string;
   commitMessage: string;
   doPush: boolean;
-  branch: string;
-};
+}
 
-export type PushToGitPayload = {
-  applicationId: string;
-  branch: string;
-};
-
-export type MergeBranchPayload = {
+export interface MergeBranchPayload {
   applicationId: string;
   sourceBranch: string;
   destinationBranch: string;
-};
+}
 
-export type ConnectToGitPayload = {
+export interface MergeStatusPayload {
+  applicationId: string;
+  sourceBranch: string;
+  destinationBranch: string;
+}
+
+export interface ConnectToGitPayload {
   remoteUrl: string;
-  gitProfile: {
+  gitProfile?: {
     authorName: string;
     authorEmail: string;
+    useDefaultProfile?: boolean;
   };
-  isImport?: boolean;
-  isDefaultProfile?: boolean;
-};
+}
 
-type GitStatusParam = {
+interface GitStatusParam {
   applicationId: string;
-  branch: string;
-};
+  compareRemote: boolean;
+}
+
+export enum AutocommitResponseEnum {
+  IN_PROGRESS = "IN_PROGRESS",
+  LOCKED = "LOCKED",
+  PUBLISHED = "PUBLISHED",
+  IDLE = "IDLE",
+  NOT_REQUIRED = "NOT_REQUIRED",
+  NON_GIT_APP = "NON_GIT_APP",
+}
+
+export interface GitAutocommitProgressResponse {
+  autoCommitResponse: AutocommitResponseEnum;
+  progress: number;
+  branchName: string;
+}
+
+export interface GitTriggerAutocommitResponse {
+  autoCommitResponse: AutocommitResponseEnum;
+  progress: number;
+  branchName: string;
+}
 
 class GitSyncAPI extends Api {
   static baseURL = `/v1/git`;
 
-  static commit({
+  static async commit({
     applicationId,
-    branch,
     commitMessage,
     doPush,
-  }: CommitPayload): AxiosPromise<ApiResponse> {
+  }: CommitPayload): Promise<AxiosPromise<ApiResponse>> {
+    return Api.post(`${GitSyncAPI.baseURL}/commit/app/${applicationId}`, {
+      commitMessage,
+      doPush,
+    });
+  }
+
+  static async merge({
+    applicationId,
+    destinationBranch,
+    sourceBranch,
+  }: MergeBranchPayload): Promise<AxiosPromise<ApiResponse>> {
+    return Api.post(`${GitSyncAPI.baseURL}/merge/app/${applicationId}`, {
+      sourceBranch,
+      destinationBranch,
+    });
+  }
+
+  static async getMergeStatus({
+    applicationId,
+    destinationBranch,
+    sourceBranch,
+  }: MergeStatusPayload) {
+    return Api.post(`${GitSyncAPI.baseURL}/merge/status/app/${applicationId}`, {
+      sourceBranch,
+      destinationBranch,
+    });
+  }
+
+  static async pull({ applicationId }: { applicationId: string }) {
+    return Api.get(`${GitSyncAPI.baseURL}/pull/app/${applicationId}`);
+  }
+
+  static async connect(
+    payload: ConnectToGitPayload,
+    baseApplicationId: string,
+  ) {
     return Api.post(
-      `${GitSyncAPI.baseURL}/commit/${applicationId}?branchName=${branch}`,
+      `${GitSyncAPI.baseURL}/connect/app/${baseApplicationId}`,
+      payload,
+    );
+  }
+
+  static async getGlobalConfig() {
+    return Api.get(`${GitSyncAPI.baseURL}/profile/default`);
+  }
+
+  static async setGlobalConfig(payload: GitConfig) {
+    return Api.post(`${GitSyncAPI.baseURL}/profile/default`, payload);
+  }
+
+  static async fetchBranches(applicationId: string, pruneBranches?: boolean) {
+    const queryParams = {} as { pruneBranches?: boolean };
+
+    if (pruneBranches) queryParams.pruneBranches = true;
+
+    return Api.get(
+      `${GitSyncAPI.baseURL}/branch/app/${applicationId}`,
+      queryParams,
+    );
+  }
+
+  static async checkoutBranch(applicationId: string, branch: string) {
+    return Api.get(
+      `${GitSyncAPI.baseURL}/checkout-branch/app/${applicationId}`,
       {
-        commitMessage,
-        doPush,
+        branchName: branch,
       },
     );
   }
 
-  static push({
-    applicationId,
-    branch,
-  }: PushToGitPayload): AxiosPromise<ApiResponse> {
+  static async createNewBranch(applicationId: string, branch: string) {
     return Api.post(
-      `${GitSyncAPI.baseURL}/push/${applicationId}?branchName=${branch}`,
+      `${GitSyncAPI.baseURL}/create-branch/app/${applicationId}`,
+      {
+        branchName: branch,
+      },
     );
   }
 
-  static merge({
-    applicationId,
-    destinationBranch,
-    sourceBranch,
-  }: MergeBranchPayload): AxiosPromise<ApiResponse> {
-    return Api.post(
-      `${GitSyncAPI.baseURL}/merge/${applicationId}?sourceBranch=${sourceBranch}&destinationBranch=${destinationBranch}`,
+  static async getLocalConfig(baseApplicationId: string) {
+    return Api.get(`${GitSyncAPI.baseURL}/profile/app/${baseApplicationId}`);
+  }
+
+  static async setLocalConfig(payload: GitConfig, baseApplicationId: string) {
+    return Api.put(
+      `${GitSyncAPI.baseURL}/profile/app/${baseApplicationId}`,
+      payload,
     );
   }
 
-  static connect(payload: ConnectToGitPayload, applicationId: string) {
-    return Api.post(`${GitSyncAPI.baseURL}/connect/${applicationId}`, payload);
-  }
-
-  static disconnect(applicationId: string) {
-    return Api.post(`${GitSyncAPI.baseURL}/disconnect/${applicationId}`);
-  }
-
-  static getGlobalConfig() {
-    return Api.get(`${GitSyncAPI.baseURL}/profile/default`);
-  }
-
-  static setGlobalConfig(payload: GitConfig) {
-    return Api.post(`${GitSyncAPI.baseURL}/profile/default`, payload);
-  }
-
-  static fetchBranches(applicationId: string) {
-    return Api.get(`${GitSyncAPI.baseURL}/branch/${applicationId}`);
-  }
-
-  static checkoutBranch(applicationId: string, branch: string) {
-    return Api.get(`${GitSyncAPI.baseURL}/checkout-branch/${applicationId}`, {
-      branchName: branch,
+  static async getGitStatus({
+    applicationId,
+    compareRemote = true,
+  }: GitStatusParam) {
+    return Api.get(`${GitSyncAPI.baseURL}/status/app/${applicationId}`, {
+      compareRemote,
     });
   }
 
-  static createNewBranch(applicationId: string, branch: string) {
-    return Api.post(`${GitSyncAPI.baseURL}/create-branch/${applicationId}`, {
-      branchName: branch,
-    });
+  static async revokeGit(baseApplicationId: string) {
+    return Api.post(
+      `${GitSyncAPI.baseURL}/disconnect/app/${baseApplicationId}`,
+    );
   }
 
-  static getLocalConfig(applicationId: string) {
-    return Api.get(`${GitSyncAPI.baseURL}/profile/${applicationId}`);
+  static async importApp(payload: ConnectToGitPayload, workspaceId: string) {
+    return Api.post(`${GitSyncAPI.baseURL}/import/${workspaceId}`, payload);
   }
 
-  static setLocalConfig(payload: GitConfig, applicationId: string) {
-    return Api.put(`${GitSyncAPI.baseURL}/profile/${applicationId}`, payload);
-  }
-
-  static getGitStatus({ applicationId, branch }: GitStatusParam) {
+  static async getSSHKeyPair(
+    baseApplicationId: string,
+  ): Promise<AxiosPromise<ApiResponse>> {
     return Api.get(
-      `${GitSyncAPI.baseURL}/status/${applicationId}?branchName=${branch}`,
+      ApplicationApi.baseURL + "/ssh-keypair/" + baseApplicationId,
+    );
+  }
+
+  static async generateSSHKeyPair(
+    baseApplicationId: string,
+    keyType: string,
+    isImporting?: boolean,
+  ): Promise<AxiosPromise<ApiResponse>> {
+    const url = isImporting
+      ? `v1/git/import/keys?keyType=${keyType}`
+      : `${ApplicationApi.baseURL}/ssh-keypair/${baseApplicationId}?keyType=${keyType}`;
+
+    return isImporting ? Api.get(url) : Api.post(url);
+  }
+
+  static async deleteBranch(
+    baseApplicationId: string,
+    branchName: string,
+  ): Promise<AxiosPromise<ApiResponse>> {
+    return Api.delete(GitSyncAPI.baseURL + "/branch/app/" + baseApplicationId, {
+      branchName,
+    });
+  }
+
+  static async discardChanges(applicationId: string) {
+    return Api.put(`${GitSyncAPI.baseURL}/discard/app/${applicationId}`);
+  }
+
+  static async getProtectedBranches(baseApplicationId: string) {
+    return Api.get(
+      `${GitSyncAPI.baseURL}/branch/app/${baseApplicationId}/protected`,
+    );
+  }
+
+  static async updateProtectedBranches(
+    baseApplicationId: string,
+    branchNames: string[],
+  ) {
+    return Api.post(
+      `${GitSyncAPI.baseURL}/branch/app/${baseApplicationId}/protected`,
+      { branchNames },
+    );
+  }
+
+  static async getGitMetadata(baseApplicationId: string) {
+    return Api.get(`${GitSyncAPI.baseURL}/metadata/app/${baseApplicationId}`);
+  }
+
+  static async toggleAutocommit(baseApplicationId: string) {
+    return Api.patch(
+      `${GitSyncAPI.baseURL}/auto-commit/toggle/app/${baseApplicationId}`,
+    );
+  }
+
+  static async triggerAutocommit(applicationId: string) {
+    return Api.post(`${GitSyncAPI.baseURL}/auto-commit/app/${applicationId}`);
+  }
+
+  static async getAutocommitProgress(baseApplicationId: string) {
+    return Api.get(
+      `${GitSyncAPI.baseURL}/auto-commit/progress/app/${baseApplicationId}`,
     );
   }
 }

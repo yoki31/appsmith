@@ -1,14 +1,25 @@
+import { APP_MODE } from "entities/App";
+import AppViewerPageContainer from "pages/AppViewer/AppViewerPageContainer";
 import Canvas from "pages/Editor/Canvas";
-import MainContainer from "pages/Editor/MainContainer";
+import IDE from "pages/Editor/IDE";
 import React from "react";
 import { useSelector } from "react-redux";
-import { mockGetCanvasWidgetDsl, useMockDsl } from "./testCommon";
+import { getCanvasWidgetsStructure } from "ee/selectors/entitiesSelector";
+import { useMockDsl } from "./testCommon";
 
 export function MockCanvas() {
-  const dsl = useSelector(mockGetCanvasWidgetDsl);
-  return <Canvas dsl={dsl} />;
+  const canvasWidgetsStructure = useSelector(getCanvasWidgetsStructure);
+
+  return <Canvas canvasWidth={0} widgetsStructure={canvasWidgetsStructure} />;
 }
-export function UpdatedMainContainer({ dsl }: any) {
-  useMockDsl(dsl);
-  return <MainContainer />;
+
+export function UpdateAppViewer({ dsl }: { dsl: unknown }) {
+  const hasLoaded = useMockDsl(dsl, APP_MODE.PUBLISHED);
+
+  return hasLoaded ? <AppViewerPageContainer /> : null;
+}
+export function UpdatedEditor({ dsl }: { dsl: unknown }) {
+  const hasLoaded = useMockDsl(dsl, APP_MODE.EDIT);
+
+  return hasLoaded ? <IDE /> : null;
 }

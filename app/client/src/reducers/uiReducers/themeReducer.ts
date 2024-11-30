@@ -1,7 +1,8 @@
-import { createImmerReducer } from "utils/AppsmithUtils";
-import { ReduxAction, ReduxActionTypes } from "constants/ReduxActionConstants";
+import { createImmerReducer } from "utils/ReducerUtils";
+import type { ReduxAction } from "ee/constants/ReduxActionConstants";
+import { ReduxActionTypes } from "ee/constants/ReduxActionConstants";
 import { dark, light, theme } from "constants/DefaultTheme";
-import { ThemeMode } from "../../selectors/themeSelectors";
+import { ThemeMode } from "selectors/themeSelectors";
 
 const initialState: ThemeState = {
   mode: ThemeMode.LIGHT,
@@ -18,13 +19,15 @@ const initialState: ThemeState = {
 
 export type ThemeState = HeaderMetaState & {
   mode: ThemeMode;
+  // TODO: Fix this the next time the file is edited
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   theme: any;
 };
 
-export type HeaderMetaState = {
+export interface HeaderMetaState {
   hideHeaderShadow: boolean;
   showHeaderSeparator: boolean;
-};
+}
 
 const themeReducer = createImmerReducer(initialState, {
   [ReduxActionTypes.SET_THEME]: (
@@ -35,6 +38,7 @@ const themeReducer = createImmerReducer(initialState, {
     const completeTheme = {
       ...theme,
     };
+
     switch (action.payload) {
       case ThemeMode.DARK:
         completeTheme.colors = {

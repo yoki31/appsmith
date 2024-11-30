@@ -1,11 +1,11 @@
 package com.appsmith.server.domains;
 
-import com.appsmith.external.models.BaseDomain;
-import com.appsmith.server.dtos.ActionCollectionDTO;
+import com.appsmith.server.domains.ce.ActionCollectionCE;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.ToString;
+import lombok.experimental.FieldNameConstants;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 /**
@@ -14,16 +14,10 @@ import org.springframework.data.mongodb.core.mapping.Document;
  */
 @Getter
 @Setter
-@ToString
+@ToString(callSuper = true)
 @NoArgsConstructor
 @Document
-public class ActionCollection extends BaseDomain {
-
-    String applicationId;
-
-    String organizationId;
-
-    ActionCollectionDTO unpublishedCollection;
-
-    ActionCollectionDTO publishedCollection;
+@FieldNameConstants
+public class ActionCollection extends ActionCollectionCE {
+    public static class Fields extends ActionCollectionCE.Fields {}
 }

@@ -1,34 +1,47 @@
 {
+  "controlType": "SECTION_V2",
   "identifier": "INSERT",
-  "controlType" : "SECTION",
   "conditionals": {
-    "show": "{{actionConfiguration.formData.command === 'INSERT'}}"
+    "show": "{{actionConfiguration.formData.command.data === 'INSERT'}}"
   },
   "children": [
     {
-      "controlType": "SECTION",
-      "label": "Select Collection to Query",
+      "controlType": "DOUBLE_COLUMN_ZONE",
+      "identifier": "INSERT-Z1",
       "children": [
         {
           "label": "Collection",
-          "configProperty": "actionConfiguration.formData.collection",
-          "controlType": "QUERY_DYNAMIC_INPUT_TEXT",
-          "evaluationSubstitutionType": "TEMPLATE"
+          "configProperty": "actionConfiguration.formData.collection.data",
+          "controlType": "DROP_DOWN",
+          "evaluationSubstitutionType": "TEMPLATE",
+          "propertyName": "get_collections",
+          "fetchOptionsConditionally": true,
+          "alternateViewTypes": ["json"],
+          "conditionals": {
+            "fetchDynamicValues": {
+              "condition": "{{true}}",
+              "config": {
+                "params": {
+                  "requestType": "_GET_STRUCTURE",
+                  "displayType": "DROP_DOWN"
+                }
+              }
+            }
+          }
         }
       ]
     },
     {
-      "controlType": "SECTION",
-      "label": "Query",
-      "description" : "Optional",
+      "controlType": "SINGLE_COLUMN_ZONE",
+      "identifier": "INSERT-Z2",
       "children": [
         {
           "label": "Documents",
-          "configProperty": "actionConfiguration.formData.insert.documents",
-          "controlType": "QUERY_DYNAMIC_INPUT_TEXT",
+          "configProperty": "actionConfiguration.formData.insert.documents.data",
+          "controlType": "QUERY_DYNAMIC_TEXT",
           "inputType": "JSON",
           "evaluationSubstitutionType": "TEMPLATE",
-          "placeholderText" : "[ { _id: 1, user: \"abc123\", status: \"A\" } ]"
+          "placeholderText": "[ { _id: 1, user: \"abc123\", status: \"A\" } ]"
         }
       ]
     }

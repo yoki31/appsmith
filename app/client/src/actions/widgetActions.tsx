@@ -1,14 +1,20 @@
+import type { ReduxAction } from "ee/constants/ReduxActionConstants";
 import {
   ReduxActionTypes,
-  ReduxAction,
   WidgetReduxActionTypes,
-} from "constants/ReduxActionConstants";
-import { ExecuteTriggerPayload } from "constants/AppsmithActionConstants/ActionConstants";
-import { BatchAction, batchAction } from "actions/batchActions";
-import PerformanceTracker, {
-  PerformanceTransactionName,
-} from "utils/PerformanceTracker";
-import { WidgetProps } from "widgets/BaseWidget";
+} from "ee/constants/ReduxActionConstants";
+import type { ExecuteTriggerPayload } from "constants/AppsmithActionConstants/ActionConstants";
+import type { BatchAction } from "actions/batchActions";
+import { batchAction } from "actions/batchActions";
+import type { WidgetProps } from "widgets/BaseWidget";
+import type { PartialExportParams } from "sagas/PartialImportExportSagas";
+import type { PasteWidgetReduxAction } from "constants/WidgetConstants";
+
+export const widgetInitialisationSuccess = () => {
+  return {
+    type: ReduxActionTypes.WIDGET_INIT_SUCCESS,
+  };
+};
 
 export const executeTrigger = (
   payload: ExecuteTriggerPayload,
@@ -42,45 +48,32 @@ export const createModalAction = (
 
 export const focusWidget = (
   widgetId?: string,
-): ReduxAction<{ widgetId?: string }> => ({
+  alt?: boolean,
+): ReduxAction<{ widgetId?: string; alt?: boolean }> => ({
   type: ReduxActionTypes.FOCUS_WIDGET,
-  payload: { widgetId },
+  payload: { widgetId, alt },
 });
 
-export const showModal = (id: string) => {
+export const altFocusWidget = (alt: boolean) => ({
+  type: ReduxActionTypes.ALT_FOCUS_WIDGET,
+  payload: alt,
+});
+
+export const showModal = (id: string, shouldSelectModal = true) => {
   return {
     type: ReduxActionTypes.SHOW_MODAL,
     payload: {
       modalId: id,
+      shouldSelectModal,
     },
   };
 };
 
-export const closeAllModals = () => {
-  return {
-    type: ReduxActionTypes.CLOSE_MODAL,
-    payload: {},
-  };
-};
-
-export const forceOpenPropertyPane = (id: string) => {
-  PerformanceTracker.startTracking(
-    PerformanceTransactionName.OPEN_PROPERTY_PANE,
-  );
-  return {
-    type: ReduxActionTypes.SHOW_PROPERTY_PANE,
-    payload: {
-      widgetId: id,
-      force: true,
-    },
-  };
-};
-
-export const closePropertyPane = () => {
+export const closePropertyPane = (force = false) => {
   return {
     type: ReduxActionTypes.HIDE_PROPERTY_PANE,
     payload: {
-      force: false,
+      force,
     },
   };
 };
@@ -103,11 +96,19 @@ export const copyWidget = (isShortcut: boolean) => {
   };
 };
 
-export const pasteWidget = (groupWidgets = false) => {
+export const pasteWidget = ({
+  existingWidgets,
+  gridPosition,
+  groupWidgets = false,
+  mouseLocation,
+}: PasteWidgetReduxAction) => {
   return {
-    type: ReduxActionTypes.PASTE_COPIED_WIDGET_INIT,
+    type: ReduxActionTypes.VERIFY_LAYOUT_SYSTEM_AND_PASTE_WIDGETS,
     payload: {
-      groupWidgets: groupWidgets,
+      groupWidgets,
+      mouseLocation,
+      gridPosition,
+      existingWidgets,
     },
   };
 };
@@ -140,12 +141,31 @@ export const addSuggestedWidget = (payload: Partial<WidgetProps>) => {
 
 /**
  * action to group selected widgets into container
- *
- * @param queryName
  * @returns
  */
 export const groupWidgets = () => {
   return {
     type: ReduxActionTypes.GROUP_WIDGETS_INIT,
+  };
+};
+
+export const openPartialExportModal = (payload: boolean) => {
+  return {
+    type: ReduxActionTypes.PARTIAL_EXPORT_MODAL_OPEN,
+    payload,
+  };
+};
+
+export const partialExportWidgets = (params: PartialExportParams) => {
+  return {
+    type: ReduxActionTypes.PARTIAL_EXPORT_INIT,
+    payload: params,
+  };
+};
+
+export const setWidgetSelectionBlock = (payload: boolean) => {
+  return {
+    type: ReduxActionTypes.SET_WIDGET_SELECTION_BLOCK,
+    payload,
   };
 };

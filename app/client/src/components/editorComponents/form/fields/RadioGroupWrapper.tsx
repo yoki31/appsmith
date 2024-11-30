@@ -1,15 +1,22 @@
-import RadioComponent from "components/ads/Radio";
+import { Radio, RadioGroup } from "@appsmith/ads";
 import React, { useEffect, useState } from "react";
-import { WrappedFieldInputProps } from "redux-form";
+import type { WrappedFieldInputProps } from "redux-form";
+import styled from "styled-components";
 
-export type RadioGroupWrapperProps = {
+export interface RadioGroupWrapperProps {
   placeholder: string;
   input: WrappedFieldInputProps;
   options: Array<{ value: string; label: string }>;
+  selectedOptionElements?: Array<JSX.Element | null>;
   className?: string;
   columns?: number;
   rows?: number;
-};
+}
+
+const RadioContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+`;
 
 function RadioGroupWrapper(props: RadioGroupWrapperProps) {
   const selectedValueHandler = () => {
@@ -37,14 +44,24 @@ function RadioGroupWrapper(props: RadioGroupWrapperProps) {
   }, [props.input.value, props.placeholder]);
 
   return (
-    <RadioComponent
+    <RadioGroup
       className={props.className}
-      columns={props.columns}
+      // columns={props.columns}
       defaultValue={selectedOption}
-      onSelect={(value: string) => onSelectHandler(value)}
-      options={props.options}
-      rows={props.rows}
-    />
+      onChange={(value: string) => onSelectHandler(value)}
+      value={selectedOption}
+      // rows={props.rows}
+    >
+      {props.options.map((option, index) => (
+        <RadioContainer key={option.value}>
+          <Radio key={option.value} value={option.value}>
+            {option.label}
+          </Radio>
+          {selectedOption == option.value &&
+            props.selectedOptionElements?.[index]}
+        </RadioContainer>
+      ))}
+    </RadioGroup>
   );
 }
 

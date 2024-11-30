@@ -2,18 +2,19 @@ package com.appsmith.server.notifications;
 
 import com.appsmith.server.configurations.EmailConfig;
 import com.appsmith.server.helpers.TemplateUtils;
+import jakarta.mail.MessagingException;
+import jakarta.mail.internet.InternetAddress;
+import jakarta.mail.internet.MimeMessage;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.mail.MailException;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 import reactor.core.Exceptions;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
-import javax.mail.MessagingException;
-import javax.mail.internet.InternetAddress;
-import javax.mail.internet.MimeMessage;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.util.Map;
@@ -28,23 +29,21 @@ public class EmailSender {
 
     private final EmailConfig emailConfig;
 
-    private final InternetAddress MAIL_FROM;
-
     private final InternetAddress REPLY_TO;
 
     public EmailSender(JavaMailSender javaMailSender, EmailConfig emailConfig) {
         this.javaMailSender = javaMailSender;
         this.emailConfig = emailConfig;
 
-        MAIL_FROM = makeFromAddress();
         REPLY_TO = makeReplyTo();
     }
 
-    public Mono<Boolean> sendMail(String to, String subject, String text) {
-        return sendMail(to, subject, text, null);
+    public Mono<Boolean> sendMail(String to, String subject, String text, Map<String, ? extends Object> params) {
+        return sendMail(to, subject, text, params, null);
     }
 
-    public Mono<Boolean> sendMail(String to, String subject, String text, Map<String, ? extends Object> params) {
+    public Mono<Boolean> sendMail(
+            String to, String subject, String text, Map<String, ? extends Object> params, String replyTo) {
 
         /**
          * Creating a publisher which sends email in a blocking fashion, subscribing on the bounded elastic
@@ -61,7 +60,7 @@ public class EmailSender {
                     }
                 })
                 .doOnNext(emailBody -> {
-                    sendMailSync(to, subject, emailBody);
+                    sendMailSync(to, subject, emailBody, replyTo);
                 })
                 .subscribeOn(Schedulers.boundedElastic())
                 .subscribe();
@@ -77,7 +76,7 @@ public class EmailSender {
      * @param subject Subject string.
      * @param text    HTML Body of the message. This method assumes UTF-8.
      */
-    private void sendMailSync(String to, String subject, String text) {
+    private void sendMailSync(String to, String subject, String text, String replyTo) {
         log.debug("Got request to send email to: {} with subject: {}", to, subject);
         // Don't send an email for local, dev or test environments
         if (!emailConfig.isEmailEnabled()) {
@@ -85,7 +84,7 @@ public class EmailSender {
         }
 
         // Check if the email address is valid. It's possible for certain OAuth2 providers to not return the email ID
-        if (to == null || !validateEmail(to)) {
+        if (!validateEmail(to)) {
             log.error("The email ID: {} is not valid. Not sending an email", to);
             return;
         }
@@ -96,10 +95,12 @@ public class EmailSender {
 
         try {
             helper.setTo(to);
-            if (MAIL_FROM != null) {
-                helper.setFrom(MAIL_FROM);
+            if (emailConfig.getMailFrom() != null) {
+                helper.setFrom(emailConfig.getMailFrom());
             }
-            if (REPLY_TO != null) {
+            if (StringUtils.hasLength(replyTo)) {
+                helper.setReplyTo(replyTo);
+            } else if (REPLY_TO != null) {
                 helper.setReplyTo(REPLY_TO);
             }
             helper.setSubject(subject);
@@ -108,18 +109,13 @@ public class EmailSender {
 
             log.debug("Email sent successfully to {} with subject {}", to, subject);
         } catch (MessagingException e) {
-            log.error("Unable to create the mime message while sending an email to {} with subject: {}. Cause: ", to, subject, e);
+            log.error(
+                    "Unable to create the mime message while sending an email to {} with subject: {}. Cause: ",
+                    to,
+                    subject,
+                    e);
         } catch (MailException e) {
             log.error("Unable to send email. Cause: ", e);
-        }
-    }
-
-    private InternetAddress makeFromAddress() {
-        try {
-            return new InternetAddress(this.emailConfig.getMailFrom(), "Appsmith");
-        } catch (UnsupportedEncodingException e) {
-            log.error("Encoding error creating Appsmith mail from address.", e);
-            return null;
         }
     }
 

@@ -1,119 +1,109 @@
-import React, { useRef, useState } from "react";
-import { ReactComponent as GitMerge } from "assets/icons/ads/git-merge.svg";
+import React, { useRef } from "react";
 import styled from "styled-components";
-import { Space } from "../components/StyledComponents";
-import { useSelector } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
 
 import { Popover2 } from "@blueprintjs/popover2";
 import "@blueprintjs/popover2/lib/css/blueprint-popover2.css";
-import { getTypographyByKey } from "constants/DefaultTheme";
 
-import { Colors } from "constants/Colors";
-import Icon from "components/ads/Icon";
-import {
-  createMessage,
-  NAME_YOUR_NEW_BRANCH,
-  SWITCH_BRANCHES,
-} from "constants/messages";
-import { getCurrentAppGitMetaData } from "selectors/applicationSelectors";
+import { getCurrentAppGitMetaData } from "ee/selectors/applicationSelectors";
 import BranchList from "../components/BranchList";
+import {
+  getGitStatus,
+  getIsPollingAutocommit,
+  getIsTriggeringAutocommit,
+  protectedModeSelector,
+  showBranchPopupSelector,
+} from "selectors/gitSyncSelectors";
+import AnalyticsUtil from "ee/utils/AnalyticsUtil";
+import { Button, Icon, Tooltip } from "@appsmith/ads";
+import { isEllipsisActive } from "utils/helpers";
+import { importRemixIcon } from "@appsmith/ads-old";
+import { setShowBranchPopupAction } from "actions/gitSyncActions";
 
-const ButtonContainer = styled.div`
+const ProtectedIcon = importRemixIcon(
+  async () => import("remixicon-react/ShieldKeyholeLineIcon"),
+);
+
+const ButtonContainer = styled(Button)`
   display: flex;
   align-items: center;
-  & .label {
-    color: ${(props) => props.theme.colors.editorBottomBar.branchBtnText};
-    ${(props) => getTypographyByKey(props, "p1")};
-    line-height: 18px;
-  }
-  & .icon {
-    height: 24px;
-  }
   margin: 0 ${(props) => props.theme.spaces[4]}px;
-  cursor: pointer;
-  &:hover svg path {
-    fill: ${Colors.CHARCOAL};
+  max-width: 122px;
+  min-width: unset !important;
+
+  :active {
+    border: 1px solid var(--ads-v2-color-border-muted);
   }
-`;
-
-const BranchDropdownContainer = styled.div`
-  height: 40vh;
-  display: flex;
-  flex-direction: column;
-
-  & .title {
-    ${(props) => getTypographyByKey(props, "p1")};
-  }
-`;
-
-const Container = styled.div`
-  padding: ${(props) => props.theme.spaces[5]}px;
-  padding-top: 0;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-`;
-
-const CloseBtnContainer = styled.div`
-  align-self: flex-end;
-  padding: ${(props) => props.theme.spaces[2]}px;
-  padding-bottom: 0;
-  border-radius: ${(props) => props.theme.radii[1]}px;
 `;
 
 function BranchButton() {
+  const dispatch = useDispatch();
   const gitMetaData = useSelector(getCurrentAppGitMetaData);
+  const isProtectedMode = useSelector(protectedModeSelector);
   const currentBranch = gitMetaData?.branchName;
-  const [isOpen, setIsOpen] = useState(false);
-  const [showCreateBranchForm, setShowCreateNewBranchForm] = useState(false);
-  const title = showCreateBranchForm
-    ? createMessage(NAME_YOUR_NEW_BRANCH)
-    : createMessage(SWITCH_BRANCHES);
+  const labelTarget = useRef<HTMLSpanElement>(null);
+  const status = useSelector(getGitStatus);
+  const isOpen = useSelector(showBranchPopupSelector);
+  const triggeringAutocommit = useSelector(getIsTriggeringAutocommit);
+  const pollingAutocommit = useSelector(getIsPollingAutocommit);
+  const isBranchChangeDisabled = triggeringAutocommit || pollingAutocommit;
 
-  const dropdownContainerRef = useRef<HTMLDivElement>(null);
+  const setIsOpen = (isOpen: boolean) => {
+    dispatch(setShowBranchPopupAction(isOpen));
+  };
 
   return (
     <Popover2
-      content={
-        <BranchDropdownContainer
-          onClick={(e: React.MouseEvent) => {
-            e.preventDefault();
-            e.stopPropagation();
-          }}
-        >
-          <CloseBtnContainer onClick={() => setIsOpen(false)}>
-            <Icon fillColor={Colors.THUNDER_ALT} name="close-modal" />
-          </CloseBtnContainer>
-          <Container ref={dropdownContainerRef}>
-            <span className="title">{title}</span>
-            <Space size={4} />
-            <BranchList
-              setIsPopupOpen={setIsOpen}
-              setShowCreateNewBranchForm={setShowCreateNewBranchForm}
-            />
-          </Container>
-        </BranchDropdownContainer>
-      }
+      content={<BranchList setIsPopupOpen={setIsOpen} />}
+      data-testid={"t--git-branch-button-popover"}
+      disabled={isBranchChangeDisabled}
+      hasBackdrop
       isOpen={isOpen}
       minimal
       modifiers={{ offset: { enabled: true, options: { offset: [7, 10] } } }}
-      onInteraction={(nextState: boolean, e: any) => {
-        // to avoid child popover (dropdown) from closing the branch popover
-        // `captureDismiss` doesn't work since the dropdown currently uses popover
-        // instead of popover2
-        if (!dropdownContainerRef.current?.contains(e?.target)) {
-          setIsOpen(nextState);
+      onInteraction={(nextState: boolean) => {
+        setIsOpen(nextState);
+
+        if (nextState) {
+          AnalyticsUtil.logEvent("GS_OPEN_BRANCH_LIST_POPUP", {
+            source: "BOTTOM_BAR_ACTIVE_BRANCH_NAME",
+          });
         }
       }}
       placement="top-start"
     >
-      <ButtonContainer className="t--branch-button">
-        <div className="icon">
-          <GitMerge />
-        </div>
-        <div className="label">{currentBranch}</div>
-      </ButtonContainer>
+      <Tooltip
+        content={currentBranch || ""}
+        isDisabled={!isEllipsisActive(labelTarget.current)}
+        placement="topLeft"
+      >
+        <ButtonContainer
+          className="t--branch-button"
+          data-testid={"t--branch-button-currentBranch"}
+          isDisabled={isBranchChangeDisabled}
+          kind="secondary"
+        >
+          {isProtectedMode ? (
+            <ProtectedIcon
+              style={{ height: 14, width: 14, marginRight: 4, marginTop: 1 }}
+            />
+          ) : (
+            <Icon name={"git-branch"} style={{ marginRight: 4 }} />
+          )}
+          <span
+            ref={labelTarget}
+            style={{
+              maxWidth: "82px",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}
+          >
+            {currentBranch}
+          </span>
+          {!status?.isClean && !isProtectedMode && "*"}
+        </ButtonContainer>
+      </Tooltip>
     </Popover2>
   );
 }

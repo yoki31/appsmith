@@ -10,14 +10,17 @@
               "label": "Host URL",
               "configProperty": "datasourceConfiguration.endpoints[*].host",
               "controlType": "KEYVALUE_ARRAY",
-              "validationMessage": "Please enter a valid host URL",
-              "validationRegex": "^(http|https)://"
+              "validationMessage": "Please enter a valid URL, for example, https://example.com",
+              "validationRegex": "^(http|https)://",
+              "placeholderText": "myapp.abcde.elasticsearch.net"
             },
             {
               "label": "Port",
               "configProperty": "datasourceConfiguration.endpoints[*].port",
               "dataType": "NUMBER",
-              "controlType": "KEYVALUE_ARRAY"
+              "initialValue": ["9200"],
+              "controlType": "KEYVALUE_ARRAY",
+              "placeholderText": "9200"
             }
           ]
         }
@@ -25,7 +28,7 @@
     },
     {
       "sectionName": "Authentication",
-       "children": [
+      "children": [
         {
           "label": "Username for Basic Auth",
           "configProperty": "datasourceConfiguration.authentication.username",

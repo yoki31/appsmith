@@ -1,24 +1,57 @@
-import { ReduxAction, ReduxActionTypes } from "constants/ReduxActionConstants";
-import { JSCollection, JSAction } from "entities/JSCollection";
-import { RefactorAction } from "api/JSActionAPI";
+import type { ReduxAction } from "ee/constants/ReduxActionConstants";
+import { ReduxActionTypes } from "ee/constants/ReduxActionConstants";
+import type { JSCollection, JSAction } from "entities/JSCollection";
+import type {
+  RefactorAction,
+  SetFunctionPropertyPayload,
+} from "ee/api/JSActionAPI";
+import type { EventLocation } from "ee/utils/analyticsUtilTypes";
+import type {
+  JSEditorTab,
+  JSPaneDebuggerState,
+} from "reducers/uiReducers/jsPaneReducer";
+
 export const createNewJSCollection = (
   pageId: string,
-): ReduxAction<{ pageId: string }> => ({
+  from: EventLocation,
+  functionName?: string,
+): ReduxAction<{
+  pageId: string;
+  from: EventLocation;
+  functionName?: string;
+}> => ({
   type: ReduxActionTypes.CREATE_NEW_JS_ACTION,
-  payload: { pageId },
+  payload: { pageId, from, functionName },
 });
 
-export const updateJSCollection = (
+export const updateJSCollectionBody = (
   body: string,
   id: string,
-): ReduxAction<{ body: string; id: string }> => ({
-  type: ReduxActionTypes.UPDATE_JS_ACTION_INIT,
-  payload: { body, id },
+  isReplay = false,
+): ReduxAction<{ body: string; id: string; isReplay?: boolean }> => ({
+  type: ReduxActionTypes.UPDATE_JS_ACTION_BODY_INIT,
+  payload: { body, id, isReplay },
 });
 
 export const updateJSCollectionSuccess = (payload: { data: JSCollection }) => {
   return {
     type: ReduxActionTypes.UPDATE_JS_ACTION_SUCCESS,
+    payload,
+  };
+};
+
+export const updateJSCollectionBodySuccess = (payload: {
+  data: JSCollection;
+}) => {
+  return {
+    type: ReduxActionTypes.UPDATE_JS_ACTION_BODY_SUCCESS,
+    payload,
+  };
+};
+
+export const jsSaveActionStart = (payload: { id: string }) => {
+  return {
+    type: ReduxActionTypes.JS_ACTION_SAVE_START,
     payload,
   };
 };
@@ -33,13 +66,69 @@ export const refactorJSCollectionAction = (payload: {
   };
 };
 
-export const executeJSFunction = (payload: {
-  collectionName: string;
+export const jsSaveActionComplete = (payload: { id: string }) => {
+  return {
+    type: ReduxActionTypes.JS_ACTION_SAVE_COMPLETE,
+    payload,
+  };
+};
+
+export const executeJSFunctionInit = (payload: {
+  collection: JSCollection;
   action: JSAction;
-  collectionId: string;
 }) => {
   return {
     type: ReduxActionTypes.EXECUTE_JS_FUNCTION_INIT,
     payload,
   };
 };
+
+export const startExecutingJSFunction = (payload: {
+  action: JSAction;
+  collection: JSCollection;
+  from: EventLocation;
+  openDebugger?: boolean;
+}) => {
+  return {
+    type: ReduxActionTypes.START_EXECUTE_JS_FUNCTION,
+    payload,
+  };
+};
+
+export const updateFunctionProperty = (payload: SetFunctionPropertyPayload) => {
+  return {
+    type: ReduxActionTypes.SET_FUNCTION_PROPERTY,
+    payload,
+  };
+};
+
+export const updateJSFunction = (payload: SetFunctionPropertyPayload) => {
+  return {
+    type: ReduxActionTypes.UPDATE_JS_FUNCTION_PROPERTY_INIT,
+    payload,
+  };
+};
+
+export const setActiveJSAction = (payload: {
+  jsCollectionId: string;
+  jsActionId: string;
+}) => {
+  return {
+    type: ReduxActionTypes.SET_ACTIVE_JS_ACTION,
+    payload,
+  };
+};
+
+export const setJsPaneConfigSelectedTab: (
+  payload: JSEditorTab,
+) => ReduxAction<{ selectedTab: JSEditorTab }> = (payload: JSEditorTab) => ({
+  type: ReduxActionTypes.SET_JS_PANE_CONFIG_SELECTED_TAB,
+  payload: { selectedTab: payload },
+});
+
+export const setJsPaneDebuggerState = (
+  payload: Partial<JSPaneDebuggerState>,
+) => ({
+  type: ReduxActionTypes.SET_JS_PANE_DEBUGGER_STATE,
+  payload,
+});

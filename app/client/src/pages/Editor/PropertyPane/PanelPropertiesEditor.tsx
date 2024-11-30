@@ -1,64 +1,49 @@
-import React, { useCallback, useEffect, useMemo } from "react";
+import React, { useEffect, useMemo } from "react";
 import { useDispatch, useSelector } from "react-redux";
 
-import { ReduxActionTypes } from "constants/ReduxActionConstants";
-import { WidgetProps } from "widgets/BaseWidget";
-import AnalyticsUtil from "utils/AnalyticsUtil";
+import type { WidgetProps } from "widgets/BaseWidget";
+import type { PanelConfig } from "constants/PropertyControlConstants";
+import PropertyControlsGenerator from "./PropertyControlsGenerator";
 import {
-  PanelConfig,
-  PropertyPaneConfig,
-  PropertyPaneControlConfig,
-  PropertyPaneSectionConfig,
-} from "constants/PropertyControlConstants";
-import { generatePropertyControl } from "./Generator";
-import { getWidgetPropsForPropertyPane } from "selectors/propertyPaneSelectors";
+  getSelectedPropertyPanel,
+  getWidgetPropsForPropertyPane,
+} from "selectors/propertyPaneSelectors";
 import { get, isNumber, isPlainObject, isString } from "lodash";
-import { IPanelProps } from "@blueprintjs/core";
-import { EditorTheme } from "components/editorComponents/CodeEditor/EditorConfig";
-import PropertyPaneTitle from "../PropertyPaneTitle";
-import { BindingText } from "../APIEditor/Form";
-import { PropertyControlsWrapper, PropertyPaneBodyWrapper } from ".";
-import { ControlIcons } from "icons/ControlIcons";
+import type { IPanelProps } from "@blueprintjs/core";
+import type { EditorTheme } from "components/editorComponents/CodeEditor/EditorConfig";
+import PropertyPaneTitle from "./PropertyPaneTitle";
+import { PropertyPaneTab } from "./PropertyPaneTab";
+import styled from "styled-components";
+import { updateConfigPaths, useSearchText } from "./helpers";
+import { PropertyPaneSearchInput } from "./PropertyPaneSearchInput";
+import { sendPropertyPaneSearchAnalytics } from "./propertyPaneSearch";
+import { unsetSelectedPropertyPanel } from "actions/propertyPaneActions";
 
-const QuestionIcon = ControlIcons.QUESTION;
-const CloseIcon = ControlIcons.CLOSE_CONTROL;
+const PanelWrapper = styled.div`
+  margin-top: 44px;
+  display: flex;
+  flex-flow: column;
+`;
 
 function PanelHeader(props: PanelHeaderProps) {
+  const dispatch = useDispatch();
+  const onBackClick = () => {
+    dispatch(unsetSelectedPropertyPanel(props.parentPropertyPath));
+    props.closePanel();
+  };
+
   return (
     <div
+      // TODO: Fix this the next time the file is edited
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       onClick={(e: any) => {
         e.stopPropagation();
       }}
     >
       <PropertyPaneTitle
-        actions={[
-          {
-            tooltipContent: (
-              <div>
-                <span>You can connect data from your API by adding </span>
-                <BindingText>{`{{apiName.data}}`}</BindingText>
-                <span> to a widget property</span>
-              </div>
-            ),
-            icon: <QuestionIcon height={16} width={16} />,
-          },
-          {
-            tooltipContent: "Close",
-            icon: (
-              <CloseIcon
-                className={"t--property-pane-close-btn"}
-                height={16}
-                onClick={(e: any) => {
-                  props.hidePropertyPane();
-                  e.preventDefault();
-                  e.stopPropagation();
-                }}
-              />
-            ),
-          },
-        ]}
+        actions={[]}
         isPanelTitle
-        onBackClick={props.closePanel}
+        onBackClick={onBackClick}
         title={props.title}
         updatePropertyTitle={props.updatePropertyTitle}
       />
@@ -66,39 +51,18 @@ function PanelHeader(props: PanelHeaderProps) {
   );
 }
 
-const updateConfigPaths = (config: PropertyPaneConfig[], basePath: string) => {
-  return config.map((_childConfig) => {
-    const childConfig = Object.assign({}, _childConfig);
-    // TODO(abhinav): Figure out a better way to differentiate between section and control
-    if (
-      (childConfig as PropertyPaneSectionConfig).sectionName &&
-      childConfig.children
-    ) {
-      (childConfig as PropertyPaneSectionConfig).propertySectionPath = basePath;
-      childConfig.children = updateConfigPaths(childConfig.children, basePath);
-    } else {
-      (childConfig as PropertyPaneControlConfig).propertyName = `${basePath}.${
-        (childConfig as PropertyPaneControlConfig).propertyName
-      }`;
-    }
-    return childConfig;
-  });
-};
-
 export function PanelPropertiesEditor(
   props: PanelPropertiesEditorProps &
     PanelPropertiesEditorPanelProps &
     IPanelProps,
 ) {
-  const dispatch = useDispatch();
-  const widgetProperties: any = useSelector(getWidgetPropsForPropertyPane);
-  const hidePropertyPane = useCallback(() => {
-    AnalyticsUtil.logEvent("PROPERTY_PANE_CLOSE_CLICK", {
-      widgetType: widgetProperties.type || "",
-      widgetId: widgetProperties.widgetId,
+  const widgetProperties = useSelector(getWidgetPropsForPropertyPane);
+  const currentSelectedPanel = useSelector(getSelectedPropertyPanel);
+  const keepPaneOpen = useMemo(() => {
+    return Object.keys(currentSelectedPanel).some((path) => {
+      return path.split(".")[0] === widgetProperties?.widgetName;
     });
-    dispatch({ type: ReduxActionTypes.HIDE_PROPERTY_PANE });
-  }, [dispatch, widgetProperties.type, widgetProperties.widgetId]);
+  }, [currentSelectedPanel, widgetProperties?.widgetName]);
 
   const {
     closePanel,
@@ -114,6 +78,7 @@ export function PanelPropertiesEditor(
   // For example: `someProperty.<thisValue>`
   const currentIndex = useMemo(() => {
     const parentProperty = get(widgetProperties, panelParentPropertyPath);
+
     if (parentProperty) {
       if (isPlainObject(parentProperty)) {
         return panelProps[panelConfig.panelIdPropertyName];
@@ -123,24 +88,60 @@ export function PanelPropertiesEditor(
             panelProps[panelConfig.panelIdPropertyName] ===
             entry[panelConfig.panelIdPropertyName],
         );
+
         return currentIndex;
       }
     }
+
     return;
   }, [widgetProperties, panelParentPropertyPath, panelProps, panelConfig]);
 
   const panelConfigs = useMemo(() => {
-    if (currentIndex !== undefined) {
+    if (currentIndex !== undefined && panelConfig.children) {
       let path: string | undefined = undefined;
+
       if (isString(currentIndex)) {
         path = `${panelParentPropertyPath}.${currentIndex}`;
       } else if (isNumber(currentIndex)) {
         path = `${panelParentPropertyPath}[${currentIndex}]`;
       }
+
       const configChildren = [...panelConfig.children];
+
       return path ? updateConfigPaths(configChildren, path) : configChildren;
     }
   }, [currentIndex, panelConfig, panelParentPropertyPath]);
+
+  const panelConfigsWithStyleAndContent = useMemo(() => {
+    if (
+      currentIndex !== undefined &&
+      panelConfig.contentChildren &&
+      panelConfig.styleChildren
+    ) {
+      let path: string | undefined = undefined;
+
+      if (isString(currentIndex)) {
+        path = `${panelParentPropertyPath}.${currentIndex}`;
+      } else if (isNumber(currentIndex)) {
+        path = `${panelParentPropertyPath}[${currentIndex}]`;
+      }
+
+      const contentChildren = [...panelConfig.contentChildren];
+      const styleChildren = [...panelConfig.styleChildren];
+      const searchConfig = [...(panelConfig.searchConfig || [])];
+
+      return {
+        content: path
+          ? updateConfigPaths(contentChildren, path)
+          : contentChildren,
+        style: path ? updateConfigPaths(styleChildren, path) : styleChildren,
+        searchConfig: path
+          ? updateConfigPaths(searchConfig, path)
+          : searchConfig,
+      };
+    }
+  }, [currentIndex, panelConfig, panelParentPropertyPath]);
+
   const panel = useMemo(
     () => ({
       openPanel: props.openPanel,
@@ -150,65 +151,157 @@ export function PanelPropertiesEditor(
   );
 
   useEffect(() => {
-    if (panelProps.propPaneId !== widgetProperties.widgetId) {
+    if (panelProps.propPaneId !== widgetProperties?.widgetId || !keepPaneOpen) {
       props.closePanel();
     }
-  }, [widgetProperties.widgetId]);
+  }, [widgetProperties?.widgetId, keepPaneOpen]);
+
+  const { searchText, setSearchText } = useSearchText("");
+
+  /**
+   * Analytics for property pane Search
+   */
+  useEffect(() => {
+    const searchPath = `${panelParentPropertyPath}.${
+      panelProps[panelConfig.panelIdPropertyName]
+    }`;
+
+    sendPropertyPaneSearchAnalytics({
+      widgetType: widgetProperties?.type ?? "",
+      searchText,
+      widgetName: widgetProperties?.widgetName ?? "",
+      searchPath,
+    });
+  }, [searchText]);
 
   if (!widgetProperties) return null;
+
   const updatePropertyTitle = (title: string) => {
     if (panelConfig.titlePropertyName) {
       const propertiesToUpdate: Record<string, unknown> = {};
       let path: string | undefined = undefined;
+
       if (isString(currentIndex)) {
         path = `${panelParentPropertyPath}.${currentIndex}.${panelConfig.titlePropertyName}`;
       } else if (isNumber(currentIndex)) {
         path = `${panelParentPropertyPath}[${currentIndex}].${panelConfig.titlePropertyName}`;
       }
+
       if (path) {
         propertiesToUpdate[path] = title;
+
         if (panelConfig.updateHook) {
           const additionalPropertiesToUpdate = panelConfig.updateHook(
             widgetProperties,
             path,
             title,
           );
+
           additionalPropertiesToUpdate?.forEach(
             ({ propertyPath, propertyValue }) => {
               propertiesToUpdate[propertyPath] = propertyValue;
             },
           );
         }
+
         props.onPropertiesChange(propertiesToUpdate);
       }
     }
   };
+
+  const parentPropertyPath = `${
+    widgetProperties ? `${widgetProperties.widgetName}.` : ""
+  }${panelParentPropertyPath}`;
+
+  const panelPropertyPath = `${parentPropertyPath}.${
+    panelProps[panelConfig.titlePropertyName]
+  }`;
+
   return (
-    <>
+    <div className="w-full overflow-y-scroll h-full">
       <PanelHeader
         closePanel={closePanel}
-        hidePropertyPane={hidePropertyPane}
         isEditable={panelConfig.editableTitle}
+        parentPropertyPath={parentPropertyPath}
         propertyName={panelConfig.titlePropertyName}
         title={panelProps[panelConfig.titlePropertyName]}
         updatePropertyTitle={updatePropertyTitle}
       />
-      <PropertyPaneBodyWrapper>
-        <PropertyControlsWrapper>
-          {panelConfigs &&
-            generatePropertyControl(panelConfigs as PropertyPaneConfig[], {
-              id: widgetProperties.widgetId,
-              type: widgetProperties.type,
-              panel,
-              theme,
-            })}
-        </PropertyControlsWrapper>
-      </PropertyPaneBodyWrapper>
-    </>
+      {panelConfigsWithStyleAndContent?.content ||
+      panelConfigsWithStyleAndContent?.style ? (
+        <>
+          <PropertyPaneSearchInput isPanel onTextChange={setSearchText} />
+          {searchText.length > 0 ? (
+            <PanelWrapper>
+              <PropertyControlsGenerator
+                config={panelConfigsWithStyleAndContent.searchConfig}
+                id={widgetProperties.widgetId}
+                panel={panel}
+                panelPropertyPath={panelPropertyPath}
+                searchQuery={searchText}
+                theme={theme}
+                type={widgetProperties.type}
+              />
+            </PanelWrapper>
+          ) : (
+            <PropertyPaneTab
+              contentComponent={
+                panelConfigsWithStyleAndContent?.content.length > 0 ? (
+                  <PanelWrapper>
+                    <PropertyControlsGenerator
+                      config={panelConfigsWithStyleAndContent.content}
+                      id={widgetProperties.widgetId}
+                      isPanelProperty
+                      panel={panel}
+                      panelPropertyPath={panelPropertyPath}
+                      theme={theme}
+                      type={widgetProperties.type}
+                    />
+                  </PanelWrapper>
+                ) : null
+              }
+              isPanelProperty
+              panelPropertyPath={panelPropertyPath}
+              styleComponent={
+                panelConfigsWithStyleAndContent.style.length > 0 ? (
+                  <PanelWrapper>
+                    <PropertyControlsGenerator
+                      config={panelConfigsWithStyleAndContent.style}
+                      id={widgetProperties.widgetId}
+                      isPanelProperty
+                      panel={panel}
+                      panelPropertyPath={panelPropertyPath}
+                      theme={theme}
+                      type={widgetProperties.type}
+                    />
+                  </PanelWrapper>
+                ) : null
+              }
+            />
+          )}
+        </>
+      ) : (
+        panelConfigs && (
+          <PanelWrapper>
+            <PropertyControlsGenerator
+              config={panelConfigs}
+              id={widgetProperties.widgetId}
+              isPanelProperty
+              panel={panel}
+              panelPropertyPath={panelPropertyPath}
+              theme={theme}
+              type={widgetProperties.type}
+            />
+          </PanelWrapper>
+        )
+      )}
+    </div>
   );
 }
 
 interface PanelPropertiesEditorProps {
+  // TODO: Fix this the next time the file is edited
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   panelProps: any;
   onPropertiesChange: (updates: Record<string, unknown>) => void;
   panelParentPropertyPath: string;
@@ -222,7 +315,7 @@ interface PanelPropertiesEditorPanelProps {
 interface PanelHeaderProps {
   isEditable: boolean;
   widgetProperties?: WidgetProps;
-  hidePropertyPane: () => void;
+  parentPropertyPath: string;
   title: string;
   closePanel: () => void;
   propertyName: string;

@@ -1,15 +1,18 @@
-import { Color } from "constants/Colors";
 import styled from "styled-components";
-import React, { RefObject, ReactNode, useMemo } from "react";
+import type { RefObject, ReactNode } from "react";
+import React, { useMemo } from "react";
 
-import { ListWidgetProps } from "../constants";
-import { WidgetProps } from "widgets/BaseWidget";
+import type { ListWidgetProps } from "../constants";
+import type { WidgetProps } from "widgets/BaseWidget";
 import { generateClassName, getCanvasClassName } from "utils/generators";
 
 interface ListComponentProps {
   children?: ReactNode;
   shouldScrollContents?: boolean;
-  backgroundColor?: Color;
+  backgroundColor: string;
+  borderRadius: string;
+  boxShadow?: string;
+
   listData: Array<Record<string, unknown>>;
   hasPagination?: boolean;
   widgetId: string;
@@ -21,6 +24,7 @@ const GridContainer = styled.div<ListComponentProps>`
   position: relative;
   overflow: hidden;
   background: ${(props) => props.backgroundColor};
+  border-radius: ${({ borderRadius }) => borderRadius};
 `;
 
 const ScrollableCanvasWrapper = styled.div<

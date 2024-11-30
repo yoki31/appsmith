@@ -1,6 +1,6 @@
 import * as Factory from "factory.ts";
 import { generateReactKey } from "utils/generators";
-import { WidgetProps } from "widgets/BaseWidget";
+import type { WidgetProps } from "widgets/BaseWidget";
 
 export const OldTabsFactory = Factory.Sync.makeFactory<WidgetProps>({
   isVisible: true,
@@ -141,5 +141,5 @@ export const TabsFactory = Factory.Sync.makeFactory<WidgetProps>({
   widgetName: Factory.each((i) => `Tabs${i + 1}`),
   widgetId: generateReactKey(),
   renderMode: "CANVAS",
-  version: 1,
+  version: 3,
 });

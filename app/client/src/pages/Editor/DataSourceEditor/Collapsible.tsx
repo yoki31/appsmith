@@ -1,13 +1,17 @@
 import React from "react";
-import { Collapse, Icon } from "@blueprintjs/core";
 import styled from "styled-components";
+import { Icon } from "@appsmith/ads";
 
 const SectionLabel = styled.div`
   font-weight: 500;
   font-size: 16px;
   line-height: 24px;
   letter-spacing: -0.17px;
-  color: #4e5d78;
+  color: var(--ads-v2-color-fg);
+  display: flex;
+  .ads-v2-icon {
+    margin-left: ${(props) => props.theme.spaces[2]}px;
+  }
 `;
 
 const SectionContainer = styled.div`
@@ -15,63 +19,46 @@ const SectionContainer = styled.div`
   flex-direction: row;
   align-items: center;
   justify-content: space-between;
-  width: 240px;
+  width: 270px;
   cursor: pointer;
-  margin-bottom: 5;
+  margin-bottom: 5px;
+  margin-top: 24px;
 `;
 
-interface ComponentState {
-  isOpen: boolean;
-}
-
 interface ComponentProps {
+  // TODO: Fix this the next time the file is edited
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   children: any;
   title: string;
-  defaultIsOpen: boolean;
+  // header icon props of collapse header
+  headerIcon?: {
+    name: string;
+    color?: string;
+  };
+  showSectionHeader?: boolean;
 }
 
 type Props = ComponentProps;
 
-class Collapsible extends React.Component<Props, ComponentState> {
-  constructor(props: Props) {
-    super(props);
+function Collapsible(props: Props) {
+  const { children, headerIcon, showSectionHeader = true, title } = props;
 
-    this.state = {
-      isOpen: props.defaultIsOpen || false,
-    };
-  }
-
-  render() {
-    const { children, title } = this.props;
-    const { isOpen } = this.state;
-
-    return (
-      <>
-        <hr
-          style={{
-            border: "1px solid #D0D7DD",
-            marginTop: 24,
-            marginBottom: 24,
-          }}
-        />
-        <SectionContainer
-          data-cy={`section-${title}`}
-          onClick={() => this.setState({ isOpen: !this.state.isOpen })}
-        >
-          <SectionLabel>{title}</SectionLabel>
-          <Icon
-            icon={isOpen ? "chevron-up" : "chevron-down"}
-            iconSize={16}
-            style={{ color: "#2E3D49" }}
-          />
+  return (
+    <section
+      data-location-id={`section-${title}`}
+      data-testid={`section-${title}`}
+    >
+      {showSectionHeader && (
+        <SectionContainer className="t--collapse-section-container">
+          <SectionLabel>
+            {title}
+            {headerIcon && <Icon name={headerIcon.name} size="md" />}
+          </SectionLabel>
         </SectionContainer>
-
-        <Collapse isOpen={this.state.isOpen} keepChildrenMounted>
-          {children}
-        </Collapse>
-      </>
-    );
-  }
+      )}
+      {children}
+    </section>
+  );
 }
 
 export default Collapsible;

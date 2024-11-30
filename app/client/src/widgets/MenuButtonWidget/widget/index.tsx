@@ -1,383 +1,260 @@
-import React from "react";
-
-import BaseWidget, { WidgetProps, WidgetState } from "widgets/BaseWidget";
+import type { ExecuteTriggerPayload } from "constants/AppsmithActionConstants/ActionConstants";
 import { EventType } from "constants/AppsmithActionConstants/ActionConstants";
+import type { SetterConfig, Stylesheet } from "entities/AppTheming";
+import { isArray, orderBy } from "lodash";
+import { default as React } from "react";
+import type { WidgetState } from "widgets/BaseWidget";
+import BaseWidget from "widgets/BaseWidget";
+import { MinimumPopupWidthInPercentage } from "WidgetProvider/constants";
 import MenuButtonComponent from "../component";
-import { ValidationTypes } from "constants/WidgetValidation";
-import { Alignment } from "@blueprintjs/core";
-import {
-  ButtonBorderRadius,
-  ButtonBoxShadow,
-  ButtonVariant,
-  ButtonVariantTypes,
-} from "components/constants";
-import { IconName } from "@blueprintjs/icons";
-export interface MenuButtonWidgetProps extends WidgetProps {
-  label?: string;
-  isDisabled?: boolean;
-  isVisible?: boolean;
-  isCompact?: boolean;
-  menuItems: Record<
-    string,
-    {
-      widgetId: string;
-      id: string;
-      index: number;
-      isVisible?: boolean;
-      isDisabled?: boolean;
-      label?: string;
-      backgroundColor?: string;
-      textColor?: string;
-      iconName?: IconName;
-      iconColor?: string;
-      iconAlign?: Alignment;
-      onClick?: string;
-    }
-  >;
-  menuVariant?: ButtonVariant;
-  menuColor?: string;
-  borderRadius?: ButtonBorderRadius;
-  boxShadow?: ButtonBoxShadow;
-  boxShadowColor?: string;
-  iconName?: IconName;
-  iconAlign?: Alignment;
-}
+import type { MenuButtonWidgetProps, MenuItem } from "../constants";
+import { MenuItemsSource } from "../constants";
+import contentConfig from "./propertyConfig/contentConfig";
+import styleConfig from "./propertyConfig/styleConfig";
+import { DefaultAutocompleteDefinitions } from "widgets/WidgetUtils";
+import type {
+  AnvilConfig,
+  AutocompletionDefinitions,
+} from "WidgetProvider/constants";
+import IconSVG from "../icon.svg";
+import ThumbnailSVG from "../thumbnail.svg";
+import { ButtonPlacementTypes, ButtonVariantTypes } from "components/constants";
+import { WIDGET_TAGS, layoutConfigurations } from "constants/WidgetConstants";
 
 class MenuButtonWidget extends BaseWidget<MenuButtonWidgetProps, WidgetState> {
-  static getPropertyPaneConfig() {
-    return [
-      {
-        sectionName: "General",
-        children: [
-          {
-            propertyName: "label",
-            helpText: "Sets the label of a menu",
-            label: "Label",
-            controlType: "INPUT_TEXT",
-            placeholderText: "Open",
-            isBindProperty: true,
-            isTriggerProperty: false,
-            validation: { type: ValidationTypes.TEXT },
-          },
-          {
-            helpText: "Menu items",
-            propertyName: "menuItems",
-            controlType: "MENU_ITEMS",
-            label: "Menu Items",
-            isBindProperty: false,
-            isTriggerProperty: false,
-            panelConfig: {
-              editableTitle: true,
-              titlePropertyName: "label",
-              panelIdPropertyName: "id",
-              updateHook: (
-                props: any,
-                propertyPath: string,
-                propertyValue: string,
-              ) => {
-                return [
-                  {
-                    propertyPath,
-                    propertyValue,
-                  },
-                ];
-              },
-              children: [
-                {
-                  sectionName: "General",
-                  children: [
-                    {
-                      propertyName: "label",
-                      helpText: "Sets the label of a menu item",
-                      label: "Label",
-                      controlType: "INPUT_TEXT",
-                      placeholderText: "Download",
-                      isBindProperty: true,
-                      isTriggerProperty: false,
-                      validation: { type: ValidationTypes.TEXT },
-                    },
-                    {
-                      propertyName: "backgroundColor",
-                      helpText: "Sets the background color of a menu item",
-                      label: "Background color",
-                      controlType: "COLOR_PICKER",
-                      isBindProperty: false,
-                      isTriggerProperty: false,
-                    },
-                    {
-                      propertyName: "textColor",
-                      helpText: "Sets the text color of a menu item",
-                      label: "Text color",
-                      controlType: "COLOR_PICKER",
-                      isBindProperty: false,
-                      isTriggerProperty: false,
-                    },
-                    {
-                      propertyName: "isDisabled",
-                      helpText: "Disables input to the widget",
-                      label: "Disabled",
-                      controlType: "SWITCH",
-                      isJSConvertible: true,
-                      isBindProperty: true,
-                      isTriggerProperty: false,
-                      validation: { type: ValidationTypes.BOOLEAN },
-                    },
-                    {
-                      propertyName: "isVisible",
-                      helpText: "Controls the visibility of the widget",
-                      label: "Visible",
-                      controlType: "SWITCH",
-                      isJSConvertible: true,
-                      isBindProperty: true,
-                      isTriggerProperty: false,
-                      validation: { type: ValidationTypes.BOOLEAN },
-                    },
-                  ],
-                },
-                {
-                  sectionName: "Icon Options",
-                  children: [
-                    {
-                      propertyName: "iconName",
-                      label: "Icon",
-                      helpText: "Sets the icon to be used for a menu item",
-                      controlType: "ICON_SELECT",
-                      isBindProperty: false,
-                      isTriggerProperty: false,
-                      validation: { type: ValidationTypes.TEXT },
-                    },
-                    {
-                      propertyName: "iconColor",
-                      helpText: "Sets the icon color of a menu item",
-                      label: "Icon color",
-                      controlType: "COLOR_PICKER",
-                      isBindProperty: false,
-                      isTriggerProperty: false,
-                    },
-                    {
-                      propertyName: "iconAlign",
-                      label: "Icon alignment",
-                      helpText: "Sets the icon alignment of a menu item",
-                      controlType: "ICON_ALIGN",
-                      isBindProperty: false,
-                      isTriggerProperty: false,
-                      validation: { type: ValidationTypes.TEXT },
-                    },
-                  ],
-                },
-                {
-                  sectionName: "Actions",
-                  children: [
-                    {
-                      helpText:
-                        "Triggers an action when the menu item is clicked",
-                      propertyName: "onClick",
-                      label: "onClick",
-                      controlType: "ACTION_SELECTOR",
-                      isJSConvertible: true,
-                      isBindProperty: true,
-                      isTriggerProperty: true,
-                    },
-                  ],
-                },
-              ],
-            },
-          },
-          {
-            propertyName: "isDisabled",
-            helpText: "Disables input to the widget",
-            label: "Disabled",
-            controlType: "SWITCH",
-            isJSConvertible: true,
-            isBindProperty: true,
-            isTriggerProperty: false,
-            validation: { type: ValidationTypes.BOOLEAN },
-          },
-          {
-            propertyName: "isVisible",
-            helpText: "Controls the visibility of the widget",
-            label: "Visible",
-            controlType: "SWITCH",
-            isJSConvertible: true,
-            isBindProperty: true,
-            isTriggerProperty: false,
-            validation: { type: ValidationTypes.BOOLEAN },
-          },
-          {
-            propertyName: "isCompact",
-            helpText: "Decides if menu items will consume lesser space",
-            label: "Compact",
-            controlType: "SWITCH",
-            isJSConvertible: true,
-            isBindProperty: true,
-            isTriggerProperty: false,
-            validation: { type: ValidationTypes.BOOLEAN },
-          },
-        ],
-      },
-      {
-        sectionName: "Styles",
-        children: [
-          {
-            propertyName: "menuColor",
-            helpText: "Sets the style of the Menu button",
-            label: "Menu Color",
-            controlType: "COLOR_PICKER",
-            isBindProperty: false,
-            isTriggerProperty: false,
-          },
-          {
-            propertyName: "menuVariant",
-            label: "Menu Variant",
-            controlType: "DROP_DOWN",
-            helpText: "Sets the variant of the menu button",
-            options: [
-              {
-                label: "Primary",
-                value: ButtonVariantTypes.PRIMARY,
-              },
-              {
-                label: "Secondary",
-                value: ButtonVariantTypes.SECONDARY,
-              },
-              {
-                label: "Tertiary",
-                value: ButtonVariantTypes.TERTIARY,
-              },
-            ],
-            isJSConvertible: true,
-            isBindProperty: true,
-            isTriggerProperty: false,
-            validation: {
-              type: ValidationTypes.TEXT,
-              params: {
-                allowedValues: [
-                  ButtonVariantTypes.PRIMARY,
-                  ButtonVariantTypes.SECONDARY,
-                  ButtonVariantTypes.TERTIARY,
-                ],
-                default: ButtonVariantTypes.PRIMARY,
-              },
-            },
-          },
-          {
-            propertyName: "borderRadius",
-            label: "Border Radius",
-            helpText:
-              "Rounds the corners of the icon button's outer border edge",
-            controlType: "BUTTON_BORDER_RADIUS_OPTIONS",
-            isBindProperty: false,
-            isTriggerProperty: false,
-            validation: {
-              type: ValidationTypes.TEXT,
-              params: {
-                allowedValues: ["CIRCLE", "SHARP", "ROUNDED"],
-              },
-            },
-          },
-          {
-            propertyName: "boxShadow",
-            label: "Box Shadow",
-            helpText:
-              "Enables you to cast a drop shadow from the frame of the widget",
-            controlType: "BOX_SHADOW_OPTIONS",
-            isBindProperty: false,
-            isTriggerProperty: false,
-            validation: {
-              type: ValidationTypes.TEXT,
-              params: {
-                allowedValues: [
-                  "NONE",
-                  "VARIANT1",
-                  "VARIANT2",
-                  "VARIANT3",
-                  "VARIANT4",
-                  "VARIANT5",
-                ],
-              },
-            },
-          },
-          {
-            propertyName: "boxShadowColor",
-            helpText: "Sets the shadow color of the widget",
-            label: "Shadow Color",
-            controlType: "COLOR_PICKER",
-            isBindProperty: false,
-            isTriggerProperty: false,
-            validation: {
-              type: ValidationTypes.TEXT,
-              params: {
-                regex: /^(?![<|{{]).+/,
-              },
-            },
-          },
-          {
-            propertyName: "iconName",
-            label: "Icon",
-            helpText: "Sets the icon to be used for the menu button",
-            controlType: "ICON_SELECT",
-            isBindProperty: false,
-            isTriggerProperty: false,
-            updateHook: (
-              props: MenuButtonWidgetProps,
-              propertyPath: string,
-              propertyValue: string,
-            ) => {
-              const propertiesToUpdate = [{ propertyPath, propertyValue }];
-              if (!props.iconAlign) {
-                propertiesToUpdate.push({
-                  propertyPath: "iconAlign",
-                  propertyValue: Alignment.LEFT,
-                });
-              }
-              return propertiesToUpdate;
-            },
-            validation: {
-              type: ValidationTypes.TEXT,
-            },
-          },
-          {
-            propertyName: "iconAlign",
-            label: "Icon Alignment",
-            helpText: "Sets the icon alignment of the menu button",
-            controlType: "ICON_ALIGN",
-            isBindProperty: false,
-            isTriggerProperty: false,
-            validation: {
-              type: ValidationTypes.TEXT,
-              params: {
-                allowedValues: ["center", "left", "right"],
-              },
-            },
-          },
-        ],
-      },
-    ];
+  static type = "MENU_BUTTON_WIDGET";
+
+  static getConfig() {
+    return {
+      name: "Menu button",
+      iconSVG: IconSVG,
+      thumbnailSVG: ThumbnailSVG,
+      tags: [WIDGET_TAGS.BUTTONS],
+    };
   }
 
-  menuItemClickHandler = (onClick: string | undefined) => {
+  static getDefaults() {
+    return {
+      label: "Open Menu",
+      menuVariant: ButtonVariantTypes.PRIMARY,
+      placement: ButtonPlacementTypes.CENTER,
+      isCompact: false,
+      isDisabled: false,
+      isVisible: true,
+      animateLoading: true,
+      menuItemsSource: MenuItemsSource.STATIC,
+      menuItems: {
+        menuItem1: {
+          label: "First Menu Item",
+          id: "menuItem1",
+          widgetId: "",
+          isVisible: true,
+          isDisabled: false,
+          index: 0,
+        },
+        menuItem2: {
+          label: "Second Menu Item",
+          id: "menuItem2",
+          widgetId: "",
+          isVisible: true,
+          isDisabled: false,
+          index: 1,
+        },
+        menuItem3: {
+          label: "Third Menu Item",
+          id: "menuItem3",
+          widgetId: "",
+          isVisible: true,
+          isDisabled: false,
+          index: 2,
+        },
+      },
+      rows: 4,
+      columns: 16,
+      widgetName: "MenuButton",
+      version: 1,
+    };
+  }
+
+  static getAutoLayoutConfig() {
+    return {
+      defaults: {
+        rows: 4,
+        columns: 6.632,
+      },
+      autoDimension: {
+        width: true,
+      },
+      widgetSize: [
+        {
+          viewportMinWidth: 0,
+          configuration: () => {
+            return {
+              minWidth: "120px",
+              maxWidth: "360px",
+              minHeight: "40px",
+            };
+          },
+        },
+      ],
+      disableResizeHandles: {
+        vertical: true,
+        horizontal: true,
+      },
+    };
+  }
+
+  static getAnvilConfig(): AnvilConfig | null {
+    return {
+      isLargeWidget: false,
+      widgetSize: {
+        maxHeight: {},
+        maxWidth: { base: "360px" },
+        minHeight: { base: "40px" },
+        minWidth: { base: "120px" },
+      },
+    };
+  }
+
+  static getPropertyPaneContentConfig() {
+    return contentConfig;
+  }
+
+  static getPropertyPaneStyleConfig() {
+    return styleConfig;
+  }
+
+  static getStylesheetConfig(): Stylesheet {
+    return {
+      menuColor: "{{appsmith.theme.colors.primaryColor}}",
+      borderRadius: "{{appsmith.theme.borderRadius.appBorderRadius}}",
+      boxShadow: "none",
+    };
+  }
+
+  static getAutocompleteDefinitions(): AutocompletionDefinitions {
+    return {
+      "!doc":
+        "Menu button widget is used to represent a set of actions in a group.",
+      "!url": "https://docs.appsmith.com/widget-reference/menu-button",
+      isVisible: DefaultAutocompleteDefinitions.isVisible,
+      label: "string",
+    };
+  }
+
+  menuItemClickHandler = (onClick: string | undefined, index: number) => {
     if (onClick) {
-      super.executeAction({
+      const config: ExecuteTriggerPayload = {
         triggerPropertyName: "onClick",
         dynamicString: onClick,
         event: {
           type: EventType.ON_CLICK,
         },
-      });
+      };
+
+      if (this.props.menuItemsSource === MenuItemsSource.DYNAMIC) {
+        config.globalContext = {
+          currentItem: this.props.sourceData
+            ? this.props.sourceData[index]
+            : {},
+          currentIndex: index,
+        };
+      }
+
+      super.executeAction(config);
     }
   };
 
-  getPageView() {
+  getVisibleItems = () => {
+    const { configureMenuItems, menuItems, menuItemsSource, sourceData } =
+      this.props;
+
+    if (menuItemsSource === MenuItemsSource.STATIC) {
+      const visibleItems = Object.keys(menuItems)
+        .map((itemKey) => menuItems[itemKey])
+        .filter((item) => item.isVisible === true);
+
+      return orderBy(visibleItems, ["index"], ["asc"]);
+    } else if (
+      menuItemsSource === MenuItemsSource.DYNAMIC &&
+      isArray(sourceData) &&
+      sourceData?.length &&
+      configureMenuItems?.config
+    ) {
+      const { config } = configureMenuItems;
+      const getValue = (propertyName: keyof MenuItem, index: number) => {
+        const value = config[propertyName];
+
+        if (isArray(value)) {
+          return value[index];
+        }
+
+        return value ?? null;
+      };
+
+      const visibleItems = sourceData
+        .map((item, index) => ({
+          ...item,
+          id: index.toString(),
+          isVisible: getValue("isVisible", index),
+          isDisabled: getValue("isDisabled", index),
+          index: index,
+          widgetId: "",
+          label: getValue("label", index),
+          onClick: config?.onClick,
+          textColor: getValue("textColor", index),
+          backgroundColor: getValue("backgroundColor", index),
+          iconAlign: getValue("iconAlign", index),
+          iconColor: getValue("iconColor", index),
+          iconName: getValue("iconName", index),
+        }))
+        .filter((item) => item.isVisible === true);
+
+      return visibleItems;
+    }
+
+    return [];
+  };
+
+  static getSetterConfig(): SetterConfig {
+    return {
+      __setters: {
+        setVisibility: {
+          path: "isVisible",
+          type: "boolean",
+        },
+        setDisabled: {
+          path: "isDisabled",
+          type: "boolean",
+        },
+      },
+    };
+  }
+
+  getWidgetView() {
+    const { componentWidth } = this.props;
+    const menuDropDownWidth =
+      (MinimumPopupWidthInPercentage / 100) *
+      (this.props.mainCanvasWidth ?? layoutConfigurations.MOBILE.maxWidth);
+
     return (
       <MenuButtonComponent
         {...this.props}
+        getVisibleItems={this.getVisibleItems}
+        maxWidth={this.props.maxWidth}
+        menuDropDownWidth={menuDropDownWidth}
+        minHeight={this.props.minHeight}
+        minWidth={this.props.minWidth}
         onItemClicked={this.menuItemClickHandler}
+        renderMode={this.props.renderMode}
+        shouldFitContent={this.isAutoLayoutMode}
+        width={componentWidth}
       />
     );
   }
 
   static getWidgetType() {
-    return "MENU_BUTTON_WIDGET";
+    return;
   }
 }
 

@@ -1,30 +1,37 @@
 import {
-  ReduxActionTypes,
-  ReduxAction,
-  EvaluationReduxAction,
+  type EvaluationReduxAction,
+  type ReduxAction,
   ReduxActionErrorTypes,
-} from "constants/ReduxActionConstants";
-import { JSCollection } from "entities/JSCollection";
-import { CreateJSCollectionRequest } from "api/JSActionAPI";
+  ReduxActionTypes,
+} from "ee/constants/ReduxActionConstants";
+import type { JSCollection } from "entities/JSCollection";
+import type { CreateJSCollectionRequest } from "ee/api/JSActionAPI";
+import type { EventLocation } from "ee/utils/analyticsUtilTypes";
+import type { ApiResponse } from "api/ApiResponses";
+import type { ErrorActionPayload } from "../sagas/ErrorSagas";
 
-export type FetchJSCollectionsPayload = {
+export interface FetchJSCollectionsPayload {
   applicationId: string;
-};
+  publishedActionCollections?: ApiResponse<JSCollection[]>;
+}
 
 export const fetchJSCollections = ({
   applicationId,
+  unpublishedActionCollections,
 }: {
   applicationId: string;
+  unpublishedActionCollections?: ApiResponse<JSCollection[]>;
 }): EvaluationReduxAction<unknown> => {
   return {
     type: ReduxActionTypes.FETCH_JS_ACTIONS_INIT,
-    payload: { applicationId },
+    payload: { applicationId, unpublishedActionCollections },
   };
 };
 
-export const createJSCollectionRequest = (
-  payload: CreateJSCollectionRequest,
-) => {
+export const createJSCollectionRequest = (payload: {
+  request: CreateJSCollectionRequest;
+  from: EventLocation;
+}) => {
   return {
     type: ReduxActionTypes.CREATE_JS_ACTION_INIT,
     payload,
@@ -56,10 +63,12 @@ export const copyJSCollectionSuccess = (payload: JSCollection) => {
   };
 };
 
-export const copyJSCollectionError = (payload: {
-  id: string;
-  destinationPageId: string;
-}) => {
+export const copyJSCollectionError = (
+  payload: {
+    id: string;
+    destinationPageId: string;
+  } & ErrorActionPayload,
+) => {
   return {
     type: ReduxActionErrorTypes.COPY_JS_ACTION_ERROR,
     payload,
@@ -69,6 +78,7 @@ export const copyJSCollectionError = (payload: {
 export const moveJSCollectionRequest = (payload: {
   id: string;
   destinationPageId: string;
+  name: string;
 }) => {
   return {
     type: ReduxActionTypes.MOVE_JS_ACTION_INIT,
@@ -83,10 +93,12 @@ export const moveJSCollectionSuccess = (payload: JSCollection) => {
   };
 };
 
-export const moveJSCollectionError = (payload: {
-  id: string;
-  originalPageId: string;
-}) => {
+export const moveJSCollectionError = (
+  payload: {
+    id: string;
+    originalPageId: string;
+  } & ErrorActionPayload,
+) => {
   return {
     type: ReduxActionErrorTypes.MOVE_JS_ACTION_ERROR,
     payload,
@@ -133,14 +145,38 @@ export const fetchJSCollectionsForPageSuccess = (actions: JSCollection[]) => {
   };
 };
 
+export const fetchJSCollectionsForPageError = () => {
+  return {
+    type: ReduxActionErrorTypes.FETCH_JS_ACTIONS_FOR_PAGE_ERROR,
+  };
+};
+
 export const fetchJSCollectionsForView = ({
   applicationId,
+  publishedActionCollections,
 }: {
   applicationId: string;
+  publishedActionCollections?: ApiResponse<JSCollection[]>;
 }): ReduxAction<FetchJSCollectionsPayload> => {
   return {
     type: ReduxActionTypes.FETCH_JS_ACTIONS_VIEW_MODE_INIT,
-    payload: { applicationId },
+    payload: { applicationId, publishedActionCollections },
+  };
+};
+
+export const closeJSActionTab = (payload: { id: string; parentId: string }) => {
+  return {
+    type: ReduxActionTypes.CLOSE_JS_ACTION_TAB,
+    payload,
+  };
+};
+export const closeJsActionTabSuccess = (payload: {
+  id: string;
+  parentId: string;
+}) => {
+  return {
+    type: ReduxActionTypes.CLOSE_JS_ACTION_TAB_SUCCESS,
+    payload,
   };
 };
 

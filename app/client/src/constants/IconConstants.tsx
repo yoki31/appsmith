@@ -1,22 +1,25 @@
 import styled from "styled-components";
-import { Color } from "./Colors";
+import type { Color } from "./Colors";
 
-export type IconProps = {
+export interface IconProps {
   width?: number;
   height?: number;
   color?: Color;
   background?: Color;
+  // TODO: Fix this the next time the file is edited
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onClick?: (e?: any) => void;
   className?: string;
   keepColors?: boolean;
   disabled?: boolean;
   cursor?: "move" | "grab" | "default";
-};
+}
 
 export const IconWrapper = styled.div<IconProps>`
   &:focus {
     outline: none;
   }
+
   display: inline-flex;
   width: ${(props) => props.width}px;
   height: ${(props) => props.height}px;
@@ -24,8 +27,8 @@ export const IconWrapper = styled.div<IconProps>`
     props.disabled
       ? "not-allowed"
       : props.onClick
-      ? "pointer"
-      : props.cursor ?? "default"};
+        ? "pointer"
+        : props.cursor ?? "default"};
   opacity: ${(props) => (props.disabled ? 0.5 : 1)};
 
   && svg {

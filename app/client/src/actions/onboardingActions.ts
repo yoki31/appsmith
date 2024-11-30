@@ -1,76 +1,5 @@
-import {
-  OnboardingHelperConfig,
-  OnboardingStep,
-} from "constants/OnboardingConstants";
-import { ReduxActionTypes } from "constants/ReduxActionConstants";
-
-export const showIndicator = (payload: OnboardingStep) => {
-  return {
-    type: ReduxActionTypes.SHOW_ONBOARDING_INDICATOR,
-    payload,
-  };
-};
-
-export const endOnboarding = () => {
-  return {
-    type: ReduxActionTypes.END_ONBOARDING,
-  };
-};
-
-export const setCurrentStep = (payload: number) => {
-  return {
-    type: ReduxActionTypes.SET_CURRENT_STEP,
-    payload,
-  };
-};
-
-export const setOnboardingState = (payload: boolean) => {
-  return {
-    type: ReduxActionTypes.SET_ONBOARDING_STATE,
-    payload,
-  };
-};
-
-export const showOnboardingHelper = (payload: boolean) => {
-  return {
-    type: ReduxActionTypes.SHOW_ONBOARDING_HELPER,
-    payload,
-  };
-};
-
-export const setHelperConfig = (payload: OnboardingHelperConfig) => {
-  return {
-    type: ReduxActionTypes.SET_HELPER_CONFIG,
-    payload,
-  };
-};
-
-export const setCurrentSubstep = (payload: number) => {
-  return {
-    type: ReduxActionTypes.SET_ONBOARDING_SUBSTEP,
-    payload,
-  };
-};
-
-export const showWelcomeHelper = (payload: boolean) => {
-  return {
-    type: ReduxActionTypes.SHOW_ONBOARDING_WELCOME_HELPER,
-    payload,
-  };
-};
-
-export const showOnboardingLoader = (payload: boolean) => {
-  return {
-    type: ReduxActionTypes.SHOW_ONBOARDING_LOADER,
-    payload,
-  };
-};
-
-export const showEndOnboardingHelper = () => {
-  return {
-    type: ReduxActionTypes.SHOW_END_ONBOARDING_HELPER,
-  };
-};
+import { ReduxActionTypes } from "ee/constants/ReduxActionConstants";
+import type { SIGNPOSTING_STEP } from "pages/Editor/FirstTimeUserOnboarding/Utils";
 
 export const toggleInOnboardingWidgetSelection = (payload: boolean) => {
   return {
@@ -79,15 +8,114 @@ export const toggleInOnboardingWidgetSelection = (payload: boolean) => {
   };
 };
 
-export const firstTimeUserOnboardingInit = (
+export const removeFirstTimeUserOnboardingApplicationId = (
   applicationId: string,
-  pageId: string,
+) => {
+  return {
+    type: ReduxActionTypes.REMOVE_FIRST_TIME_USER_ONBOARDING_APPLICATION_ID,
+    payload: applicationId,
+  };
+};
+
+export const showSignpostingModal = (payload: boolean) => {
+  return {
+    type: ReduxActionTypes.SET_SHOW_FIRST_TIME_USER_ONBOARDING_MODAL,
+    payload,
+  };
+};
+
+export const disableStartSignpostingAction = () => {
+  return {
+    type: ReduxActionTypes.DISABLE_START_SIGNPOSTING,
+  };
+};
+
+export const firstTimeUserOnboardingInit = (
+  applicationId: string | undefined,
+  basePageId: string,
+  suffix?: string,
 ) => {
   return {
     type: ReduxActionTypes.FIRST_TIME_USER_ONBOARDING_INIT,
     payload: {
-      applicationId: applicationId,
-      pageId: pageId,
+      applicationId,
+      basePageId,
+      suffix,
     },
+  };
+};
+
+export const setSignpostingOverlay = (payload: boolean) => {
+  return {
+    type: ReduxActionTypes.SET_SIGNPOSTING_OVERLAY,
+    payload,
+  };
+};
+
+export const signpostingMarkAllRead = () => {
+  return {
+    type: ReduxActionTypes.SIGNPOSTING_MARK_ALL_READ,
+  };
+};
+
+export const signpostingStepUpdateInit = (payload: {
+  step: SIGNPOSTING_STEP;
+  completed: boolean;
+}) => {
+  return {
+    type: ReduxActionTypes.SIGNPOSTING_STEP_UPDATE_INIT,
+    payload,
+  };
+};
+
+export const signpostingStepUpdate = (payload: {
+  step: SIGNPOSTING_STEP;
+  completed: boolean;
+  read?: boolean;
+}) => {
+  return {
+    type: ReduxActionTypes.SIGNPOSTING_STEP_UPDATE,
+    payload,
+  };
+};
+
+export const showSignpostingTooltip = (payload: boolean) => {
+  return {
+    type: ReduxActionTypes.SIGNPOSTING_SHOW_TOOLTIP,
+    payload,
+  };
+};
+
+export const showAnonymousDataPopup = (payload: boolean) => {
+  return {
+    type: ReduxActionTypes.SHOW_ANONYMOUS_DATA_POPUP,
+    payload,
+  };
+};
+
+export const showInfoMessage = () => {
+  return {
+    type: ReduxActionTypes.SHOW_INFO_MESSAGE,
+  };
+};
+
+export const setCurrentApplicationIdForCreateNewApp = (
+  applicationId: string,
+) => {
+  return {
+    type: ReduxActionTypes.SET_CURRENT_APPLICATION_ID_FOR_CREATE_NEW_APP,
+    payload: applicationId,
+  };
+};
+
+export const resetCurrentApplicationIdForCreateNewApp = () => {
+  return {
+    type: ReduxActionTypes.RESET_CURRENT_APPLICATION_ID_FOR_CREATE_NEW_APP,
+  };
+};
+
+export const resetCurrentPluginIdForCreateNewApp = () => {
+  return {
+    type: ReduxActionTypes.RESET_CURRENT_PLUGIN_ID_FOR_CREATE_NEW_APP,
   };
 };

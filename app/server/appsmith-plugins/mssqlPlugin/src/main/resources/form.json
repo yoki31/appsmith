@@ -5,19 +5,18 @@
       "id": 1,
       "children": [
         {
-          "label": "Connection Mode",
+          "label": "Connection mode",
           "configProperty": "datasourceConfiguration.connection.mode",
-          "controlType": "DROP_DOWN",
-          "isRequired": true,
+          "controlType": "SEGMENTED_CONTROL",
           "initialValue": "READ_WRITE",
           "options": [
             {
-              "label": "Read Only",
-              "value": "READ_ONLY"
-            },
-            {
               "label": "Read / Write",
               "value": "READ_WRITE"
+            },
+            {
+              "label": "Read only",
+              "value": "READ_ONLY"
             }
           ]
         },
@@ -25,22 +24,25 @@
           "sectionName": null,
           "children": [
             {
-              "label": "Host Address",
+              "label": "Host address",
               "configProperty": "datasourceConfiguration.endpoints[*].host",
               "controlType": "KEYVALUE_ARRAY",
               "validationMessage": "Please enter a valid host",
-              "validationRegex": "^((?![/:]).)*$"
+              "validationRegex": "^((?![/:]).)*$",
+              "placeholderText": "myapp.abcde.mssql.net"
             },
             {
               "label": "Port",
               "configProperty": "datasourceConfiguration.endpoints[*].port",
               "dataType": "NUMBER",
-              "controlType": "KEYVALUE_ARRAY"
+              "initialValue": ["1433"],
+              "controlType": "KEYVALUE_ARRAY",
+              "placeholderText": "1433"
             }
           ]
         },
         {
-          "label": "Database Name",
+          "label": "Database name",
           "configProperty": "datasourceConfiguration.authentication.databaseName",
           "controlType": "INPUT_TEXT",
           "placeholderText": "Database name",
@@ -74,77 +76,21 @@
     },
     {
       "id": 3,
-      "sectionName": "SSL (optional)",
+      "sectionName": "SSL",
       "children": [
         {
-          "label": "SSL Mode",
+          "label": "SSL mode",
           "configProperty": "datasourceConfiguration.connection.ssl.authType",
           "controlType": "DROP_DOWN",
+          "initialValue": "NO_VERIFY",
           "options": [
-            {
-              "label": "No SSL",
-              "value": "NO_SSL"
-            },
-            {
-              "label": "Allow",
-              "value": "ALLOW"
-            },
-            {
-              "label": "Prefer",
-              "value": "PREFER"
-            },
-            {
-              "label": "Require",
-              "value": "REQUIRE"
-            },
             {
               "label": "Disable",
               "value": "DISABLE"
             },
             {
-              "label": "Verify-CA",
-              "value": "VERIFY_CA"
-            },
-            {
-              "label": "Verify-Full",
-              "value": "VERIFY_FULL"
-            }
-          ]
-        },
-        {
-          "sectionName": null,
-          "children": [
-            {
-              "label": "Key File",
-              "configProperty": "datasourceConfiguration.connection.ssl.keyFile",
-              "controlType": "FILE_PICKER"
-            },
-            {
-              "label": "Certificate",
-              "configProperty": "datasourceConfiguration.connection.ssl.certificateFile",
-              "controlType": "FILE_PICKER"
-            }
-          ]
-        },
-        {
-          "sectionName": null,
-          "children": [
-            {
-              "label": "CA Certificate",
-              "configProperty": "datasourceConfiguration.connection.ssl.caCertificateFile",
-              "controlType": "FILE_PICKER"
-            },
-            {
-              "label": "PEM Certificate",
-              "configProperty": "datasourceConfiguration.connection.ssl.pemCertificate.file",
-              "controlType": "FILE_PICKER"
-            },
-            {
-              "label": "PEM Passphrase",
-              "configProperty": "datasourceConfiguration.connection.ssl.pemCertificate.password",
-              "dataType": "PASSWORD",
-              "controlType": "INPUT_TEXT",
-              "placeholderText": "PEM Passphrase"
+              "label": "Enabled with no verify",
+              "value": "NO_VERIFY"
             }
           ]
         }

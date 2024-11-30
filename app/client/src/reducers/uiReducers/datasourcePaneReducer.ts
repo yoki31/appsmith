@@ -1,27 +1,40 @@
-import { createReducer } from "utils/AppsmithUtils";
-import { ReduxActionTypes, ReduxAction } from "constants/ReduxActionConstants";
-import { Datasource } from "entities/Datasource";
+import { createReducer } from "utils/ReducerUtils";
+import type { ReduxAction } from "ee/constants/ReduxActionConstants";
+import { ReduxActionTypes } from "ee/constants/ReduxActionConstants";
+import type { Datasource } from "entities/Datasource";
 import _ from "lodash";
+import { ActionExecutionResizerHeight } from "PluginActionEditor/components/PluginActionResponse/constants";
 
 const initialState: DatasourcePaneReduxState = {
   drafts: {},
   actionRouteInfo: {},
   expandDatasourceId: "",
   newDatasource: "",
-  viewMode: {},
+  viewMode: true,
+  collapsibleState: {},
+  defaultKeyValueArrayConfig: [],
+  responseTabHeight: ActionExecutionResizerHeight,
+  selectedTableName: "",
 };
 
 export interface DatasourcePaneReduxState {
   drafts: Record<string, Datasource>;
   expandDatasourceId: string;
   actionRouteInfo: Partial<{
-    apiId: string;
+    baseApiId: string;
     datasourceId: string;
-    pageId: string;
-    applicationId: string;
+    baseParentEntityId: string;
+    baseApplicationId: string;
   }>;
   newDatasource: string;
-  viewMode: Record<string, boolean>;
+  viewMode: boolean;
+  collapsibleState: Record<string, boolean>;
+  defaultKeyValueArrayConfig: Array<string>;
+  responseTabHeight: number;
+
+  // This is the table selected on datasource preview,
+  // this needs to be used when new query is created
+  selectedTableName: string;
 }
 
 const datasourcePaneReducer = createReducer(initialState, {
@@ -43,15 +56,11 @@ const datasourcePaneReducer = createReducer(initialState, {
   ) => ({
     ...state,
     drafts: _.omit(state.drafts, action.payload.id),
+    newDatasource: "",
   }),
   [ReduxActionTypes.STORE_AS_DATASOURCE_UPDATE]: (
     state: DatasourcePaneReduxState,
-    action: ReduxAction<{
-      apiId: string;
-      datasourceId: string;
-      pageId: string;
-      applicationId: string;
-    }>,
+    action: ReduxAction<DatasourcePaneReduxState["actionRouteInfo"]>,
   ) => {
     return {
       ...state,
@@ -71,6 +80,7 @@ const datasourcePaneReducer = createReducer(initialState, {
     return {
       ...state,
       newDatasource: action.payload.id,
+      expandDatasourceId: action.payload.id,
     };
   },
   [ReduxActionTypes.SAVE_DATASOURCE_NAME_SUCCESS]: (
@@ -91,16 +101,34 @@ const datasourcePaneReducer = createReducer(initialState, {
       expandDatasourceId: action.payload.id,
     };
   },
-  [ReduxActionTypes.SET_DATASOURCE_EDITOR_MODE]: (
+  [ReduxActionTypes.SET_DATASOURCE_EDITOR_MODE_FLAG]: (
     state: DatasourcePaneReduxState,
-    action: ReduxAction<{ id: string; viewMode: boolean }>,
+    action: ReduxAction<boolean>,
   ) => {
     return {
       ...state,
-      viewMode: {
-        ...state.viewMode,
-        [action.payload.id]: action.payload.viewMode,
+      viewMode: action.payload,
+    };
+  },
+  [ReduxActionTypes.SET_DATASOURCE_COLLAPSIBLE_STATE]: (
+    state: DatasourcePaneReduxState,
+    action: { payload: { key: string; isOpen: boolean } },
+  ) => {
+    return {
+      ...state,
+      collapsibleState: {
+        ...state.collapsibleState,
+        [action.payload.key]: action.payload.isOpen,
       },
+    };
+  },
+  [ReduxActionTypes.SET_ALL_DATASOURCE_COLLAPSIBLE_STATE]: (
+    state: DatasourcePaneReduxState,
+    action: { payload: { [key: string]: boolean } },
+  ) => {
+    return {
+      ...state,
+      collapsibleState: action.payload,
     };
   },
   [ReduxActionTypes.EXPAND_DATASOURCE_ENTITY]: (
@@ -110,6 +138,34 @@ const datasourcePaneReducer = createReducer(initialState, {
     return {
       ...state,
       expandDatasourceId: action.payload,
+    };
+  },
+  [ReduxActionTypes.SET_DATASOURCE_DEFAULT_KEY_VALUE_PAIR_SET]: (
+    state: DatasourcePaneReduxState,
+    action: ReduxAction<string>,
+  ) => {
+    return {
+      ...state,
+      defaultKeyValueArrayConfig: state.defaultKeyValueArrayConfig.concat(
+        action.payload,
+      ),
+    };
+  },
+  [ReduxActionTypes.RESET_DATASOURCE_DEFAULT_KEY_VALUE_PAIR_SET]: (
+    state: DatasourcePaneReduxState,
+  ) => {
+    return {
+      ...state,
+      defaultKeyValueArrayConfig: [],
+    };
+  },
+  [ReduxActionTypes.SET_DATASOURCE_PREVIEW_SELECTED_TABLE_NAME]: (
+    state: DatasourcePaneReduxState,
+    action: ReduxAction<{ selectedTableName: string }>,
+  ) => {
+    return {
+      ...state,
+      selectedTableName: action.payload.selectedTableName,
     };
   },
 });

@@ -1,37 +1,37 @@
 import React from "react";
 import styled from "styled-components";
 import { useDispatch, useSelector } from "react-redux";
-import { MockDatasource } from "entities/Datasource";
-import { getPluginImages } from "selectors/entitiesSelector";
-import { Colors } from "constants/Colors";
-import { addMockDatasourceToOrg } from "actions/datasourceActions";
-import { getCurrentOrgId } from "selectors/organizationSelectors";
-import { getQueryParams } from "../../../utils/AppsmithUtils";
-import { AppState } from "../../../reducers";
-import AnalyticsUtil from "../../../utils/AnalyticsUtil";
+import type { MockDatasource } from "entities/Datasource";
+import { getPluginImages } from "ee/selectors/entitiesSelector";
+import { addMockDatasourceToWorkspace } from "actions/datasourceActions";
+import { getCurrentWorkspaceId } from "ee/selectors/selectedWorkspaceSelectors";
+import { getQueryParams } from "utils/URLUtils";
+import type { AppState } from "ee/reducers";
+import AnalyticsUtil from "ee/utils/AnalyticsUtil";
+import { getAssetUrl } from "ee/utils/airgapHelpers";
+import { DatasourceCreateEntryPoints } from "constants/Datasource";
 
 const MockDataSourceWrapper = styled.div`
   overflow: auto;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 16px;
-  flex: 1;
-
-  .sectionHeader {
-    font-weight: ${(props) => props.theme.fontWeights[2]};
-    font-size: ${(props) => props.theme.fontSizes[4]}px;
-    margin-top: 10px;
-  }
+  min-width: 150px;
+  align-items: center;
+  margin-top: 8px;
 `;
 
 const Description = styled.div`
-  color: ${Colors.DOVE_GRAY};
-  font-size: 14px;
-  display: inline-block;
-  margin-top: 11px;
+  color: var(--ads-v2-color-fg-muted);
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 17px;
+  letter-spacing: -0.24px;
 `;
+
 function MockDataSources(props: { mockDatasources: MockDatasource[] }) {
-  const orgId = useSelector(getCurrentOrgId);
+  const workspaceId = useSelector(getCurrentWorkspaceId);
+
   return (
     <MockDataSourceWrapper className="t--mock-datasource-list">
       {props.mockDatasources.map((datasource: MockDatasource, idx) => {
@@ -39,7 +39,7 @@ function MockDataSources(props: { mockDatasources: MockDatasource[] }) {
           <MockDatasourceCard
             datasource={datasource}
             key={`${datasource.name}_${datasource.packageName}_${idx}`}
-            orgId={orgId}
+            workspaceId={workspaceId}
           />
         );
       })}
@@ -50,47 +50,51 @@ function MockDataSources(props: { mockDatasources: MockDatasource[] }) {
 export default MockDataSources;
 
 const CardWrapper = styled.div`
-  padding: 18px;
-  /* margin-top: 18px; */
-
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 64px;
+  border-radius: var(--ads-v2-border-radius);
   &:hover {
-    background: ${Colors.Gallery};
+    background-color: var(--ads-v2-color-bg-subtle);
     cursor: pointer;
-    .bp3-collapse-body {
-      background: ${Colors.Gallery};
-    }
   }
 `;
 
 const DatasourceImage = styled.img`
-  height: 24px;
+  height: 34px;
   width: auto;
+  margin: 0 auto;
+  max-width: 100%;
 `;
 
 const DatasourceName = styled.span`
-  margin-left: 10px;
   font-size: 16px;
-  font-weight: 500;
+  font-weight: 400;
+  line-height: 24px;
+  letter-spacing: -0.24px;
+  color: var(--ads-v2-color-fg);
 `;
 
 const DatasourceCardHeader = styled.div`
-  justify-content: space-between;
   display: flex;
+  align-items: center;
+  gap: 13px;
+  padding-left: 13.5px;
 `;
 
 const DatasourceNameWrapper = styled.div`
-  flex-direction: row;
-  align-items: center;
   display: flex;
+  flex-direction: column;
 `;
 
-type MockDatasourceCardProps = {
+interface MockDatasourceCardProps {
   datasource: MockDatasource;
-  orgId: string;
-};
+  workspaceId: string;
+}
 
-function MockDatasourceCard(props: MockDatasourceCardProps) {
-  const { datasource, orgId } = props;
+export function MockDatasourceCard(props: MockDatasourceCardProps) {
+  const { datasource, workspaceId } = props;
   const dispatch = useDispatch();
   const pluginImages = useSelector(getPluginImages);
   const plugins = useSelector((state: AppState) => {
@@ -99,6 +103,7 @@ function MockDatasourceCard(props: MockDatasourceCardProps) {
   const currentPlugin = plugins.find(
     (eachPlugin) => eachPlugin.packageName === datasource.packageName,
   );
+
   if (!currentPlugin) {
     return null;
   }
@@ -106,20 +111,24 @@ function MockDatasourceCard(props: MockDatasourceCardProps) {
   const addMockDataSource = () => {
     AnalyticsUtil.logEvent("ADD_MOCK_DATASOURCE_CLICK", {
       datasourceName: datasource.name,
-      orgId,
+      workspaceId,
       packageName: currentPlugin.packageName,
       pluginName: currentPlugin.name,
+      from: DatasourceCreateEntryPoints.CREATE_NEW_DATASOURCE,
     });
+
     AnalyticsUtil.logEvent("CREATE_DATA_SOURCE_CLICK", {
       mockDatasourceName: datasource.name,
       pluginName: currentPlugin.name,
       pluginPackageName: currentPlugin.packageName,
     });
+
     const queryParams = getQueryParams();
+
     dispatch(
-      addMockDatasourceToOrg(
+      addMockDatasourceToWorkspace(
         datasource.name,
-        orgId,
+        workspaceId,
         currentPlugin.id,
         currentPlugin.packageName,
         queryParams.isGeneratePageMode,
@@ -130,17 +139,19 @@ function MockDatasourceCard(props: MockDatasourceCardProps) {
   return (
     <CardWrapper className="t--mock-datasource" onClick={addMockDataSource}>
       <DatasourceCardHeader className="t--datasource-name">
-        <div style={{ flex: 1 }}>
-          <DatasourceNameWrapper>
-            <DatasourceImage
-              alt="Datasource"
-              className="dataSourceImage"
-              src={pluginImages[currentPlugin.id]}
-            />
-            <DatasourceName>{datasource.name}</DatasourceName>
-          </DatasourceNameWrapper>
-          <Description>{datasource.description}</Description>
-        </div>
+        <DatasourceImage
+          alt="Datasource"
+          data-testid="mock-datasource-image"
+          src={getAssetUrl(pluginImages[currentPlugin.id])}
+        />
+        <DatasourceNameWrapper data-testid="mock-datasource-name-wrapper">
+          <DatasourceName data-testid="mockdatasource-name">
+            {datasource.name}
+          </DatasourceName>
+          <Description data-testid="mockdatasource-description">
+            {datasource.description}
+          </Description>
+        </DatasourceNameWrapper>
       </DatasourceCardHeader>
     </CardWrapper>
   );

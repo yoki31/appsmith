@@ -1,10 +1,5 @@
 package com.appsmith.external.services;
 
-public interface SharedConfig {
+import com.appsmith.external.services.ce.SharedConfigCE;
 
-    int getCodecSize();
-
-    int getMaxResponseSize();
-
-    String getRemoteExecutionUrl();
-}
+public interface SharedConfig extends SharedConfigCE {}

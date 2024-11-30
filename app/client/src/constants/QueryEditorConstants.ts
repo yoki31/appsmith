@@ -1,10 +1,36 @@
-export const PLUGIN_NAME_POSTGRES = "PostgresDbPlugin";
-export const PLUGIN_NAME_MONGODB = " MongoDBPlugin";
-export const PLUGIN_NAME_DBS = [PLUGIN_NAME_POSTGRES, PLUGIN_NAME_MONGODB];
-export const QUERY_BODY_FIELD = "actionConfiguration.body";
-export const PLUGIN_PACKAGE_POSTGRES = "postgres-plugin";
-export const PLUGIN_PACKAGE_MONGO = "mongo-plugin";
-export const PLUGIN_PACKAGE_DBS = [
-  PLUGIN_PACKAGE_POSTGRES,
-  PLUGIN_PACKAGE_MONGO,
+import { PluginPackageName, PluginName } from "entities/Action";
+
+export const QUERY_BODY_FIELDS = [
+  "actionConfiguration.body",
+  "actionConfiguration.formData.body.data",
 ];
+
+export const SQL_DATASOURCES: Array<string> = [
+  PluginName.POSTGRES,
+  PluginName.MS_SQL,
+  PluginName.MY_SQL,
+  PluginName.ORACLE,
+  PluginName.SNOWFLAKE,
+  PluginName.ARANGODB,
+  PluginName.REDSHIFT,
+];
+
+export const DATASOURCES_ALLOWED_FOR_PREVIEW_MODE: Array<string> = [
+  PluginName.POSTGRES,
+  PluginName.MY_SQL,
+];
+
+export const PLUGIN_PACKAGE_DBS = [
+  PluginPackageName.POSTGRES,
+  PluginPackageName.MONGO,
+];
+
+export const MOCK_DB_TABLE_NAMES = {
+  MOVIES: "movies",
+  USERS: "public.users",
+};
+
+export enum EDITOR_TABS {
+  QUERY = "QUERY",
+  SETTINGS = "SETTINGS",
+}

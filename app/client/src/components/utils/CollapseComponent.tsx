@@ -1,27 +1,25 @@
 import React from "react";
-import styled from "constants/DefaultTheme";
-import { Colors } from "constants/Colors";
-import { Collapse, Icon } from "@blueprintjs/core";
+import styled from "styled-components";
+import { Collapse } from "@blueprintjs/core";
+import { Icon } from "@appsmith/ads";
 
 const CollapseWrapper = styled.div`
   position: relative;
-  margin-top: ${(props) => props.theme.spaces[3]}px;
   .collapse-title {
-    color: ${Colors.TROUT_DARK};
+    color: var(--ads-v2-color-fg);
     letter-spacing: 0.04em;
-    text-transform: uppercase;
     font-weight: 500;
     font-size: 12px;
     line-height: 16px;
     display: flex;
-    gap: 4px;
+    align-items: center;
+    gap: 8px;
     cursor: pointer;
-    /* justify-content: space-between; */
     .icon {
       transition: transform 0.3s;
       cursor: pointer;
       &.collapse {
-        transform: rotate(-90deg);
+        transform: rotate(-180deg);
       }
     }
   }
@@ -35,6 +33,7 @@ const CollapseWrapper = styled.div`
 
 function CollapseComponent(props: {
   children?: React.ReactNode;
+  openTitle?: string;
   title?: string;
   isOpen?: boolean;
   titleStyle?: React.CSSProperties;
@@ -43,21 +42,25 @@ function CollapseComponent(props: {
   const handleIsOpen = () => {
     toggleOpen(!open);
   };
+
   if (!props.title) {
     return <div>{props.children ? props.children : null}</div>;
   }
+
   return (
     <CollapseWrapper>
       <div
         className="collapse-title"
+        data-testid="datasource-collapse-wrapper"
         onClick={handleIsOpen}
         style={props.titleStyle}
       >
-        {props.title}
+        {open && props.openTitle ? props.openTitle : props.title}
         <Icon
-          className={`icon ${!open ? "collapse" : ""}`}
-          icon="chevron-down"
-          iconSize={16}
+          className={`icon ${open ? "collapse" : ""}`}
+          data-testid="datasource-collapse-icon"
+          name="down-arrow"
+          size="sm"
         />
       </div>
       <Collapse isOpen={open} keepChildrenMounted>

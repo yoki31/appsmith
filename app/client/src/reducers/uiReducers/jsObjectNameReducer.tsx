@@ -1,9 +1,9 @@
-import { createReducer } from "utils/AppsmithUtils";
+import { createReducer } from "utils/ReducerUtils";
+import type { ReduxAction } from "ee/constants/ReduxActionConstants";
 import {
-  ReduxAction,
   ReduxActionTypes,
   ReduxActionErrorTypes,
-} from "constants/ReduxActionConstants";
+} from "ee/constants/ReduxActionConstants";
 
 const initialState: JSObjectNameReduxState = {
   isSaving: {},

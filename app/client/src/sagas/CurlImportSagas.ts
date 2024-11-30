@@ -1,56 +1,61 @@
 import { takeLatest, put, all, select } from "redux-saga/effects";
+import type { ReduxAction } from "ee/constants/ReduxActionConstants";
 import {
   ReduxActionTypes,
   ReduxActionErrorTypes,
-  ReduxAction,
-} from "constants/ReduxActionConstants";
+} from "ee/constants/ReduxActionConstants";
 import { validateResponse } from "sagas/ErrorSagas";
-import CurlImportApi, { CurlImportRequest } from "api/ImportApi";
-import { ApiResponse } from "api/ApiResponses";
-import AnalyticsUtil from "utils/AnalyticsUtil";
-import { createMessage, CURL_IMPORT_SUCCESS } from "constants/messages";
-import { getCurrentOrgId } from "selectors/organizationSelectors";
-import transformCurlImport from "transformers/CurlImportTransformer";
-import { API_EDITOR_ID_URL } from "constants/routes";
+import type { CurlImportRequest } from "api/ImportApi";
+import CurlImportApi from "api/ImportApi";
+import type { ApiResponse } from "api/ApiResponses";
+import AnalyticsUtil from "ee/utils/AnalyticsUtil";
+import { getCurrentWorkspaceId } from "ee/selectors/selectedWorkspaceSelectors";
+import transformCurlImport from "PluginActionEditor/transformers/CurlImportTransformer";
 import history from "utils/history";
-import { Toaster } from "components/ads/Toast";
-import { Variant } from "components/ads/common";
 import { CURL } from "constants/AppsmithActionConstants/ActionConstants";
-import { getCurrentApplicationId } from "selectors/editorSelectors";
+import { apiEditorIdURL } from "ee/RouteBuilder";
+import { convertToBaseParentEntityIdSelector } from "selectors/pageListSelectors";
 
 export function* curlImportSaga(action: ReduxAction<CurlImportRequest>) {
-  const { name, pageId, type } = action.payload;
+  const { contextId, contextType, name, type } = action.payload;
   let { curl } = action.payload;
+
   try {
     curl = transformCurlImport(curl);
-    const organizationId = yield select(getCurrentOrgId);
+    const workspaceId: string = yield select(getCurrentWorkspaceId);
     const request: CurlImportRequest = {
       type,
-      pageId,
+      contextId,
       name,
       curl,
-      organizationId,
+      workspaceId,
+      contextType,
     };
 
-    const response: ApiResponse = yield CurlImportApi.curlImport(request);
-    const isValidResponse = yield validateResponse(response);
-    const applicationId = yield select(getCurrentApplicationId);
+    const response: ApiResponse<{ id: string; baseId: string }> =
+      yield CurlImportApi.curlImport(request);
+    const isValidResponse: boolean = yield validateResponse(response);
 
     if (isValidResponse) {
       AnalyticsUtil.logEvent("IMPORT_API", {
         importSource: CURL,
       });
 
-      Toaster.show({
-        text: createMessage(CURL_IMPORT_SUCCESS),
-        variant: Variant.success,
-      });
       yield put({
         type: ReduxActionTypes.SUBMIT_CURL_FORM_SUCCESS,
         payload: response.data,
       });
+      const baseParentEntityId: string = yield select(
+        convertToBaseParentEntityIdSelector,
+        contextId,
+      );
 
-      history.push(API_EDITOR_ID_URL(applicationId, pageId, response.data.id));
+      history.push(
+        apiEditorIdURL({
+          baseParentEntityId: baseParentEntityId,
+          baseApiId: response.data.baseId,
+        }),
+      );
     }
   } catch (error) {
     yield put({
